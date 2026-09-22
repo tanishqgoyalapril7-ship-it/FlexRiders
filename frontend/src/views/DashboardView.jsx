@@ -208,28 +208,38 @@ export function DashboardView({
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {pendingRiders.slice(0, 5).map((r) => (
-                <div key={r.id} className="pending-rider-card">
-                  <div className="pending-rider-info">
-                    <span className="pending-rider-id">{r.rider_id}</span>
-                    <span className="pending-rider-name">{r.full_name}</span>
-                    <span className="pending-rider-meta">
-                      {r.current_company || 'Independent'} • {r.primary_city}
-                    </span>
-                  </div>
-                  <div className="pending-rider-actions">
-                    <button className="btn-sm-view" onClick={() => onViewRider(r)}>
-                      View
-                    </button>
-                    <button className="btn-sm-approve" onClick={() => onApproveRider(r.id)}>
-                      Approve
-                    </button>
-                    <button className="btn-sm-reject" onClick={() => onRejectRider(r.id)}>
-                      Reject
-                    </button>
+              {pendingRiders.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '24px 12px', color: '#94A3B8', fontSize: '0.8rem' }}>
+                  <CheckCircle2 size={24} color="#10B981" style={{ margin: '0 auto 6px' }} />
+                  <div style={{ fontWeight: 600, color: '#475569' }}>All Caught Up!</div>
+                  <div style={{ fontSize: '0.72rem', color: '#94A3B8', marginTop: '2px' }}>
+                    0 pending rider reviews. New registrations from the mobile app will stream in live.
                   </div>
                 </div>
-              ))}
+              ) : (
+                pendingRiders.slice(0, 5).map((r) => (
+                  <div key={r.id} className="pending-rider-card">
+                    <div className="pending-rider-info">
+                      <span className="pending-rider-id">{r.rider_id}</span>
+                      <span className="pending-rider-name">{r.full_name}</span>
+                      <span className="pending-rider-meta">
+                        {r.current_company || 'Independent'} • {r.primary_city}
+                      </span>
+                    </div>
+                    <div className="pending-rider-actions">
+                      <button className="btn-sm-view" onClick={() => onViewRider(r)}>
+                        View
+                      </button>
+                      <button className="btn-sm-approve" onClick={() => onApproveRider(r.id)}>
+                        Approve
+                      </button>
+                      <button className="btn-sm-reject" onClick={() => onRejectRider(r.id)}>
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
@@ -348,24 +358,32 @@ export function DashboardView({
                 </tr>
               </thead>
               <tbody>
-                {recentRegistrations.slice(0, 6).map((r) => (
-                  <tr key={r.id}>
-                    <td>
-                      <strong style={{ color: '#2563EB', fontSize: '0.78rem' }}>{r.rider_id}</strong>
-                    </td>
-                    <td>{r.full_name}</td>
-                    <td>{r.current_company || 'Independent'}</td>
-                    <td>{r.primary_city}</td>
-                    <td>
-                      <span className={`status-pill pill-${r.status?.toLowerCase()}`}>{r.status}</span>
-                    </td>
-                    <td>
-                      <button className="btn-sm-view" onClick={() => onViewRider(r)}>
-                        View
-                      </button>
+                {recentRegistrations.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} style={{ textAlign: 'center', padding: '32px 16px', color: '#94A3B8', fontSize: '0.82rem' }}>
+                      No riders registered yet. Mobile app registrations will appear here in real time.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  recentRegistrations.slice(0, 6).map((r) => (
+                    <tr key={r.id}>
+                      <td>
+                        <strong style={{ color: '#2563EB', fontSize: '0.78rem' }}>{r.rider_id}</strong>
+                      </td>
+                      <td>{r.full_name}</td>
+                      <td>{r.current_company || 'Independent'}</td>
+                      <td>{r.primary_city}</td>
+                      <td>
+                        <span className={`status-pill pill-${r.status?.toLowerCase()}`}>{r.status}</span>
+                      </td>
+                      <td>
+                        <button className="btn-sm-view" onClick={() => onViewRider(r)}>
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -392,26 +410,34 @@ export function DashboardView({
                 </tr>
               </thead>
               <tbody>
-                {recentPayments.slice(0, 6).map((p) => (
-                  <tr key={p.id}>
-                    <td>
-                      <div>
-                        <strong>{p.rider_name}</strong>
-                        <div style={{ fontSize: '0.7rem', color: '#94A3B8' }}>{p.rider_sr_id}</div>
-                      </div>
-                    </td>
-                    <td>{p.brand_name || '-'}</td>
-                    <td>
-                      <strong>₹{p.amount?.toLocaleString('en-IN')}</strong>
-                    </td>
-                    <td style={{ fontSize: '0.76rem', color: '#64748B' }}>
-                      {new Date(p.payment_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-                    </td>
-                    <td>
-                      <span className={`status-pill pill-${p.status?.toLowerCase()}`}>{p.status}</span>
+                {recentPayments.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} style={{ textAlign: 'center', padding: '32px 16px', color: '#94A3B8', fontSize: '0.82rem' }}>
+                      No payment settlements recorded yet. Real-time payouts will be listed here.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  recentPayments.slice(0, 6).map((p) => (
+                    <tr key={p.id}>
+                      <td>
+                        <div>
+                          <strong>{p.rider_name}</strong>
+                          <div style={{ fontSize: '0.7rem', color: '#94A3B8' }}>{p.rider_sr_id}</div>
+                        </div>
+                      </td>
+                      <td>{p.brand_name || '-'}</td>
+                      <td>
+                        <strong>₹{Number(p.amount || 0).toLocaleString('en-IN')}</strong>
+                      </td>
+                      <td style={{ fontSize: '0.76rem', color: '#64748B' }}>
+                        {p.payment_date ? new Date(p.payment_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Recent'}
+                      </td>
+                      <td>
+                        <span className={`status-pill pill-${p.status?.toLowerCase()}`}>{p.status}</span>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

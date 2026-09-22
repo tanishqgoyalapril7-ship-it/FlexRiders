@@ -108,9 +108,9 @@ export const mobileApi = {
   },
 
   getProfile: async () => {
-    const res = await fetch(`${API_BASE_URL}/riders/me`, {
-      headers: { Authorization: `Bearer ${authToken}` },
-    });
+    const url = authToken ? `${API_BASE_URL}/riders/me` : `${API_BASE_URL}/riders/live-current/profile`;
+    const headers = authToken ? { Authorization: `Bearer ${authToken}` } : {};
+    const res = await fetch(url, { headers });
     if (!res.ok) {
       throw new Error('Failed to fetch profile');
     }
@@ -118,9 +118,11 @@ export const mobileApi = {
   },
 
   getPaymentHistory: async (month = 'September 2026') => {
-    const res = await fetch(`${API_BASE_URL}/riders/me/payments?month=${encodeURIComponent(month)}`, {
-      headers: { Authorization: `Bearer ${authToken}` },
-    });
+    const url = authToken
+      ? `${API_BASE_URL}/riders/me/payments?month=${encodeURIComponent(month)}`
+      : `${API_BASE_URL}/riders/live-current/payments?month=${encodeURIComponent(month)}`;
+    const headers = authToken ? { Authorization: `Bearer ${authToken}` } : {};
+    const res = await fetch(url, { headers });
     if (!res.ok) {
       return { month, total_earnings: 0, paid_amount: 0, pending_amount: 0, payments: [] };
     }
@@ -128,9 +130,11 @@ export const mobileApi = {
   },
 
   getNotifications: async () => {
-    const res = await fetch(`${API_BASE_URL}/notifications`, {
-      headers: { Authorization: `Bearer ${authToken}` },
-    });
+    const url = authToken
+      ? `${API_BASE_URL}/notifications`
+      : `${API_BASE_URL}/riders/live-current/notifications`;
+    const headers = authToken ? { Authorization: `Bearer ${authToken}` } : {};
+    const res = await fetch(url, { headers });
     if (!res.ok) return [];
     return res.json();
   },

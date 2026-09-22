@@ -84,9 +84,15 @@ export default function MobileSimulator({ onClose }) {
   useEffect(() => {
     const syncSimulatorData = async () => {
       try {
-        const riders = await api.getRiders();
+        const [riders, payments, notifs] = await Promise.all([
+          api.getRiders().catch(() => []),
+          api.getPayments().catch(() => []),
+          api.getNotifications().catch(() => []),
+        ]);
         if (riders && riders.length > 0) {
           const latestRider = riders[0];
+          const riderPayments = (payments || []).filter(p => p.rider_id === latestRider.id);
+          setPaymentsList(riderPayments);
           setRiderData({
             rider_id: latestRider.rider_id,
             full_name: latestRider.full_name,
@@ -96,7 +102,7 @@ export default function MobileSimulator({ onClose }) {
             role: latestRider.current_role || 'Rider',
             vehicle: latestRider.vehicle_type || 'Bike',
             location: `${latestRider.primary_city || ''} ${latestRider.primary_area || ''}`.trim() || 'Gurugram',
-            current_brand: latestRider.current_brand || 'Not Assigned Yet',
+            current_brand: latestRider.current_brand || (latestRider.status === 'PENDING' ? 'Pending Allocation' : 'Awaiting Brand'),
             status: latestRider.status || 'PENDING',
             upi_id: latestRider.upi_id || '',
             today_earnings: 0,
@@ -104,8 +110,26 @@ export default function MobileSimulator({ onClose }) {
             paid_earnings: latestRider.paid_earnings || 0,
             pending_earnings: latestRider.pending_earnings || 0,
           });
+        } else {
+          setRiderData({
+            rider_id: '',
+            full_name: 'No Registered Rider',
+            mobile_number: '',
+            email: '',
+            company: '',
+            role: 'Rider',
+            vehicle: 'Bike',
+            location: 'Gurugram',
+            current_brand: 'No Brand',
+            status: 'PENDING',
+            upi_id: '',
+            today_earnings: 0,
+            month_earnings: 0,
+            paid_earnings: 0,
+            pending_earnings: 0,
+          });
+          setPaymentsList([]);
         }
-        const notifs = await api.getNotifications();
         if (notifs && Array.isArray(notifs)) {
           setNotificationsList(notifs.map(n => ({
             id: n.id,
@@ -121,7 +145,7 @@ export default function MobileSimulator({ onClose }) {
       }
     };
     syncSimulatorData();
-    const interval = setInterval(syncSimulatorData, 3000);
+    const interval = setInterval(syncSimulatorData, 2000);
     return () => clearInterval(interval);
   }, []);
 
@@ -908,7 +932,9 @@ export default function MobileSimulator({ onClose }) {
                     <div style={{ width: '32px', height: '32px', borderRadius: '8px', background: '#FEF2F2', color: '#EF4444', margin: '0 auto 6px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <Bell size={16} />
                     </div>
-                    <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#334155' }}>Alerts (6)</span>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#334155' }}>
+                      Alerts {notificationsList.length > 0 ? `(${notificationsList.length})` : ''}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -965,37 +991,49 @@ export default function MobileSimulator({ onClose }) {
 
               {/* Transactions List */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {paymentsList.map((p) => (
-                  <div
-                    key={p.id}
-                    style={{
-                      background: '#FFFFFF',
-                      borderRadius: '12px',
-                      padding: '12px 14px',
-                      border: '1px solid #E2E8F0',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#EFF6FF', color: '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.75rem' }}>
-                        SR
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#0F172A' }}>{p.date}</div>
-                        <div style={{ fontSize: '0.68rem', color: '#94A3B8' }}>{p.brand}</div>
-                      </div>
-                    </div>
-
-                    <div style={{ textAlign: 'right' }}>
-                      <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#0F172A' }}>₹{p.amount?.toLocaleString('en-IN')}</div>
-                      <span className={`status-pill pill-${p.status.toLowerCase()}`} style={{ fontSize: '0.6rem', padding: '2px 6px' }}>
-                        {p.status}
-                      </span>
+                {paymentsList.length === 0 ? (
+                  <div style={{ textAlign: 'center', padding: '32px 16px', background: '#FFFFFF', borderRadius: '12px', border: '1px solid #E2E8F0' }}>
+                    <div style={{ fontSize: '1.8rem', marginBottom: '8px' }}>💳</div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#0F172A' }}>No Payouts Yet</div>
+                    <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '4px' }}>
+                      Real-time UPI payout settlements will be listed here as processed.
                     </div>
                   </div>
-                ))}
+                ) : (
+                  paymentsList.map((p) => (
+                    <div
+                      key={p.id}
+                      style={{
+                        background: '#FFFFFF',
+                        borderRadius: '12px',
+                        padding: '12px 14px',
+                        border: '1px solid #E2E8F0',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#EFF6FF', color: '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.75rem' }}>
+                          {(p.brand_name || 'SR').charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#0F172A' }}>
+                            {p.payment_date ? new Date(p.payment_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }) : 'Recent'}
+                          </div>
+                          <div style={{ fontSize: '0.68rem', color: '#64748B' }}>{p.brand_name || 'Direct Payout'}</div>
+                        </div>
+                      </div>
+
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontSize: '0.88rem', fontWeight: 700, color: '#0F172A' }}>₹{Number(p.amount || 0).toLocaleString('en-IN')}</div>
+                        <span className={`status-pill pill-${(p.status || 'PAID').toLowerCase()}`} style={{ fontSize: '0.6rem', padding: '2px 6px' }}>
+                          {p.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           )}
@@ -1014,7 +1052,7 @@ export default function MobileSimulator({ onClose }) {
               {/* Avatar Profile Card */}
               <div style={{ textAlign: 'center', marginBottom: '16px' }}>
                 <div style={{ width: '68px', height: '68px', borderRadius: '50%', background: '#2563EB', color: 'white', margin: '0 auto 8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.4rem', fontWeight: 800 }}>
-                  AC
+                  {riderData.full_name ? riderData.full_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'SR'}
                 </div>
                 <div style={{ fontWeight: 800, fontSize: '1.05rem', color: '#0F172A' }}>{riderData.full_name}</div>
                 <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '2px' }}>

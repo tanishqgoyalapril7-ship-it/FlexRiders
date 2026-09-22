@@ -167,5 +167,5 @@ def calculate_rider_earnings(db: Session, rider_id: int) -> Dict[str, Any]:
         "total_earnings": total,
         "paid_earnings": paid,
         "pending_earnings": pending,
-        "today_earnings": today_earnings or (850.0 if paid > 0 else 0.0),  # default to realistic daily amount if present
+        "today_earnings": today_earnings,
     }

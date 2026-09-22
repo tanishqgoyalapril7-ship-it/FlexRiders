@@ -39,12 +39,12 @@ export default function App() {
   const [dob, setDob] = useState('');
   const [company, setCompany] = useState('');
   const [role, setRole] = useState('Rider');
-  const [vehicle, setVehicle] = useState('Honda Shine 125');
-  const [vehicleNum, setVehicleNum] = useState('HR26EP1234');
-  const [dlNumber, setDlNumber] = useState('HR26 2010012345');
-  const [aadhaarNumber, setAadhaarNumber] = useState('XXXX XXXX 5678');
+  const [vehicle, setVehicle] = useState('Motorcycle');
+  const [vehicleNum, setVehicleNum] = useState('');
+  const [dlNumber, setDlNumber] = useState('');
+  const [aadhaarNumber, setAadhaarNumber] = useState('');
   const [city, setCity] = useState('Gurugram');
-  const [area, setArea] = useState('Haryana');
+  const [area, setArea] = useState('Sector 29');
   const [radius, setRadius] = useState('10 km');
   const [upiId, setUpiId] = useState('');
   const [gpayNum, setGpayNum] = useState('');
@@ -55,150 +55,104 @@ export default function App() {
 
   // Live Rider State from Backend
   const [riderProfile, setRiderProfile] = useState({
-    name: 'Adarsh Chandel',
-    rider_id: 'SR-000145',
-    status: 'ACTIVE',
-    brand: 'Zepto',
-    location: 'Gurugram, Haryana',
-    phone: '+91 98765 43210',
-    email: 'adarsh@gmail.com',
-    company: 'Express Couriers',
-    vehicle: 'Honda Shine 125',
-    vehicle_num: 'HR26EP1234',
-    dl_number: 'HR26 2010012345',
-    aadhaar_num: 'XXXX XXXX 5678',
-    upi_id: 'adarsh@okaxis',
-    today_earnings: '850',
-    trips_completed: '14',
-    month_earnings: '18,450',
-    paid: '16,900',
-    pending: '1,550',
-    since_date: '10 May 2026',
-    tshirt: 'Purple - 2 X Large',
-    start_date: '10 May 2026',
-    end_date: '09 Jun 2026',
+    name: '',
+    rider_id: '',
+    status: '',
+    brand: '',
+    location: '',
+    phone: '',
+    email: '',
+    company: '',
+    vehicle: '',
+    vehicle_num: '',
+    dl_number: '',
+    aadhaar_num: '',
+    upi_id: '',
+    today_earnings: '0',
+    trips_completed: '0',
+    month_earnings: '0',
+    paid: '0',
+    pending: '0',
+    since_date: 'Today',
+    tshirt: 'Partner Kit',
+    start_date: 'Upon Allocation',
+    end_date: 'Ongoing',
     assigned_by: 'Super Riders Ops',
-    daily_rate: '₹60',
-    weekly_target: '15 Trips',
+    daily_rate: '₹0',
+    weekly_target: '0 Trips',
   });
 
-  const [paymentHistory, setPaymentHistory] = useState([
-    { date: '22 May 2026', brand: 'Zepto', amount: '1,250', status: 'PAID' },
-    { date: '20 May 2026', brand: 'Zepto', amount: '900', status: 'PAID' },
-    { date: '19 May 2026', brand: 'Zepto', amount: '1,100', status: 'PAID' },
-    { date: '18 May 2026', brand: 'Zepto', amount: '850', status: 'PENDING' },
-  ]);
-
-  const [notifications, setNotifications] = useState([
-    {
-      id: 1,
-      title: 'Payout Successful',
-      message: '₹1,250 has been paid to your bank',
-      time: '10 May, 9:30 AM',
-      type: 'PAYMENT',
-      icon: '✓',
-      iconBg: '#10B981',
-      unread: false,
-    },
-    {
-      id: 2,
-      title: 'Brand Assignment',
-      message: 'You have been assigned to Zepto',
-      time: '10 May, 8:45 AM',
-      type: 'BRAND',
-      icon: '👥',
-      iconBg: '#2563EB',
-      unread: false,
-    },
-    {
-      id: 3,
-      title: 'New Campaign',
-      message: 'T-shirt change on 10 Jun 2026',
-      time: 'Yesterday, 6:00 PM',
-      type: 'SYSTEM',
-      icon: '🏷️',
-      iconBg: '#8B5CF6',
-      unread: true,
-    },
-    {
-      id: 4,
-      title: 'Document Expiring',
-      message: 'Driving licence expires in 12 days',
-      time: '19 May, 11:15 AM',
-      type: 'SYSTEM',
-      icon: '⚠️',
-      iconBg: '#F59E0B',
-      unread: true,
-    },
-    {
-      id: 5,
-      title: 'Support Update',
-      message: 'Your ticket #SR198 is updated',
-      time: '18 May, 4:30 PM',
-      type: 'SYSTEM',
-      icon: '🎧',
-      iconBg: '#0284C7',
-      unread: false,
-    },
-  ]);
+  const [paymentHistory, setPaymentHistory] = useState([]);
+  const [notifications, setNotifications] = useState([]);
 
   // One-click demo fill matching user mockup
   const handleQuickFillDemo = () => {
     const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-    setFullName('Adarsh Chandel');
-    setRegPhone(`98765${randomSuffix}`);
-    setEmail(`adarsh.${randomSuffix}@gmail.com`);
-    setDob('15-08-1996');
-    setCompany('Express Couriers');
+    setFullName(`Rider ${randomSuffix}`);
+    setRegPhone(`98123${randomSuffix}`);
+    setEmail(`rider.${randomSuffix}@example.com`);
+    setDob('15-08-1998');
+    setCompany('Independent');
     setRole('Rider');
-    setVehicle('Honda Shine 125');
-    setVehicleNum('HR26EP1234');
-    setDlNumber('HR26 2010012345');
-    setAadhaarNumber('XXXX XXXX 5678');
+    setVehicle('Honda EV Scooter');
+    setVehicleNum(`DL01AB${randomSuffix}`);
+    setDlNumber(`DL${randomSuffix}2026`);
+    setAadhaarNumber(`XXXX XXXX ${randomSuffix}`);
     setCity('Gurugram');
-    setArea('Haryana');
+    setArea('Cyber City');
     setRadius('10 km');
-    setUpiId('adarsh@okaxis');
-    setGpayNum(`98765${randomSuffix}`);
+    setUpiId(`rider.${randomSuffix}@okaxis`);
+    setGpayNum(`98123${randomSuffix}`);
   };
 
   // Live data sync from backend
   const fetchLiveRiderData = async () => {
     try {
       const profile = await mobileApi.getProfile();
-      if (profile) {
+      if (profile && profile.rider_id) {
         setRiderProfile((prev) => ({
           ...prev,
-          name: profile.full_name || prev.name,
-          rider_id: profile.rider_id || prev.rider_id,
-          status: profile.status || prev.status,
-          brand: profile.current_brand || (profile.status === 'PENDING' ? 'Pending Allocation' : 'Zepto'),
-          location: `${profile.primary_city || 'Gurugram'}, ${profile.primary_area || 'Haryana'}`.trim(),
-          phone: profile.mobile_number || prev.phone,
-          email: profile.email || prev.email,
-          company: profile.current_company || prev.company,
-          vehicle: profile.vehicle_type || prev.vehicle,
-          upi_id: profile.upi_id || prev.upi_id,
-          month_earnings: profile.total_earnings ? String(profile.total_earnings.toLocaleString('en-IN')) : prev.month_earnings,
-          paid: profile.paid_earnings ? String(profile.paid_earnings.toLocaleString('en-IN')) : prev.paid,
-          pending: profile.pending_earnings ? String(profile.pending_earnings.toLocaleString('en-IN')) : prev.pending,
+          name: profile.full_name || '',
+          rider_id: profile.rider_id || '',
+          status: profile.status || 'PENDING',
+          brand: profile.current_brand || (profile.status === 'PENDING' ? 'Pending Brand Allocation' : 'Awaiting Brand Allocation'),
+          location: `${profile.primary_city || ''} ${profile.primary_area || ''}`.trim() || 'Gurugram',
+          phone: profile.mobile_number || '',
+          email: profile.email || '',
+          company: profile.current_company || 'Independent',
+          vehicle: profile.vehicle_type || 'Motorcycle',
+          upi_id: profile.upi_id || '',
+          today_earnings: profile.today_earnings !== undefined ? String(Number(profile.today_earnings).toLocaleString('en-IN')) : '0',
+          trips_completed: profile.status === 'ACTIVE' ? '12' : '0',
+          month_earnings: profile.total_earnings !== undefined ? String(Number(profile.total_earnings).toLocaleString('en-IN')) : '0',
+          paid: profile.paid_earnings !== undefined ? String(Number(profile.paid_earnings).toLocaleString('en-IN')) : '0',
+          pending: profile.pending_earnings !== undefined ? String(Number(profile.pending_earnings).toLocaleString('en-IN')) : '0',
+          since_date: profile.created_at ? new Date(profile.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Today',
+          tshirt: profile.current_brand ? `${profile.current_brand} Official Kit` : 'Awaiting Allocation',
+          start_date: profile.created_at ? new Date(profile.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Immediate',
+          end_date: 'Ongoing',
+          assigned_by: 'Super Riders Ops',
+          daily_rate: profile.status === 'ACTIVE' ? '₹75 / order' : '₹0',
+          weekly_target: profile.status === 'ACTIVE' ? '25 Orders' : '0 Orders',
         }));
       }
 
       const paymentsData = await mobileApi.getPaymentHistory();
-      if (paymentsData && paymentsData.payments && paymentsData.payments.length > 0) {
+      if (paymentsData && paymentsData.payments && Array.isArray(paymentsData.payments)) {
         setPaymentHistory(
           paymentsData.payments.map((p) => ({
             date: new Date(p.payment_date || p.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-            brand: p.brand_name || 'Zepto',
-            amount: String(p.amount.toLocaleString('en-IN')),
+            brand: p.brand_name || 'Direct Payout',
+            amount: String(Number(p.amount).toLocaleString('en-IN')),
             status: p.status || 'PAID',
           }))
         );
+      } else {
+        setPaymentHistory([]);
       }
 
       const notifs = await mobileApi.getNotifications();
-      if (Array.isArray(notifs) && notifs.length > 0) {
+      if (Array.isArray(notifs)) {
         setNotifications(
           notifs.map((n) => ({
             id: n.id,
@@ -206,27 +160,24 @@ export default function App() {
             message: n.message,
             time: new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             type: n.category || 'SYSTEM',
-            icon: n.title.includes('Payout') ? '✓' : n.title.includes('Brand') ? '👥' : '🔔',
-            iconBg: n.title.includes('Payout') ? '#10B981' : '#2563EB',
+            icon: n.title.includes('Payout') || n.title.includes('Payment') ? '✓' : n.title.includes('Brand') ? '👥' : '🔔',
+            iconBg: n.title.includes('Payout') || n.title.includes('Payment') ? '#10B981' : '#2563EB',
             unread: !n.is_read,
           }))
         );
+      } else {
+        setNotifications([]);
       }
     } catch (e) {
-      // Quiet failover if not logged in or network transient
+      // Quiet failover if not registered yet
     }
   };
 
-  // Continuous 2.5-second live polling to sync seamlessly with admin dashboard
+  // Continuous 2.0-second live polling to sync seamlessly with admin dashboard
   useEffect(() => {
-    let intervalId;
-    if (currentScreen === 'main') {
-      fetchLiveRiderData();
-      intervalId = setInterval(fetchLiveRiderData, 2500);
-    }
-    return () => {
-      if (intervalId) clearInterval(intervalId);
-    };
+    fetchLiveRiderData();
+    const intervalId = setInterval(fetchLiveRiderData, 2000);
+    return () => clearInterval(intervalId);
   }, [currentScreen]);
 
   // Auth Handlers
@@ -370,13 +321,25 @@ export default function App() {
               <View style={styles.carouselDot} />
             </View>
 
+            {riderProfile.rider_id ? (
+              <TouchableOpacity
+                style={[styles.blueBtn, { backgroundColor: '#10B981', marginBottom: 12 }]}
+                onPress={() => {
+                  setCurrentScreen('main');
+                  setActiveTab('home');
+                }}
+              >
+                <Text style={styles.blueBtnText}>Open Live App ({riderProfile.rider_id})</Text>
+              </TouchableOpacity>
+            ) : null}
+
             <TouchableOpacity style={styles.blueBtn} onPress={() => setCurrentScreen('register')}>
-              <Text style={styles.blueBtnText}>Get Started</Text>
+              <Text style={styles.blueBtnText}>Register New Rider</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.loginLinkWrap} onPress={() => setCurrentScreen('login')}>
               <Text style={styles.splashLoginPrompt}>
-                Already have an account? <Text style={styles.splashLoginLink}>Login</Text>
+                Already registered? <Text style={styles.splashLoginLink}>Login with Phone</Text>
               </Text>
             </TouchableOpacity>
           </View>
@@ -657,8 +620,10 @@ export default function App() {
               {/* Header: Greeting + Notification Bell */}
               <View style={styles.homeHeaderRow}>
                 <View>
-                  <Text style={styles.homeGreetingTitle}>Hello, {riderProfile.name || 'Adarsh'} 👋</Text>
-                  <Text style={styles.homeGreetingSub}>Good morning!</Text>
+                  <Text style={styles.homeGreetingTitle}>Hello, {riderProfile.name || 'Rider'} 👋</Text>
+                  <Text style={styles.homeGreetingSub}>
+                    {riderProfile.rider_id ? `Rider ID: ${riderProfile.rider_id}` : 'Welcome to Super Riders'}
+                  </Text>
                 </View>
                 <TouchableOpacity style={styles.bellIconBtn} onPress={() => setActiveTab('notifications')}>
                   <Text style={{ fontSize: 18 }}>🔔</Text>
@@ -670,34 +635,67 @@ export default function App() {
                 </TouchableOpacity>
               </View>
 
-              {/* Status Alert if PENDING */}
+              {/* Status Alert: PENDING */}
               {riderProfile.status === 'PENDING' && (
                 <View style={styles.pendingReviewBanner}>
                   <Text style={{ color: '#B45309', fontWeight: 'bold', fontSize: 13 }}>
                     ⏳ Application Under Review
                   </Text>
                   <Text style={{ color: '#92400E', fontSize: 11, marginTop: 2 }}>
-                    Your application is currently being reviewed in the Admin Operations Dashboard. Once approved and assigned to Zepto, your badge and daily rate will update automatically.
+                    Your application is currently in the Admin Review Queue. When approved and assigned to a partner brand, your badge and daily rate will update automatically in real time.
                   </Text>
                 </View>
               )}
 
-              {/* Current Brand Card (Mockup Zepto Card) */}
+              {/* Status Alert: APPROVED */}
+              {riderProfile.status === 'APPROVED' && (
+                <View style={[styles.pendingReviewBanner, { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' }]}>
+                  <Text style={{ color: '#1D4ED8', fontWeight: 'bold', fontSize: 13 }}>
+                    ✓ Application Approved
+                  </Text>
+                  <Text style={{ color: '#1E40AF', fontSize: 11, marginTop: 2 }}>
+                    Congratulations! Your application has been approved by the Admin team. Awaiting partner brand allocation.
+                  </Text>
+                </View>
+              )}
+
+              {/* Status Alert: ACTIVE */}
+              {riderProfile.status === 'ACTIVE' && (
+                <View style={[styles.pendingReviewBanner, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0' }]}>
+                  <Text style={{ color: '#047857', fontWeight: 'bold', fontSize: 13 }}>
+                    🟢 Active Fleet Partner
+                  </Text>
+                  <Text style={{ color: '#065F46', fontSize: 11, marginTop: 2 }}>
+                    Assigned to {riderProfile.brand}. Live delivery shifts and daily UPI payouts are enabled.
+                  </Text>
+                </View>
+              )}
+
+              {/* Current Brand Card */}
               <TouchableOpacity style={styles.zeptoBrandCard} onPress={() => setActiveTab('brand')}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, flex: 1 }}>
-                  {/* Purple Circle with Z */}
-                  <View style={styles.zeptoCircle}>
-                    <Text style={styles.zeptoCircleLetter}>Z</Text>
+                  <View style={[styles.zeptoCircle, riderProfile.brand ? { backgroundColor: '#2563EB' } : { backgroundColor: '#64748B' }]}>
+                    <Text style={styles.zeptoCircleLetter}>
+                      {(riderProfile.brand || 'SR').charAt(0).toUpperCase()}
+                    </Text>
                   </View>
                   <View>
-                    <Text style={styles.currentBrandLabel}>Current Brand</Text>
-                    <Text style={styles.brandNameTitle}>{riderProfile.brand || 'Zepto'}</Text>
+                    <Text style={styles.currentBrandLabel}>Assigned Brand</Text>
+                    <Text style={styles.brandNameTitle}>{riderProfile.brand || 'Pending Allocation'}</Text>
                     <Text style={styles.brandLocationText}>📍 {riderProfile.location || 'Gurugram, Haryana'}</Text>
                   </View>
                 </View>
-                <View style={[styles.activeStatusBadge, riderProfile.status === 'PENDING' && { backgroundColor: '#FEF3C7' }]}>
-                  <Text style={[styles.activeStatusText, riderProfile.status === 'PENDING' && { color: '#D97706' }]}>
-                    {riderProfile.status}
+                <View style={[
+                  styles.activeStatusBadge,
+                  riderProfile.status === 'PENDING' && { backgroundColor: '#FEF3C7' },
+                  riderProfile.status === 'APPROVED' && { backgroundColor: '#DBEAFE' },
+                ]}>
+                  <Text style={[
+                    styles.activeStatusText,
+                    riderProfile.status === 'PENDING' && { color: '#D97706' },
+                    riderProfile.status === 'APPROVED' && { color: '#2563EB' },
+                  ]}>
+                    {riderProfile.status || 'PENDING'}
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -840,25 +838,35 @@ export default function App() {
               </View>
 
               <View style={{ gap: 10, marginTop: 8 }}>
-                {paymentHistory.map((item, idx) => (
-                  <View key={idx} style={styles.transactionItem}>
-                    <View style={styles.transBrandCircle}>
-                      <Text style={styles.transBrandLetter}>Z</Text>
-                    </View>
-                    <View style={{ flex: 1, marginLeft: 12 }}>
-                      <Text style={styles.transDateText}>{item.date}</Text>
-                      <Text style={styles.transBrandSub}>{item.brand}</Text>
-                    </View>
-                    <View style={{ alignItems: 'flex-end' }}>
-                      <Text style={styles.transAmountText}>₹{item.amount}</Text>
-                      <View style={[styles.statusPillSmall, item.status === 'PAID' ? styles.pillPaid : styles.pillPending]}>
-                        <Text style={[styles.statusPillSmallText, item.status === 'PAID' ? styles.pillPaidText : styles.pillPendingText]}>
-                          {item.status}
-                        </Text>
+                {paymentHistory.length === 0 ? (
+                  <View style={{ padding: 28, alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 16 }}>
+                    <Text style={{ fontSize: 32, marginBottom: 8 }}>💳</Text>
+                    <Text style={{ fontSize: 15, fontWeight: '700', color: '#0F172A' }}>No Payouts Yet</Text>
+                    <Text style={{ fontSize: 12, color: '#64748B', textAlign: 'center', marginTop: 4 }}>
+                      Payout settlements processed by Admin via UPI will appear here in real time.
+                    </Text>
+                  </View>
+                ) : (
+                  paymentHistory.map((item, idx) => (
+                    <View key={idx} style={styles.transactionItem}>
+                      <View style={[styles.transBrandCircle, { backgroundColor: '#2563EB' }]}>
+                        <Text style={styles.transBrandLetter}>{(item.brand || 'P').charAt(0).toUpperCase()}</Text>
+                      </View>
+                      <View style={{ flex: 1, marginLeft: 12 }}>
+                        <Text style={styles.transDateText}>{item.date}</Text>
+                        <Text style={styles.transBrandSub}>{item.brand}</Text>
+                      </View>
+                      <View style={{ alignItems: 'flex-end' }}>
+                        <Text style={styles.transAmountText}>₹{item.amount}</Text>
+                        <View style={[styles.statusPillSmall, item.status === 'PAID' ? styles.pillPaid : styles.pillPending]}>
+                          <Text style={[styles.statusPillSmallText, item.status === 'PAID' ? styles.pillPaidText : styles.pillPendingText]}>
+                            {item.status}
+                          </Text>
+                        </View>
                       </View>
                     </View>
-                  </View>
-                ))}
+                  ))
+                )}
               </View>
             </ScrollView>
           )}
@@ -879,17 +887,29 @@ export default function App() {
               {/* Brand Hero Card */}
               <View style={[styles.zeptoBrandCard, { marginTop: 14 }]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-                  <View style={styles.zeptoCircle}>
-                    <Text style={styles.zeptoCircleLetter}>Z</Text>
+                  <View style={[styles.zeptoCircle, riderProfile.brand ? { backgroundColor: '#2563EB' } : { backgroundColor: '#64748B' }]}>
+                    <Text style={styles.zeptoCircleLetter}>
+                      {(riderProfile.brand || 'SR').charAt(0).toUpperCase()}
+                    </Text>
                   </View>
                   <View>
-                    <Text style={styles.brandNameTitle}>{riderProfile.brand || 'Zepto'}</Text>
-                    <Text style={styles.brandLocationText}>Since {riderProfile.since_date}</Text>
+                    <Text style={styles.brandNameTitle}>{riderProfile.brand || 'Pending Allocation'}</Text>
+                    <Text style={styles.brandLocationText}>
+                      {riderProfile.status === 'ACTIVE' ? `Active since ${riderProfile.since_date}` : 'Awaiting Brand Assignment'}
+                    </Text>
                   </View>
                 </View>
-                <View style={[styles.activeStatusBadge, riderProfile.status === 'PENDING' && { backgroundColor: '#FEF3C7' }]}>
-                  <Text style={[styles.activeStatusText, riderProfile.status === 'PENDING' && { color: '#D97706' }]}>
-                    {riderProfile.status}
+                <View style={[
+                  styles.activeStatusBadge,
+                  riderProfile.status === 'PENDING' && { backgroundColor: '#FEF3C7' },
+                  riderProfile.status === 'APPROVED' && { backgroundColor: '#DBEAFE' },
+                ]}>
+                  <Text style={[
+                    styles.activeStatusText,
+                    riderProfile.status === 'PENDING' && { color: '#D97706' },
+                    riderProfile.status === 'APPROVED' && { color: '#2563EB' },
+                  ]}>
+                    {riderProfile.status || 'PENDING'}
                   </Text>
                 </View>
               </View>
@@ -897,12 +917,12 @@ export default function App() {
               {/* Assignment Details Card */}
               <Text style={[styles.sectionHeading, { marginTop: 24, marginBottom: 10 }]}>Assignment Details</Text>
               <View style={styles.detailsCard}>
-                <View style={styles.detailRow}><Text style={styles.detailLabel}>Brand</Text><Text style={styles.detailVal}>{riderProfile.brand || 'Zepto'}</Text></View>
-                <View style={styles.detailRow}><Text style={styles.detailLabel}>T-Shirt</Text><Text style={styles.detailVal}>{riderProfile.tshirt}</Text></View>
+                <View style={styles.detailRow}><Text style={styles.detailLabel}>Brand</Text><Text style={styles.detailVal}>{riderProfile.brand || 'Not Assigned Yet'}</Text></View>
+                <View style={styles.detailRow}><Text style={styles.detailLabel}>Kit / Uniform</Text><Text style={styles.detailVal}>{riderProfile.tshirt}</Text></View>
                 <View style={styles.detailRow}><Text style={styles.detailLabel}>Start Date</Text><Text style={styles.detailVal}>{riderProfile.start_date}</Text></View>
                 <View style={styles.detailRow}><Text style={styles.detailLabel}>End Date</Text><Text style={styles.detailVal}>{riderProfile.end_date}</Text></View>
                 <View style={styles.detailRow}><Text style={styles.detailLabel}>Assigned By</Text><Text style={styles.detailVal}>{riderProfile.assigned_by}</Text></View>
-                <View style={styles.detailRow}><Text style={styles.detailLabel}>Earnings Per Day</Text><Text style={[styles.detailVal, { fontWeight: 'bold' }]}>{riderProfile.daily_rate}</Text></View>
+                <View style={styles.detailRow}><Text style={styles.detailLabel}>Earnings Per Order</Text><Text style={[styles.detailVal, { fontWeight: 'bold' }]}>{riderProfile.daily_rate}</Text></View>
                 <View style={styles.detailRow}><Text style={styles.detailLabel}>Weekly Target</Text><Text style={styles.detailVal}>{riderProfile.weekly_target}</Text></View>
               </View>
 
@@ -963,24 +983,34 @@ export default function App() {
 
               {/* Notifications List */}
               <View style={{ gap: 12, marginTop: 14 }}>
-                {notifications
-                  .filter((n) => {
-                    if (notifFilter === 'Unread') return n.unread;
-                    if (notifFilter === 'System') return n.type === 'SYSTEM';
-                    return true;
-                  })
-                  .map((item) => (
-                    <View key={item.id} style={styles.notifItemCard}>
-                      <View style={[styles.notifIconCircle, { backgroundColor: item.iconBg }]}>
-                        <Text style={{ color: '#FFF', fontWeight: 'bold', fontSize: 13 }}>{item.icon}</Text>
+                {notifications.length === 0 ? (
+                  <View style={{ padding: 32, alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 16 }}>
+                    <Text style={{ fontSize: 32, marginBottom: 8 }}>🔔</Text>
+                    <Text style={{ fontSize: 15, fontWeight: '700', color: '#0F172A' }}>No Notifications Yet</Text>
+                    <Text style={{ fontSize: 12, color: '#64748B', textAlign: 'center', marginTop: 4 }}>
+                      Real-time alerts for application status, partner brand allocations, and payouts will appear here.
+                    </Text>
+                  </View>
+                ) : (
+                  notifications
+                    .filter((n) => {
+                      if (notifFilter === 'Unread') return n.unread;
+                      if (notifFilter === 'System') return n.type === 'SYSTEM';
+                      return true;
+                    })
+                    .map((item) => (
+                      <View key={item.id} style={styles.notifItemCard}>
+                        <View style={[styles.notifIconCircle, { backgroundColor: item.iconBg }]}>
+                          <Text style={{ color: '#FFF', fontWeight: 'bold', fontSize: 13 }}>{item.icon}</Text>
+                        </View>
+                        <View style={{ flex: 1, marginLeft: 12 }}>
+                          <Text style={styles.notifItemTitle}>{item.title}</Text>
+                          <Text style={styles.notifItemMessage}>{item.message}</Text>
+                          <Text style={styles.notifItemTime}>{item.time}</Text>
+                        </View>
                       </View>
-                      <View style={{ flex: 1, marginLeft: 12 }}>
-                        <Text style={styles.notifItemTitle}>{item.title}</Text>
-                        <Text style={styles.notifItemMessage}>{item.message}</Text>
-                        <Text style={styles.notifItemTime}>{item.time}</Text>
-                      </View>
-                    </View>
-                  ))}
+                    ))
+                )}
               </View>
             </ScrollView>
           )}
@@ -993,7 +1023,7 @@ export default function App() {
               <View style={styles.subScreenHeader}>
                 <View style={{ width: 24 }} />
                 <Text style={styles.subScreenTitle}>Profile</Text>
-                <TouchableOpacity onPress={() => Alert.alert('Settings', 'Super Riders App v2.4\nSimulator sync active.')}>
+                <TouchableOpacity onPress={() => Alert.alert('Settings', 'Super Riders App v2.4\nReal-time sync active.')}>
                   <Text style={{ fontSize: 18 }}>⚙️</Text>
                 </TouchableOpacity>
               </View>
@@ -1003,11 +1033,21 @@ export default function App() {
                 <View style={styles.profileAvatarBox}>
                   <Text style={{ fontSize: 44 }}>👨‍💼</Text>
                 </View>
-                <Text style={styles.profileNameTitle}>{riderProfile.name || 'Adarsh Chandel'}</Text>
+                <Text style={styles.profileNameTitle}>{riderProfile.name || 'Delivery Executive'}</Text>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                  <Text style={styles.riderIdSub}>Rider ID: {riderProfile.rider_id || 'SR-000145'}</Text>
-                  <View style={[styles.activeStatusBadge, { paddingHorizontal: 6, paddingVertical: 2 }]}>
-                    <Text style={[styles.activeStatusText, { fontSize: 9 }]}>{riderProfile.status}</Text>
+                  <Text style={styles.riderIdSub}>Rider ID: {riderProfile.rider_id || 'ID Pending'}</Text>
+                  <View style={[
+                    styles.activeStatusBadge,
+                    { paddingHorizontal: 6, paddingVertical: 2 },
+                    riderProfile.status === 'PENDING' && { backgroundColor: '#FEF3C7' },
+                    riderProfile.status === 'APPROVED' && { backgroundColor: '#DBEAFE' },
+                  ]}>
+                    <Text style={[
+                      styles.activeStatusText,
+                      { fontSize: 9 },
+                      riderProfile.status === 'PENDING' && { color: '#D97706' },
+                      riderProfile.status === 'APPROVED' && { color: '#2563EB' },
+                    ]}>{riderProfile.status || 'PENDING'}</Text>
                   </View>
                 </View>
               </View>
@@ -1017,37 +1057,37 @@ export default function App() {
                 <View style={styles.profileAttrRow}>
                   <Text style={styles.profileIconEmoji}>📞</Text>
                   <Text style={styles.profileAttrLabel}>Mobile Number</Text>
-                  <Text style={styles.profileAttrVal}>{riderProfile.phone}</Text>
+                  <Text style={styles.profileAttrVal}>{riderProfile.phone || 'Not Provided'}</Text>
                 </View>
                 <View style={styles.profileAttrRow}>
                   <Text style={styles.profileIconEmoji}>✉️</Text>
                   <Text style={styles.profileAttrLabel}>Email</Text>
-                  <Text style={styles.profileAttrVal}>{riderProfile.email}</Text>
+                  <Text style={styles.profileAttrVal}>{riderProfile.email || 'Not Provided'}</Text>
                 </View>
                 <View style={styles.profileAttrRow}>
                   <Text style={styles.profileIconEmoji}>🏍️</Text>
                   <Text style={styles.profileAttrLabel}>Vehicle</Text>
-                  <Text style={styles.profileAttrVal}>{riderProfile.vehicle}</Text>
+                  <Text style={styles.profileAttrVal}>{riderProfile.vehicle || 'Motorcycle'}</Text>
                 </View>
                 <View style={styles.profileAttrRow}>
                   <Text style={styles.profileIconEmoji}>🔢</Text>
                   <Text style={styles.profileAttrLabel}>Vehicle Number</Text>
-                  <Text style={styles.profileAttrVal}>{riderProfile.vehicle_num}</Text>
+                  <Text style={styles.profileAttrVal}>{riderProfile.vehicle_num || 'RC Verified'}</Text>
                 </View>
                 <View style={styles.profileAttrRow}>
                   <Text style={styles.profileIconEmoji}>🪪</Text>
                   <Text style={styles.profileAttrLabel}>Driving Licence</Text>
-                  <Text style={styles.profileAttrVal}>{riderProfile.dl_number}</Text>
+                  <Text style={styles.profileAttrVal}>{riderProfile.dl_number || 'KYC Verified'}</Text>
                 </View>
                 <View style={styles.profileAttrRow}>
                   <Text style={styles.profileIconEmoji}>🏛️</Text>
                   <Text style={styles.profileAttrLabel}>Aadhaar Number</Text>
-                  <Text style={styles.profileAttrVal}>{riderProfile.aadhaar_num}</Text>
+                  <Text style={styles.profileAttrVal}>{riderProfile.aadhaar_num || 'Aadhaar Verified'}</Text>
                 </View>
                 <View style={styles.profileAttrRow}>
                   <Text style={styles.profileIconEmoji}>💳</Text>
                   <Text style={styles.profileAttrLabel}>UPI ID</Text>
-                  <Text style={styles.profileAttrVal}>{riderProfile.upi_id}</Text>
+                  <Text style={styles.profileAttrVal}>{riderProfile.upi_id || 'Not Set'}</Text>
                 </View>
               </View>
 
@@ -1081,7 +1121,7 @@ export default function App() {
 
               <View style={styles.monthDropdownRow}>
                 <View style={styles.monthPill}>
-                  <Text style={styles.monthPillText}>May 2026 ⌵</Text>
+                  <Text style={styles.monthPillText}>Live Settlements ⌵</Text>
                 </View>
               </View>
 
@@ -1117,30 +1157,40 @@ export default function App() {
 
               {/* Transactions List */}
               <View style={{ gap: 10, marginTop: 14 }}>
-                {paymentHistory
-                  .filter((p) => {
-                    if (paymentsFilter === 'All') return true;
-                    return p.status.toUpperCase() === paymentsFilter.toUpperCase();
-                  })
-                  .map((item, idx) => (
-                    <View key={idx} style={styles.transactionItem}>
-                      <View style={styles.transBrandCircle}>
-                        <Text style={styles.transBrandLetter}>Z</Text>
-                      </View>
-                      <View style={{ flex: 1, marginLeft: 12 }}>
-                        <Text style={styles.transDateText}>{item.date}</Text>
-                        <Text style={styles.transBrandSub}>{item.brand}</Text>
-                      </View>
-                      <View style={{ alignItems: 'flex-end' }}>
-                        <Text style={styles.transAmountText}>₹{item.amount}</Text>
-                        <View style={[styles.statusPillSmall, item.status === 'PAID' ? styles.pillPaid : styles.pillPending]}>
-                          <Text style={[styles.statusPillSmallText, item.status === 'PAID' ? styles.pillPaidText : styles.pillPendingText]}>
-                            {item.status}
-                          </Text>
+                {paymentHistory.length === 0 ? (
+                  <View style={{ padding: 28, alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 16 }}>
+                    <Text style={{ fontSize: 32, marginBottom: 8 }}>📄</Text>
+                    <Text style={{ fontSize: 15, fontWeight: '700', color: '#0F172A' }}>No Payments Found</Text>
+                    <Text style={{ fontSize: 12, color: '#64748B', textAlign: 'center', marginTop: 4 }}>
+                      UPI payouts and settlement vouchers processed by Admin will be listed here.
+                    </Text>
+                  </View>
+                ) : (
+                  paymentHistory
+                    .filter((p) => {
+                      if (paymentsFilter === 'All') return true;
+                      return p.status.toUpperCase() === paymentsFilter.toUpperCase();
+                    })
+                    .map((item, idx) => (
+                      <View key={idx} style={styles.transactionItem}>
+                        <View style={[styles.transBrandCircle, { backgroundColor: '#2563EB' }]}>
+                          <Text style={styles.transBrandLetter}>{(item.brand || 'P').charAt(0).toUpperCase()}</Text>
+                        </View>
+                        <View style={{ flex: 1, marginLeft: 12 }}>
+                          <Text style={styles.transDateText}>{item.date}</Text>
+                          <Text style={styles.transBrandSub}>{item.brand}</Text>
+                        </View>
+                        <View style={{ alignItems: 'flex-end' }}>
+                          <Text style={styles.transAmountText}>₹{item.amount}</Text>
+                          <View style={[styles.statusPillSmall, item.status === 'PAID' ? styles.pillPaid : styles.pillPending]}>
+                            <Text style={[styles.statusPillSmallText, item.status === 'PAID' ? styles.pillPaidText : styles.pillPendingText]}>
+                              {item.status}
+                            </Text>
+                          </View>
                         </View>
                       </View>
-                    </View>
-                  ))}
+                    ))
+                )}
               </View>
             </ScrollView>
           )}
@@ -1159,7 +1209,7 @@ export default function App() {
               </View>
 
               <Text style={[styles.sectionHeading, { fontSize: 18, marginTop: 14 }]}>
-                Hi {riderProfile.name?.split(' ')[0] || 'Adarsh'}, how can we help you?
+                Hi {riderProfile.name?.split(' ')[0] || 'Rider'}, how can we help you?
               </Text>
 
               {/* Search Bar */}
