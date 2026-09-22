@@ -1,0 +1,40 @@
+{
+  "expo": {
+    "name": "Super Riders",
+    "slug": "super-riders",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#0B1528"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.superriders.riderapp",
+      "buildNumber": "1",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Super Riders requires camera access to capture KYC documents and profile photos.",
+        "NSPhotoLibraryUsageDescription": "Super Riders requires photo library access to upload driving license and vehicle registration documents.",
+        "NSLocationWhenInUseUsageDescription": "Super Riders requires your location to assign hyper-local delivery orders."
+      }
+    },
+    "android": {
+      "package": "com.superriders.riderapp",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#0B1528"
+      },
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION"
+      ]
+    }
+  }
+}
