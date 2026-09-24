@@ -1,7 +1,10 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+// Production: served at flexriders.in/admin (the landing site forwards /admin here), built with
+// `npm run build:admin`. Dev keeps the root path.
 export default defineConfig({
+  base: process.env.VITE_BASE || '/',
   plugins: [react()],
   server: {
     // Fixed port: the landing page's "Admin Login" button links here. strictPort stops Vite from silently
