@@ -25,7 +25,7 @@ function WeekChart({ days }) {
   );
 }
 
-export default function EarningsScreen({ rider, earnings, payments, onBack, onViewAll }) {
+export default function EarningsScreen({ earnings, payments, onBack, onViewAll }) {
   const styles = useStyles(makeStyles);
   const periods = [
     ['Today', earnings.today],
@@ -37,7 +37,7 @@ export default function EarningsScreen({ rider, earnings, payments, onBack, onVi
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
       <ScreenHeader title="Earnings" onBack={onBack} />
-      <WalletCard label="Total Earnings" amount={rider.total} paid={rider.paid} pending={rider.pending} />
+      <WalletCard label="Total Earnings" amount={earnings.total} paid={earnings.paid} pending={earnings.pending} />
 
       <SectionHeader title="Last 7 Days" />
       <WeekChart days={earnings.lastSevenDays} />
@@ -50,6 +50,30 @@ export default function EarningsScreen({ rider, earnings, payments, onBack, onVi
           </Card>
         ))}
       </View>
+
+      <SectionHeader title="Campaign Earnings" />
+      {earnings.campaigns.length === 0 ? (
+        <EmptyState icon="flag-outline" title="No campaign earnings yet" message="Each completed Photo-Day (Morning, Evening and Night approved) earns the campaign's daily rate." />
+      ) : (
+        <Card style={{ paddingVertical: 4 }}>
+          {earnings.campaigns.map((c, i) => (
+            <View key={`${c.campaign_id}-${i}`} style={[styles.campaignRow, i === earnings.campaigns.length - 1 && { borderBottomWidth: 0 }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.campaignName}>{c.campaign_name}</Text>
+                <Text style={styles.campaignMeta}>
+                  {c.approved_days} approved day{c.approved_days === 1 ? '' : 's'} × {formatINR(c.daily_rate)}
+                </Text>
+              </View>
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={styles.campaignEarned}>{formatINR(c.earned)}</Text>
+                <Text style={styles.campaignMeta}>
+                  Paid {formatINR(c.paid)} · Pending {formatINR(c.pending)}
+                </Text>
+              </View>
+            </View>
+          ))}
+        </Card>
+      )}
 
       <SectionHeader title="Recent Transactions" actionLabel={payments.length ? 'View All' : null} onAction={onViewAll} />
       {payments.length === 0 ? (
@@ -78,6 +102,10 @@ const makeStyles = (c) =>
     chartEmpty: { fontSize: 12, color: c.textMuted, textAlign: 'center', marginTop: 10 },
     periodGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12, marginTop: 12 },
     periodCard: { width: '48.5%', paddingVertical: 14 },
+    campaignRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: c.border },
+    campaignName: { fontSize: 14.5, fontWeight: '700', color: c.text },
+    campaignMeta: { fontSize: 12, color: c.textMuted, marginTop: 3 },
+    campaignEarned: { fontSize: 16, fontWeight: '800', color: c.text },
     periodLabel: { fontSize: 12, color: c.textMuted },
     periodValue: { fontSize: 20, fontWeight: '800', color: c.primary, marginTop: 4 },
   });

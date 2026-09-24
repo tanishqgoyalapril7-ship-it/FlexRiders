@@ -173,6 +173,9 @@ export const mobileApi = {
   getPaymentHistory: () => authedGet('/riders/me/payments'),
 
   getNotifications: () => authedGet('/notifications'),
+  // One earnings calculation shared with the admin dashboard and campaign screens.
+  getEarnings: () => authedGet('/riders/me/earnings'),
+  getReferrals: () => authedGet('/riders/me/referrals'),
 
   // Campaigns
   getCampaigns: () => authedGet('/riders/me/campaigns'),
@@ -187,9 +190,10 @@ export const mobileApi = {
 
   withdrawCampaignRequest: (campaignId) => authedPost(`/riders/me/campaigns/${campaignId}/withdraw`),
 
-  uploadCampaignProof: async (campaignId, photo) => {
+  uploadCampaignProof: async (campaignId, photo, slot) => {
     const form = new FormData();
     form.append('photo', { uri: photo.uri, name: photo.fileName || 'proof.jpg', type: photo.mimeType || 'image/jpeg' });
+    if (slot) form.append('slot', slot); // MORNING / EVENING / NIGHT
     const res = await fetch(`${API_BASE_URL}/riders/me/campaigns/${campaignId}/activity`, {
       timeoutMs: 60000, // Photo uploads can be slow on mobile data
       method: 'POST',

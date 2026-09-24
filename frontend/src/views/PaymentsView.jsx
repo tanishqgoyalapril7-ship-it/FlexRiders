@@ -124,6 +124,11 @@ export default function PaymentsView({
                   </td>
                   <td>
                     <span className={`status-pill pill-${p.status?.toLowerCase()}`}>{p.status}</span>
+                    {p.category === 'REFERRAL_REWARD' || p.category === 'TSHIRT_RETURN_INCENTIVE' ? (
+                      <div style={{ fontSize: '0.7rem', color: '#7C3AED', fontWeight: 700, marginTop: 4 }} title={p.notes || ''}>
+                        {p.category === 'REFERRAL_REWARD' ? 'Referral reward' : 'T-shirt Return Incentive'}
+                      </div>
+                    ) : null}
                   </td>
                   <td>
                     {p.status === 'PENDING' && (

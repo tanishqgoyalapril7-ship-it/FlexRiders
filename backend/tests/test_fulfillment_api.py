@@ -8,6 +8,8 @@ from app.core.security import UserRole, get_password_hash
 from app.models.all_models import Brand, Rider, RiderStatus, User
 from app.services.campaign_service import today_ist
 
+from tests.conftest import before_start
+
 API = "/api/v1"
 
 
@@ -55,13 +57,16 @@ def test_fulfillment_endpoints(client, db_session, admin_headers):
     rider = db_session.query(Rider).filter(Rider.mobile_number == "9100000099").first()
     rider.status = RiderStatus.APPROVED
     db_session.commit()
-    assert client.post(f"{API}/riders/me/campaigns/{cid}/join", headers=rider_headers).status_code == 400
-    assert client.post(f"{API}/riders/me/campaigns/{cid}/join", json={"tshirt_size": "L"}, headers=rider_headers).status_code == 200
-    app_id = client.get(f"{API}/campaigns/{cid}/applications", headers=admin_headers).json()[0]["id"]
-    # The T-shirt must be collected before the rider can be approved.
-    assert client.post(f"{API}/campaigns/{cid}/applications/{app_id}/approve", headers=admin_headers).status_code == 400
-    client.post(f"{API}/campaigns/{cid}/applications/{app_id}/kit", json={"collected": True}, headers=admin_headers)
-    assert client.post(f"{API}/campaigns/{cid}/applications/{app_id}/approve", headers=admin_headers).status_code == 200
+    # It started today, so it's live: new riders can't join any more.
+    assert "already started" in client.post(f"{API}/riders/me/campaigns/{cid}/join", json={"tshirt_size": "L"}, headers=rider_headers).json()["detail"]
+    with before_start(db_session, cid):  # As if the rider had joined before the start date
+        assert client.post(f"{API}/riders/me/campaigns/{cid}/join", headers=rider_headers).status_code == 400
+        assert client.post(f"{API}/riders/me/campaigns/{cid}/join", json={"tshirt_size": "L"}, headers=rider_headers).status_code == 200
+        app_id = client.get(f"{API}/campaigns/{cid}/applications", headers=admin_headers).json()[0]["id"]
+        # The T-shirt must be collected before the rider can be approved.
+        assert client.post(f"{API}/campaigns/{cid}/applications/{app_id}/approve", headers=admin_headers).status_code == 400
+        client.post(f"{API}/campaigns/{cid}/applications/{app_id}/kit", json={"collected": True}, headers=admin_headers)
+        assert client.post(f"{API}/campaigns/{cid}/applications/{app_id}/approve", headers=admin_headers).status_code == 200
     kits = client.get(f"{API}/campaigns/{cid}/brand-kit", headers=admin_headers).json()["riders"]
     assert kits[0]["tshirt_size"] == "L" and kits[0]["status"] == "COLLECTED" and kits[0]["collected_date"]
     detail = client.get(f"{API}/riders/me/campaigns/{cid}", headers=rider_headers).json()

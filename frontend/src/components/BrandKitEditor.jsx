@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { ExternalLink, MapPin, Pencil, Phone, Plus, Shirt, Trash2, X } from 'lucide-react';
+import { ExternalLink, MapPin, Pencil, Phone, Plus, RotateCcw, Shirt, Trash2, X } from 'lucide-react';
 import { api } from '../services/api';
-import { toast } from './Feedback';
-import { EmptyState, formatDate } from './CampaignShared';
+import { DangerDialog, toast } from './Feedback';
+import { EmptyState, formatDate, formatINR } from './CampaignShared';
 
 export const KIT_STATUS_LABELS = {
   NOT_REQUIRED: 'Not Required',
@@ -11,10 +11,12 @@ export const KIT_STATUS_LABELS = {
   COLLECTED: 'Collected',
 };
 const KIT_PILL = { NOT_REQUIRED: 'pill-draft', PENDING: 'pill-at_risk', READY_FOR_PICKUP: 'pill-open', COLLECTED: 'pill-on_track' };
+const RETURN_PILL = { NOT_REQUIRED: 'pill-draft', PENDING: 'pill-at_risk', RETURNED: 'pill-open', INCENTIVE_CREDITED: 'pill-on_track' };
+const isReturn = (l) => l.purpose === 'RETURN';
 
 const LOCATION_FIELDS = [
   'name', 'address', 'map_url', 'available_from', 'available_to', 'available_days', 'start_time', 'end_time',
-  'contact_name', 'contact_phone', 'instructions',
+  'contact_name', 'contact_phone', 'instructions', 'purpose',
 ];
 
 const to12h = (t) => {
@@ -46,7 +48,11 @@ export const kitToDraft = (kit) => ({
   tshirt_required: Boolean(kit && kit.tshirt_required),
   size_options: ((kit && kit.size_options) || ['S', 'M', 'L', 'XL', 'XXL']).join(', '),
   instructions: (kit && kit.instructions) || '',
-  locations: ((kit && kit.locations) || []).map((l) => ({ ...l, _key: `l${l.id}` })),
+  return_required: kit ? kit.return_required_setting !== false : true,
+  return_incentive: String(kit && kit.return_incentive != null ? kit.return_incentive : 50),
+  return_instructions: (kit && kit.return_instructions) || '',
+  // Pickup and return points share one list; `purpose` tells them apart.
+  locations: [...((kit && kit.locations) || []), ...((kit && kit.return_locations) || [])].map((l) => ({ ...l, _key: `l${l.id}` })),
 });
 
 const cleanLocation = (l) =>
@@ -62,12 +68,18 @@ export async function syncBrandKit(campaignId, draft, originalKit) {
     !originalKit ||
     draft.tshirt_required !== original.tshirt_required ||
     draft.size_options.replace(/\s/g, '') !== original.size_options.replace(/\s/g, '') ||
-    draft.instructions.trim() !== original.instructions.trim();
+    draft.instructions.trim() !== original.instructions.trim() ||
+    draft.return_required !== original.return_required ||
+    Number(draft.return_incentive || 0) !== Number(original.return_incentive || 0) ||
+    draft.return_instructions.trim() !== original.return_instructions.trim();
   if (settingsChanged) {
     await api.updateBrandKit(campaignId, {
       tshirt_required: draft.tshirt_required,
       size_options: draft.size_options,
       instructions: draft.instructions,
+      return_required: draft.return_required,
+      return_incentive: Number(draft.return_incentive || 0),
+      return_instructions: draft.return_instructions,
     });
   }
   const kept = new Set(draft.locations.filter((l) => l.id).map((l) => l.id));
@@ -99,16 +111,17 @@ export async function syncBrandKit(campaignId, draft, originalKit) {
 
 function LocationFormModal({ location, onClose, onSave }) {
   const [form, setForm] = useState(() => Object.fromEntries(LOCATION_FIELDS.map((f) => [f, (location && location[f]) || ''])));
+  const kind = form.purpose === 'RETURN' ? 'Return' : 'Pickup';
   const [error, setError] = useState('');
   const set = (key) => (e) => setForm((prev) => ({ ...prev, [key]: e.target.value }));
 
   const submit = (e) => {
     e.preventDefault();
-    if (form.name.trim().length < 2) return setError('Enter the pickup location name.');
-    if (form.address.trim().length < 5) return setError('Enter the full pickup address.');
+    if (form.name.trim().length < 2) return setError(`Enter the ${kind.toLowerCase()} location name.`);
+    if (form.address.trim().length < 5) return setError(`Enter the full ${kind.toLowerCase()} address.`);
     if (form.map_url && !/^https?:\/\//.test(form.map_url.trim())) return setError('The map link must start with http:// or https://');
     if (form.start_time && form.end_time && form.start_time >= form.end_time) return setError('The end time must be after the start time.');
-    if (form.available_from && form.available_to && form.available_from > form.available_to) return setError('The last pickup date must be on or after the first.');
+    if (form.available_from && form.available_to && form.available_from > form.available_to) return setError('The last date must be on or after the first.');
     onSave({ ...location, ...form });
   };
 
@@ -116,7 +129,7 @@ function LocationFormModal({ location, onClose, onSave }) {
     <div className="modal-overlay" onClick={onClose} style={{ zIndex: 130 }}>
       <div className="modal-dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 560 }}>
         <div className="modal-header">
-          <span className="modal-title">{location && location.name ? `Edit ${location.name}` : 'Add Pickup Location'}</span>
+          <span className="modal-title">{location && location.name ? `Edit ${location.name}` : `Add ${kind} Location`}</span>
           <button onClick={onClose} style={{ color: '#94A3B8' }} aria-label="Close">
             <X size={20} />
           </button>
@@ -173,8 +186,14 @@ function LocationFormModal({ location, onClose, onSave }) {
               </div>
             </div>
             <div className="form-group">
-              <label className="form-label">Pickup Instructions</label>
-              <textarea className="form-input" rows={2} value={form.instructions} onChange={set('instructions')} placeholder="e.g. Carry your original ID and collect the T-shirt from reception." />
+              <label className="form-label">{kind} Instructions</label>
+              <textarea
+                className="form-input"
+                rows={2}
+                value={form.instructions}
+                onChange={set('instructions')}
+                placeholder={kind === 'Return' ? 'e.g. Wash and fold the T-shirt; hand it to the front desk.' : 'e.g. Carry your original ID and collect the T-shirt from reception.'}
+              />
             </div>
           </div>
           <div className="modal-footer">
@@ -222,7 +241,53 @@ export function LocationCard({ location, actions }) {
   );
 }
 
-/** Required toggle, sizes, instructions and pickup locations, edited as a draft. */
+function LocationList({ title, addLabel, locations, onAdd, onEdit, onToggle, onRemove, emptyText, hint }) {
+  return (
+    <>
+      <div className="card-header-bar" style={{ marginTop: 6 }}>
+        <span className="card-title-text" style={{ fontSize: '0.92rem' }}>
+          {title}
+        </span>
+        <button type="button" className="btn-secondary" onClick={onAdd}>
+          <Plus size={14} /> {addLabel}
+        </button>
+      </div>
+      {locations.length === 0 ? (
+        <div className="impact-note">{emptyText}</div>
+      ) : (
+        <>
+          {hint ? <span className="form-hint">{hint}</span> : null}
+          <div className="pickup-grid">
+            {locations.map((l) => (
+              <LocationCard
+                key={l._key}
+                location={l}
+                actions={
+                  <>
+                    <button type="button" className="btn-sm-view" onClick={() => onEdit(l)}>
+                      <Pencil size={12} /> Edit
+                    </button>
+                    {l.id ? (
+                      <button type="button" className="btn-sm-view" onClick={() => onToggle(l)}>
+                        {l.is_active === false ? 'Activate' : 'Deactivate'}
+                      </button>
+                    ) : null}
+                    <button type="button" className="btn-sm-reject" onClick={() => onRemove(l)} aria-label={`Remove ${l.name}`}>
+                      <Trash2 size={12} />
+                    </button>
+                  </>
+                }
+              />
+            ))}
+          </div>
+          <span className="form-hint">Removing a location riders were given deactivates it instead, so they keep its details.</span>
+        </>
+      )}
+    </>
+  );
+}
+
+/** Required toggle, sizes, instructions, pickup and return locations, edited as a draft. */
 export function KitSettingsEditor({ draft, setDraft }) {
   const [editing, setEditing] = useState(null); // location draft or {} for new
   const set = (key, value) => setDraft((prev) => ({ ...prev, [key]: value }));
@@ -260,54 +325,62 @@ export function KitSettingsEditor({ draft, setDraft }) {
               <input className="form-input" value={draft.instructions} onChange={(e) => set('instructions', e.target.value)} placeholder="e.g. Wear the T-shirt on every campaign day" />
             </div>
           </div>
-          <div className="card-header-bar" style={{ marginTop: 6 }}>
-            <span className="card-title-text" style={{ fontSize: '0.92rem' }}>
-              Pickup Locations
-            </span>
-            <button type="button" className="btn-secondary" onClick={() => setEditing({})}>
-              <Plus size={14} /> Add Location
-            </button>
-          </div>
-          {draft.locations.length === 0 ? (
-            <div className="impact-note">
-              No pickup location yet. Riders can still join; they'll see "pickup details coming soon" until you add one.
+          <LocationList
+            title="Pickup Locations"
+            addLabel="Add Location"
+            locations={draft.locations.filter((l) => !isReturn(l))}
+            onAdd={() => setEditing({ purpose: 'PICKUP' })}
+            onEdit={setEditing}
+            onToggle={(l) => update(l._key, { is_active: l.is_active === false })}
+            onRemove={(l) => remove(l._key)}
+            emptyText="No pickup location yet. Riders can still join; they'll see “pickup details coming soon” until you add one."
+            hint={
+              draft.locations.filter((l) => !isReturn(l) && l.is_active !== false).length > 1
+                ? 'Riders choose one of the active locations when they join. They can’t change it later; you can.'
+                : 'With one active location, every rider is assigned to it automatically.'
+            }
+          />
+
+          <label className="toggle-row" style={{ margin: '18px 0 12px' }}>
+            <input type="checkbox" checked={draft.return_required} onChange={(e) => set('return_required', e.target.checked)} />
+            <div>
+              <strong>T-shirt return required after the campaign</strong>
+              <span>Riders who collected a T-shirt see return instructions when the campaign ends. You mark each return; the incentive is credited once.</span>
             </div>
-          ) : (
+          </label>
+          {draft.return_required ? (
             <>
-              <span className="form-hint">
-                {draft.locations.filter((l) => l.is_active !== false).length > 1
-                  ? 'Riders choose one of the active locations when they join. They can’t change it later; you can.'
-                  : 'With one active location, every rider is assigned to it automatically.'}
-              </span>
-              <div className="pickup-grid">
-                {draft.locations.map((l) => (
-                  <LocationCard
-                    key={l._key}
-                    location={l}
-                    actions={
-                      <>
-                        <button type="button" className="btn-sm-view" onClick={() => setEditing(l)}>
-                          <Pencil size={12} /> Edit
-                        </button>
-                        {l.id ? (
-                          <button type="button" className="btn-sm-view" onClick={() => update(l._key, { is_active: l.is_active === false })}>
-                            {l.is_active === false ? 'Activate' : 'Deactivate'}
-                          </button>
-                        ) : null}
-                        <button type="button" className="btn-sm-reject" onClick={() => remove(l._key)} aria-label={`Remove ${l.name}`}>
-                          <Trash2 size={12} />
-                        </button>
-                      </>
-                    }
+              <div className="form-row-2">
+                <div className="form-group">
+                  <label className="form-label">Return Incentive (₹)</label>
+                  <input type="number" min="0" className="form-input" value={draft.return_incentive} onChange={(e) => set('return_incentive', e.target.value)} />
+                  <span className="form-hint">Credited to the rider’s wallet when you mark the T-shirt returned. 0 = no incentive.</span>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Return Instructions</label>
+                  <input
+                    className="form-input"
+                    value={draft.return_instructions}
+                    onChange={(e) => set('return_instructions', e.target.value)}
+                    placeholder="e.g. Return it washed within 7 days of the campaign ending"
                   />
-                ))}
+                </div>
               </div>
-              <span className="form-hint">Removing a location riders were given deactivates it instead, so they keep their pickup details.</span>
+              <LocationList
+                title="Return Locations"
+                addLabel="Add Return Location"
+                locations={draft.locations.filter(isReturn)}
+                onAdd={() => setEditing({ purpose: 'RETURN' })}
+                onEdit={setEditing}
+                onToggle={(l) => update(l._key, { is_active: l.is_active === false })}
+                onRemove={(l) => remove(l._key)}
+                emptyText="No return location yet. Add where riders hand the T-shirt back, with dates and timings."
+              />
             </>
-          )}
+          ) : null}
         </>
       ) : null}
-      {editing ? <LocationFormModal location={editing._key || editing.name ? editing : null} onClose={() => setEditing(null)} onSave={saveLocation} /> : null}
+      {editing ? <LocationFormModal location={editing} onClose={() => setEditing(null)} onSave={saveLocation} /> : null}
     </div>
   );
 }
@@ -321,6 +394,7 @@ export function BrandKitPanel({ campaignId }) {
   const [draft, setDraft] = useState(null);
   const [saving, setSaving] = useState(false);
   const [busyKit, setBusyKit] = useState(null);
+  const [danger, setDanger] = useState(null);
 
   const load = (resetDraft) =>
     api.getBrandKit(campaignId).then((d) => {
@@ -362,7 +436,28 @@ export function BrandKitPanel({ campaignId }) {
     }
   };
 
+  const markReturned = (k) =>
+    setDanger({
+      title: 'Mark T-shirt as returned',
+      message: `Confirm that ${k.rider.full_name} (${k.rider.rider_id}) has returned their campaign T-shirt.`,
+      getAction: () => ({
+        label: 'Mark Returned',
+        tone: 'primary',
+        note:
+          data.return_summary.incentive > 0
+            ? `${formatINR(data.return_summary.incentive)} T-shirt Return Incentive is credited to the rider’s wallet (a pending payment). It can only be credited once.`
+            : 'No incentive is set for this campaign.',
+        run: async () => {
+          await api.markKitReturned(campaignId, k.id);
+          await load(false);
+          return `${k.rider.full_name}'s T-shirt marked as returned.`;
+        },
+      }),
+      onDone: () => {},
+    });
+
   const s = data.summary;
+  const r = data.return_summary;
   const kit = data.kit;
   const sizes = kit ? kit.size_options : [];
   const locations = kit ? kit.locations : [];
@@ -389,6 +484,21 @@ export function BrandKitPanel({ campaignId }) {
               </div>
             ))}
           </div>
+          {r.required ? (
+            <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', marginTop: 12 }}>
+              {[
+                ['Return pending', r.pending],
+                ['Returned', r.returned],
+                ['Incentive credited', r.incentive_credited],
+                ['Incentive / rider', formatINR(r.incentive)],
+              ].map(([label, value]) => (
+                <div key={label} className="kpi">
+                  <div className="kpi-label">{label}</div>
+                  <div className="kpi-value">{value}</div>
+                </div>
+              ))}
+            </div>
+          ) : null}
           <div className="impact-heading" style={{ marginTop: 16 }}>Size-wise requirement</div>
           <div className="size-chips">
             {s.sizes.map((x) => (
@@ -416,9 +526,9 @@ export function BrandKitPanel({ campaignId }) {
 
       <div className="card">
         <div className="card-header-bar">
-          <span className="card-title-text">T-Shirt / Brand Kit Pickup</span>
+          <span className="card-title-text">T-Shirt / Brand Kit Pickup & Return</span>
           <button className="btn-primary" onClick={save} disabled={saving}>
-            {saving ? 'Saving…' : 'Save Pickup Settings'}
+            {saving ? 'Saving…' : 'Save Kit Settings'}
           </button>
         </div>
         <KitSettingsEditor draft={draft} setDraft={setDraft} />
@@ -426,7 +536,7 @@ export function BrandKitPanel({ campaignId }) {
 
       <div className="card">
         <div className="card-header-bar">
-          <span className="card-title-text">Rider Pickups</span>
+          <span className="card-title-text">Rider Pickups & Returns</span>
         </div>
         {data.riders.length === 0 ? (
           <EmptyState icon={Shirt}>
@@ -443,6 +553,7 @@ export function BrandKitPanel({ campaignId }) {
                   <th>Pickup Status</th>
                   <th>Pickup Date</th>
                   <th>Collected</th>
+                  <th>T-shirt Return</th>
                 </tr>
               </thead>
               <tbody>
@@ -513,6 +624,23 @@ export function BrandKitPanel({ campaignId }) {
                         '—'
                       )}
                     </td>
+                    <td style={{ fontSize: '0.8rem' }}>
+                      <span className={`status-pill ${RETURN_PILL[k.return_status] || ''}`}>{k.return_status_label}</span>
+                      {k.returned_at ? (
+                        <div style={{ fontSize: '0.7rem', color: '#64748B', marginTop: 4 }}>
+                          {formatDate(k.returned_at)}
+                          {k.returned_by ? ` · ${k.returned_by}` : ''}
+                          {k.return_incentive_amount ? ` · ${formatINR(k.return_incentive_amount)} ${k.return_incentive_status === 'PAID' ? 'paid' : 'credited'}` : ''}
+                        </div>
+                      ) : null}
+                      {k.return_status === 'PENDING' ? (
+                        <div style={{ marginTop: 6 }}>
+                          <button className="btn-sm-approve" disabled={busyKit === k.id} onClick={() => markReturned(k)}>
+                            <RotateCcw size={12} /> Mark Returned
+                          </button>
+                        </div>
+                      ) : null}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -520,6 +648,7 @@ export function BrandKitPanel({ campaignId }) {
           </div>
         )}
       </div>
+      {danger ? <DangerDialog {...danger} onClose={() => setDanger(null)} /> : null}
     </>
   );
 }

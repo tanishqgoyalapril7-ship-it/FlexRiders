@@ -9,6 +9,8 @@ Thumbs.db
 
 # Environment variables & secrets
 .env
+.env.mumbai
+.env.tokyo
 .env.local
 .env.*.local
 *.pem

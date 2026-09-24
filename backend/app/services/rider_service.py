@@ -53,6 +53,12 @@ def register_new_rider(db: Session, reg: RiderRegistrationRequest) -> Rider:
         if existing_rider:
             return existing_rider
 
+    from app.services import referral_service  # Local import avoids a circular import
+
+    try:
+        referrer = referral_service.find_referrer(db, reg.referral_code)
+    except referral_service.ReferralError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     if reg.vehicle_number and db.query(Rider.id).filter(Rider.vehicle_number == reg.vehicle_number).first():
         raise HTTPException(status_code=400, detail=f"Vehicle {reg.vehicle_number} is already registered to another rider.")
 
@@ -74,6 +80,7 @@ def register_new_rider(db: Session, reg: RiderRegistrationRequest) -> Rider:
         experience_months=reg.experience_months or 0,
         vehicle_type=reg.vehicle_type or "Bike",
         vehicle_number=reg.vehicle_number,
+        vehicle_category=reg.vehicle_category,
         primary_city=reg.primary_city or "Gurugram",
         primary_area=reg.primary_area,
         additional_locations=reg.additional_locations,
@@ -86,6 +93,8 @@ def register_new_rider(db: Session, reg: RiderRegistrationRequest) -> Rider:
     )
     db.add(rider)
     db.flush()
+    if referrer:
+        referral_service.link_referral(db, referrer, rider)
 
     # 4. Attach documents if provided
     if reg.documents:

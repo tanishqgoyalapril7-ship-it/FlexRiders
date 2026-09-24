@@ -156,7 +156,7 @@ export function DeliveryPanel({ campaign, fulfillment: f, ridersAvailable, setRi
               {f.surplus_rider_days > 0 ? ` • ${f.surplus_rider_days} surplus` : ''}
             </div>
             <div className="form-hint" style={{ marginTop: 6 }}>
-              1 delivered rider-day = {f.photos_per_day} distinct approved photos from one rider on one date (1 Photo Streak day).
+              1 delivered rider-day = Morning, Evening and Night photos all approved for one rider on one date (1 Photo-Day).
             </div>
             {f.fulfilled && !campaign.continue_after_fulfillment && !closed ? (
               <div className="form-hint" style={{ marginTop: 8 }}>

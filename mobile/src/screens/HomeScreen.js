@@ -139,7 +139,7 @@ export default function HomeScreen({ rider, earnings, campaigns, notifications, 
           <View style={styles.heroDivider} />
           <View style={{ flex: 1, paddingLeft: 18 }}>
             <Text style={styles.heroLabel}>Pending Payout</Text>
-            <Text style={styles.heroValue}>{formatINR(rider.pending)}</Text>
+            <Text style={styles.heroValue}>{formatINR(earnings.pending)}</Text>
           </View>
         </View>
       </TouchableOpacity>

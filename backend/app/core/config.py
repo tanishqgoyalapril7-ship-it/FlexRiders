@@ -45,7 +45,22 @@ class Settings(BaseSettings):
     INACTIVE_MISSED_DAYS: int = 3  # Consecutive days with nothing submitted → Inactive
     # Log why each campaign is shown/hidden in the rider app's Available list (debugging aid).
     CAMPAIGN_VISIBILITY_LOG: bool = False
-    PHOTOS_PER_DAY: int = 3  # Distinct approved photos needed for one completed rider-day (1 Photo Streak day)
+    # Refer & Earn: paid to the referrer once, when the referred rider completes their first Photo Streak.
+    REFERRAL_REWARD_AMOUNT: float = 30.0
+    # Base of the shareable referral link (a web page or app deep link that opens registration).
+    REFERRAL_LINK_BASE: str = "superriders://register?ref="
+    # Photos are taken in 3 daily slots (Morning / Evening / Night); all 3 approved = 1 Photo-Day.
+    # When true, each slot only accepts photos inside its time window (IST).
+    ENFORCE_PHOTO_SLOT_WINDOWS: bool = False
+    # In-app reminders for the photo slots (sent by a background loop in the API process, IST).
+    SLOT_NOTIFICATIONS_ENABLED: bool = True
+    SLOT_REMINDER_MINUTES: int = 30  # "Closes soon" reminder this long before a slot ends
+    SLOT_NOTIFICATION_INTERVAL_SECONDS: int = 60
+    # Paid once per rider per campaign when an admin marks the campaign T-shirt as returned.
+    TSHIRT_RETURN_INCENTIVE_DEFAULT: float = 50.0
+    # Base URL of the public campaign page shared with brands, e.g. https://superriders.in/campaign/
+    # Empty means the admin dashboard's own address + /campaign/.
+    PUBLIC_CAMPAIGN_BASE_URL: str = ""
 
     # Uploads directory for local dev
     UPLOAD_DIR: str = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads")

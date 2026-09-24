@@ -9,6 +9,7 @@ from sqlalchemy import (
     Float,
     Text,
     Enum,
+    Index,
 )
 from sqlalchemy.orm import relationship
 from app.core.database import Base
@@ -79,6 +80,7 @@ class Rider(Base):
     experience_months = Column(Integer, default=0)
     vehicle_type = Column(String(50), default="Bike")  # Bike, Scooter, Electric Bike, Other
     vehicle_number = Column(String(20), nullable=True, index=True)  # Normalised, e.g. HR26DK8337
+    vehicle_category = Column(String(20), nullable=True, index=True)  # VehicleCategory: TWO_WHEELER / THREE_WHEELER
 
     # Working Location
     primary_city = Column(String(80), nullable=False, default="Gurugram")
@@ -99,6 +101,9 @@ class Rider(Base):
     # Archived (soft-deleted) riders keep all history but are hidden and can't log in.
     archived_at = Column(DateTime, nullable=True, index=True)
     archive_reason = Column(String(255), nullable=True)
+    # Refer & Earn: this rider's own code, and who referred them (set once, at registration).
+    referral_code = Column(String(12), unique=True, index=True, nullable=True)
+    referred_by_rider_id = Column(Integer, ForeignKey("riders.id"), nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -106,7 +111,7 @@ class Rider(Base):
     # Relationships
     user = relationship("User", back_populates="rider_profile")
     documents = relationship("RiderDocument", back_populates="rider", cascade="all, delete-orphan")
-    brand_assignments = relationship("RiderBrandAssignment", back_populates="rider", cascade="all, delete-orphan")
+    brand_assignments = relationship("RiderBrandAssignment", back_populates="rider", cascade="all, delete-orphan", foreign_keys="RiderBrandAssignment.rider_id")
     payments = relationship("Payment", back_populates="rider", cascade="all, delete-orphan")
     support_tickets = relationship("SupportTicket", back_populates="rider", cascade="all, delete-orphan")
 
@@ -169,6 +174,9 @@ class Payment(Base):
     rider_id = Column(Integer, ForeignKey("riders.id"), nullable=False)
     brand_id = Column(Integer, ForeignKey("brands.id"), nullable=True)
     campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=True, index=True)  # Set for campaign payouts
+    category = Column(String(30), nullable=True)  # e.g. REFERRAL_REWARD; null for ordinary payments
+    # Set on system-created credits (rewards, incentives) so the same credit can never be created twice.
+    idempotency_key = Column(String(100), nullable=True)
     amount = Column(Float, nullable=False)
     payment_date = Column(DateTime, default=datetime.utcnow)
     payment_period = Column(String(50), default=lambda: datetime.utcnow().strftime("%B %Y"))
@@ -187,6 +195,8 @@ class Payment(Base):
     brand = relationship("Brand", back_populates="payments")
     created_by = relationship("User")
 
+    __table_args__ = (Index("uq_payment_idempotency_key", "idempotency_key", unique=True),)
+
 
 class Notification(Base):
     __tablename__ = "notifications"
@@ -199,9 +209,14 @@ class Notification(Base):
     category = Column(String(50), default="SYSTEM")  # PAYMENT, BRAND, REGISTRATION, DOCUMENT, SYSTEM
     is_read = Column(Boolean, default=False)
     reference_id = Column(String(100), nullable=True)  # e.g., rider_id or payment_id
+    # Set on automatic notifications (slot reminders, campaign live) so each is sent once, e.g.
+    # "SLOT_OPEN:<assignment>:<date>:MORNING".
+    dedupe_key = Column(String(120), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="notifications")
+
+    __table_args__ = (Index("uq_notification_dedupe_key", "dedupe_key", unique=True),)
 
 
 class AuditLog(Base):
@@ -234,3 +249,35 @@ class SupportTicket(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     rider = relationship("Rider", back_populates="support_tickets")
+
+
+class PaymentCategory:
+    REFERRAL_REWARD = "REFERRAL_REWARD"
+    TSHIRT_RETURN_INCENTIVE = "TSHIRT_RETURN_INCENTIVE"
+    LABELS = {REFERRAL_REWARD: "Referral Reward", TSHIRT_RETURN_INCENTIVE: "T-shirt Return Incentive"}
+
+
+class ReferralStatus:
+    JOINED = "JOINED"  # Registered with the code; waiting for their first completed Photo Streak
+    REWARDED = "REWARDED"  # Reward credited to the referrer
+
+
+class RiderReferral(Base):
+    """Who referred whom, and the one-time reward. One row per referred rider (unique)."""
+
+    __tablename__ = "rider_referrals"
+
+    id = Column(Integer, primary_key=True, index=True)
+    referrer_rider_id = Column(Integer, ForeignKey("riders.id"), nullable=False, index=True)
+    referred_rider_id = Column(Integer, ForeignKey("riders.id"), nullable=False, unique=True)
+    code_used = Column(String(12), nullable=False)
+    status = Column(String(20), default=ReferralStatus.JOINED, nullable=False)
+    reward_amount = Column(Float, nullable=True)
+    reward_payment_id = Column(Integer, ForeignKey("payments.id"), nullable=True, unique=True)
+    qualifying_activity_id = Column(Integer, nullable=True)  # The campaign day that completed the first Photo Streak
+    created_at = Column(DateTime, default=datetime.utcnow)
+    rewarded_at = Column(DateTime, nullable=True)
+
+    referrer = relationship("Rider", foreign_keys=[referrer_rider_id])
+    referred = relationship("Rider", foreign_keys=[referred_rider_id])
+    reward_payment = relationship("Payment")

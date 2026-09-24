@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Plus, Search, Megaphone, PlayCircle, Users, Wallet, RotateCcw } from 'lucide-react';
 import { api } from '../services/api';
 import { CampaignFormModal } from '../components/CampaignModals';
-import { CAMPAIGN_STATUSES, EmptyState, SlotProgress, StatCard, StatusPill, formatDateRange, formatINR } from '../components/CampaignShared';
+import { CAMPAIGN_STATUSES, CampaignStatusPill, EmptyState, SlotProgress, StatCard, formatDateRange, formatINR } from '../components/CampaignShared';
 
 const EMPTY_FILTERS = { search: '', status: 'ALL', brand_id: '', start_from: '', end_to: '' };
 
@@ -21,7 +21,7 @@ export default function CampaignsView({ brands = [], summary, initialSearch = ''
 
   useEffect(() => {
     const timer = setTimeout(load, 250); // debounce typing in the search box
-    const interval = setInterval(load, 10000);
+    const interval = setInterval(() => document.visibilityState === 'visible' && load(), 20000);
     return () => {
       clearTimeout(timer);
       clearInterval(interval);
@@ -149,7 +149,7 @@ export default function CampaignsView({ brands = [], summary, initialSearch = ''
                     )}
                   </td>
                   <td>
-                    <StatusPill status={c.status} />
+                    <CampaignStatusPill campaign={c} />
                     {c.status === 'DRAFT' ? <div style={{ fontSize: '0.7rem', color: '#B45309', marginTop: 4 }}>Hidden from riders</div> : null}
                   </td>
                   <td style={{ whiteSpace: 'nowrap' }}>

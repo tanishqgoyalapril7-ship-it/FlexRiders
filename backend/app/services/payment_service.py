@@ -151,23 +151,8 @@ def process_payment_transaction(
 
 
 def calculate_rider_earnings(db: Session, rider_id: int) -> Dict[str, Any]:
-    """Calculates total, paid, and pending earnings for a rider"""
-    payments = db.query(Payment).filter(Payment.rider_id == rider_id).all()
-    
-    total = sum(p.amount for p in payments if p.status in [PaymentStatus.PAID, PaymentStatus.PENDING])
-    paid = sum(p.amount for p in payments if p.status == PaymentStatus.PAID)
-    pending = sum(p.amount for p in payments if p.status == PaymentStatus.PENDING)
-    
-    # Today's earnings (payments with payment_date matching today)
-    today = date.today()
-    today_earnings = sum(
-        p.amount for p in payments 
-        if p.payment_date and p.payment_date.date() == today and p.status in [PaymentStatus.PAID, PaymentStatus.PENDING]
-    )
+    """Total, paid, pending and today's earnings, from the single earnings calculation."""
+    from app.services.earnings_service import rider_earnings  # Local import avoids a circular import
 
-    return {
-        "total_earnings": total,
-        "paid_earnings": paid,
-        "pending_earnings": pending,
-        "today_earnings": today_earnings,
-    }
+    e = rider_earnings(db, rider_id)
+    return {k: e[k] for k in ("total_earnings", "paid_earnings", "pending_earnings", "today_earnings")}

@@ -1,12 +1,17 @@
-"""T-shirt / brand kit pickup: official pickup locations (admin-configured), the rider's size and
-chosen location, and per-rider pickup status. Independent of rider-days, streaks and payouts."""
+"""T-shirt / brand kit pickup and return: official pickup/return locations (admin-configured), the
+rider's size and chosen location, per-rider pickup status, and the return after the campaign with its
+one-time incentive. Independent of rider-days, streaks and campaign payouts."""
 import re
 from collections import Counter
 from datetime import date, datetime
 from typing import Dict, List, Optional, Tuple
 
+from sqlalchemy import or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
+from app.models.all_models import Payment, PaymentCategory, PaymentStatus
 from app.models.campaign_models import (
     ApplicationStatus,
     AssignmentStatus,
@@ -15,7 +20,10 @@ from app.models.campaign_models import (
     CampaignAssignment,
     CampaignBrandKit,
     CampaignPickupLocation,
+    CampaignStatus,
+    KitReturnStatus,
     KitStatus,
+    LocationPurpose,
     RiderBrandKit,
 )
 
@@ -39,9 +47,18 @@ def kit_required(campaign: Campaign) -> bool:
 # Pickup locations
 # ---------------------------------------------------------------------------
 
-def locations(db: Session, campaign: Campaign, active_only: bool = False) -> List[CampaignPickupLocation]:
+def purpose_of(location: CampaignPickupLocation) -> str:
+    return location.purpose or LocationPurpose.PICKUP
+
+
+def locations(db: Session, campaign: Campaign, active_only: bool = False, purpose: Optional[str] = LocationPurpose.PICKUP) -> List[CampaignPickupLocation]:
+    """Pickup locations by default; purpose=RETURN for return points, None for both."""
     _migrate_legacy_location(db, campaign)
     query = db.query(CampaignPickupLocation).filter(CampaignPickupLocation.campaign_id == campaign.id)
+    if purpose == LocationPurpose.PICKUP:
+        query = query.filter(or_(CampaignPickupLocation.purpose.is_(None), CampaignPickupLocation.purpose == LocationPurpose.PICKUP))
+    elif purpose == LocationPurpose.RETURN:
+        query = query.filter(CampaignPickupLocation.purpose == LocationPurpose.RETURN)
     if active_only:
         query = query.filter(CampaignPickupLocation.is_active == True)  # noqa: E712
     return query.order_by(CampaignPickupLocation.id).all()
@@ -92,7 +109,9 @@ def validate_location(data: Dict) -> Dict:
     if data.get("start_time") and data.get("end_time") and data["start_time"] >= data["end_time"]:
         raise KitError("The pickup end time must be after the start time.")
     if data.get("available_from") and data.get("available_to") and data["available_from"] > data["available_to"]:
-        raise KitError("The last pickup date must be on or after the first pickup date.")
+        raise KitError("The last date must be on or after the first date.")
+    if data.get("purpose") not in (None, LocationPurpose.PICKUP, LocationPurpose.RETURN):
+        raise KitError("A location is either for pickup or for returns.")
     return data
 
 
@@ -105,7 +124,7 @@ def create_location(db: Session, campaign: Campaign, data: Dict) -> CampaignPick
 
 
 def update_location(db: Session, location: CampaignPickupLocation, data: Dict) -> CampaignPickupLocation:
-    current = {c: getattr(location, c) for c in ("name", "address", "map_url", "available_from", "available_to", "available_days", "start_time", "end_time", "contact_name", "contact_phone", "instructions")}
+    current = {c: getattr(location, c) for c in ("name", "address", "map_url", "available_from", "available_to", "available_days", "start_time", "end_time", "contact_name", "contact_phone", "instructions", "purpose")}
     merged = validate_location({**current, **{k: v for k, v in data.items() if k != "is_active"}})
     for field, value in merged.items():
         setattr(location, field, value)
@@ -138,7 +157,10 @@ def delete_location(db: Session, location: CampaignPickupLocation) -> None:
 # Kit settings
 # ---------------------------------------------------------------------------
 
-def update_kit(db: Session, campaign: Campaign, tshirt_required: bool, size_options: Optional[str], instructions: Optional[str]) -> CampaignBrandKit:
+def update_kit(
+    db: Session, campaign: Campaign, tshirt_required: bool, size_options: Optional[str], instructions: Optional[str],
+    return_required: Optional[bool] = None, return_incentive: Optional[float] = None, return_instructions: Optional[str] = None,
+) -> CampaignBrandKit:
     sizes = [s.strip().upper() for s in (size_options or DEFAULT_SIZES).split(",") if s.strip()]
     if tshirt_required and not sizes:
         raise KitError("Add at least one T-shirt size.")
@@ -151,6 +173,14 @@ def update_kit(db: Session, campaign: Campaign, tshirt_required: bool, size_opti
     kit.tshirt_required = bool(tshirt_required)
     kit.size_options = ",".join(sizes) or DEFAULT_SIZES
     kit.instructions = _clean(instructions)
+    if return_required is not None:
+        kit.return_required = bool(return_required)
+    if return_incentive is not None:
+        if return_incentive < 0:
+            raise KitError("The return incentive can't be negative.")
+        kit.return_incentive = round(float(return_incentive), 2)
+    if return_instructions is not None:
+        kit.return_instructions = _clean(return_instructions)
     db.flush()
 
     rider_kits = {k.assignment_id: k for k in db.query(RiderBrandKit).filter(RiderBrandKit.campaign_id == campaign.id)}
@@ -351,3 +381,103 @@ def sync_request_kits(db: Session, campaign: Campaign) -> None:
             application.kit_status = KitStatus.PENDING
         elif not required and application.kit_status == KitStatus.PENDING:
             application.kit_status = KitStatus.NOT_REQUIRED
+
+
+# ---------------------------------------------------------------------------
+# T-shirt return after the campaign, with a one-time incentive
+# ---------------------------------------------------------------------------
+
+def return_required(campaign: Campaign) -> bool:
+    return kit_required(campaign) and campaign.brand_kit.return_required is not False
+
+
+def return_incentive(campaign: Campaign) -> float:
+    kit = campaign.brand_kit
+    if kit is not None and kit.return_incentive is not None:
+        return kit.return_incentive
+    return settings.TSHIRT_RETURN_INCENTIVE_DEFAULT
+
+
+def return_status(campaign: Campaign, kit: Optional[RiderBrandKit]) -> str:
+    """Return Not Required / Return Pending / Returned / Incentive Credited. Only riders who collected a
+    T-shirt have one to return."""
+    if kit is None:
+        return KitReturnStatus.NOT_REQUIRED
+    if kit.return_status in (KitReturnStatus.RETURNED, KitReturnStatus.INCENTIVE_CREDITED):
+        return kit.return_status
+    if not return_required(campaign) or kit.status != KitStatus.COLLECTED:
+        return KitReturnStatus.NOT_REQUIRED
+    return KitReturnStatus.PENDING
+
+
+def return_due(campaign: Campaign, assignment: Optional[CampaignAssignment], today: date) -> bool:
+    """The return is asked for once the rider's part is over: the campaign ended or they left it."""
+    from app.services.fulfillment_service import effective_end_date
+
+    if campaign.status in CampaignStatus.CLOSED or effective_end_date(campaign) < today:
+        return True
+    return assignment is not None and assignment.status not in AssignmentStatus.CURRENT
+
+
+def return_idempotency_key(kit: RiderBrandKit) -> str:
+    # One incentive per rider per campaign, however many times the return is marked.
+    return f"TSHIRT_RETURN:{kit.campaign_id}:{kit.rider_id}"
+
+
+def mark_returned(db: Session, kit: RiderBrandKit, admin_id: int) -> Optional[Payment]:
+    """Admin verified the T-shirt came back: Returned, plus the incentive as a pending credit in the
+    rider's earnings. The credit is created at most once (unique idempotency key on the payment)."""
+    kit = db.query(RiderBrandKit).filter(RiderBrandKit.id == kit.id).with_for_update().one()
+    campaign = db.get(Campaign, kit.campaign_id)
+    status = return_status(campaign, kit)
+    if status in (KitReturnStatus.RETURNED, KitReturnStatus.INCENTIVE_CREDITED):
+        when = f" on {kit.returned_at:%d %b %Y}" if kit.returned_at else ""
+        raise KitError(f"This T-shirt was already marked as returned{when}. The incentive is only credited once.")
+    if status == KitReturnStatus.NOT_REQUIRED:
+        raise KitError("This rider has no T-shirt to return (not collected, or returns aren't required).")
+
+    amount = return_incentive(campaign)
+    payment = None
+    if amount > 0:
+        key = return_idempotency_key(kit)
+        payment = db.query(Payment).filter(Payment.idempotency_key == key).first()
+        if payment is None:
+            rider = kit.rider
+            payment = Payment(
+                rider_id=kit.rider_id,
+                campaign_id=campaign.id,
+                amount=amount,
+                payment_type="UPI",
+                upi_id=rider.upi_id if rider else None,
+                category=PaymentCategory.TSHIRT_RETURN_INCENTIVE,
+                payment_reference=f"TSR-{campaign.id}-{rider.rider_id if rider else kit.rider_id}",
+                status=PaymentStatus.PENDING,
+                notes="T-shirt Return Incentive",
+                idempotency_key=key,
+                created_by_id=admin_id,
+            )
+            db.add(payment)
+            try:
+                db.flush()
+            except IntegrityError:
+                db.rollback()
+                raise KitError("This rider's return incentive was already credited.")
+    kit.return_status = KitReturnStatus.INCENTIVE_CREDITED if payment else KitReturnStatus.RETURNED
+    kit.returned_at = datetime.utcnow()
+    kit.returned_by_id = admin_id
+    kit.return_payment_id = payment.id if payment else None
+    db.commit()
+    db.refresh(kit)
+    return payment
+
+
+def return_summary(db: Session, campaign: Campaign) -> Dict:
+    kits = db.query(RiderBrandKit).filter(RiderBrandKit.campaign_id == campaign.id).all()
+    counts = Counter(return_status(campaign, k) for k in kits)
+    return {
+        "required": return_required(campaign),
+        "incentive": return_incentive(campaign),
+        "pending": counts.get(KitReturnStatus.PENDING, 0),
+        "returned": counts.get(KitReturnStatus.RETURNED, 0) + counts.get(KitReturnStatus.INCENTIVE_CREDITED, 0),
+        "incentive_credited": counts.get(KitReturnStatus.INCENTIVE_CREDITED, 0),
+    }

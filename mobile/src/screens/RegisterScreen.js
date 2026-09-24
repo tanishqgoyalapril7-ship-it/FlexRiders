@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { mobileApi } from '../services/api';
 import { useStyles, useTheme } from '../theme';
 import { OutlineButton, PrimaryButton, ScreenHeader } from '../components/ui';
-import { AutocompleteField, DateOfBirthField, PasswordField, ageOn } from '../components/formFields';
+import { AutocompleteField, DateOfBirthField, PasswordField, ageOn, VehicleCategoryField, vehicleCategoryLabel } from '../components/formFields';
 import {
   CITIES,
   VEHICLE_MODELS,
@@ -44,7 +44,7 @@ function Field({ label, required, hint, hintTone, ...inputProps }) {
   );
 }
 
-export default function RegisterScreen({ onBack, onRegistered }) {
+export default function RegisterScreen({ onBack, onRegistered, initialReferralCode = '' }) {
   const styles = useStyles(makeStyles);
   const { colors } = useTheme();
   const [step, setStep] = useState(0);
@@ -58,11 +58,13 @@ export default function RegisterScreen({ onBack, onRegistered }) {
     current_company: '',
     current_role: 'Rider',
     vehicle_type: '',
+    vehicle_category: '',
     vehicle_number: '',
     primary_city: '',
     primary_area: '',
     upi_id: '',
     gpay_number: '',
+    referral_code: initialReferralCode,
   });
   const set = (key) => (value) => setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -73,6 +75,7 @@ export default function RegisterScreen({ onBack, onRegistered }) {
       if (form.dob && ageOn(form.dob) < 18) return 'Riders must be at least 18 years old.';
     }
     if (step === 2) {
+      if (!form.vehicle_category) return 'Please tell us what type of vehicle you use.';
       if (!form.vehicle_number.trim()) return 'Please enter your vehicle registration number.';
       if (!isValidVehicleNumber(form.vehicle_number)) return 'Please enter a valid vehicle number, e.g. HR26DK8337.';
       if (!form.primary_city.trim()) return 'Please enter your primary working city.';
@@ -109,6 +112,7 @@ export default function RegisterScreen({ onBack, onRegistered }) {
     ['Email', form.email],
     ['Company', form.current_company],
     ['Date of Birth', form.dob],
+    ['Vehicle Type', vehicleCategoryLabel(form.vehicle_category)],
     ['Vehicle', form.vehicle_type],
     ['Vehicle Number', normalizeVehicleNumber(form.vehicle_number)],
     ['Location', [form.primary_city, form.primary_area].filter(Boolean).join(', ')],
@@ -145,6 +149,16 @@ export default function RegisterScreen({ onBack, onRegistered }) {
             <Field label="Email Address" keyboardType="email-address" autoCapitalize="none" value={form.email} onChangeText={set('email')} placeholder="name@example.com" />
             <DateOfBirthField label="Date of Birth" value={form.dob} onChange={set('dob')} />
             <PasswordField label="Create Password" required value={form.password} onChangeText={set('password')} placeholder="At least 6 characters" />
+            <Field
+              label="Referral Code (optional)"
+              value={form.referral_code}
+              onChangeText={(v) => set('referral_code')(v.toUpperCase().replace(/\s/g, ''))}
+              placeholder="e.g. SRK7M2QX"
+              autoCapitalize="characters"
+              autoCorrect={false}
+              maxLength={12}
+              hint="Got a code from a friend? Enter it here."
+            />
           </>
         )}
 
@@ -159,6 +173,12 @@ export default function RegisterScreen({ onBack, onRegistered }) {
         {step === 2 && (
           <>
             <Text style={styles.stepTitle}>Vehicle & location</Text>
+            <VehicleCategoryField
+              required
+              value={form.vehicle_category}
+              onChange={set('vehicle_category')}
+              hint="Some campaigns are only for two wheelers or three wheelers."
+            />
             <AutocompleteField
               label="Vehicle Model"
               icon="bicycle-outline"

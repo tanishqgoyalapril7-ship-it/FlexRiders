@@ -4,11 +4,12 @@ import io
 import logging
 import json
 import os
+import re
 import uuid
 from datetime import date, datetime, timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
@@ -38,8 +39,12 @@ from app.models.campaign_models import (
     CampaignPayout,
     CampaignStatus,
     CampaignVisibility,
+    KitReturnStatus,
+    LocationPurpose,
+    PhotoSlot,
     PhotoStatus,
     RequestLabels,
+    VehicleCategory,
 )
 from app.schemas.campaign_schemas import (
     AdjustmentResolve,
@@ -48,6 +53,7 @@ from app.schemas.campaign_schemas import (
     BrandKitUpdate,
     PickupLocationCreate,
     RequestKitUpdate,
+    RoutePointsUpload,
     PickupLocationUpdate,
     BrandPaymentCreate,
     CampaignCreate,
@@ -58,10 +64,12 @@ from app.schemas.campaign_schemas import (
     ReasonRequest,
     ReplacementSlotsRequest,
     RiderKitUpdate,
+    ShareCampaignRequest,
 )
 from app.services import fulfillment_service as fs
 from app.services import data_admin_service as das
 from app.services import kit_service as ks
+from app.services import route_service as routes
 from app.services import campaign_service as svc
 from app.services.audit_service import log_admin_action
 
@@ -77,6 +85,8 @@ if not visibility_log.handlers:  # Uvicorn doesn't configure app loggers; print 
 router = APIRouter()
 # Rider routes, mounted at /riders/me/campaigns
 rider_router = APIRouter()
+# Public (no login) routes, mounted at /public/campaigns
+public_router = APIRouter()
 
 ALLOWED_IMAGE_TYPES = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp", "image/heic": ".heic"}
 MAX_UPLOAD_BYTES = 8 * 1024 * 1024
@@ -170,6 +180,14 @@ def _campaign_dict(db: Session, campaign: Campaign, with_stats: bool = True) -> 
         "extensions": [_extension_dict(e) for e in campaign.extensions],
         "brand_kit": _kit_dict(db, campaign),
         "status": campaign.status,
+        "lifecycle": svc.lifecycle(campaign),
+        "live_at": campaign.live_at,
+        "location_area": campaign.location_area,
+        "eligible_vehicle_categories": svc.eligible_categories(campaign),
+        "eligible_vehicle_label": _vehicle_label(campaign),
+        "photo_slot_windows": {slot: list(w) for slot, w in svc.slot_windows(campaign).items()},
+        "public_share_enabled": bool(campaign.public_share_enabled),
+        "public_slug": campaign.public_slug,
         "visibility": campaign.visibility,
         "published_at": campaign.published_at,
         "completed_at": campaign.completed_at,
@@ -179,6 +197,29 @@ def _campaign_dict(db: Session, campaign: Campaign, with_stats: bool = True) -> 
     }
     if with_stats:
         data["stats"] = svc.campaign_stats(db, campaign)
+    return data
+
+
+def _vehicle_label(campaign: Campaign) -> str:
+    allowed = svc.eligible_categories(campaign)
+    if not allowed or set(allowed) == set(VehicleCategory.ALL):
+        return "All vehicles"
+    return " & ".join(VehicleCategory.LABELS[c] for c in allowed)
+
+
+def _campaign_fields(payload, only_set: bool = False) -> dict:
+    """Payload → column values (vehicle categories and slot times are stored as text)."""
+    data = payload.model_dump(exclude={"visibility"})
+    if only_set:  # Fields added later are only changed when the client sends them
+        for field in ("location_area", "eligible_vehicle_categories", "photo_slot_windows"):
+            if field not in payload.model_fields_set:
+                data.pop(field)
+    if "eligible_vehicle_categories" in data:
+        data["eligible_vehicle_categories"] = ",".join(data["eligible_vehicle_categories"] or []) or None
+    if "photo_slot_windows" in data:
+        data["photo_slot_windows"] = _run(lambda: svc.validate_slot_windows(data["photo_slot_windows"]))
+    if "location_area" in data:
+        data["location_area"] = (data["location_area"] or "").strip() or None
     return data
 
 
@@ -212,6 +253,7 @@ def _location_dict(location: Optional[CampaignPickupLocation]) -> Optional[dict]
         "contact_phone": location.contact_phone,
         "instructions": location.instructions,
         "is_active": location.is_active,
+        "purpose": ks.purpose_of(location),
     }
 
 
@@ -224,6 +266,13 @@ def _kit_dict(db: Session, campaign: Campaign, active_only: bool = False) -> Opt
         "size_options": ks.sizes_of(kit),
         "instructions": kit.instructions,
         "locations": [_location_dict(l) for l in ks.locations(db, campaign, active_only=active_only)],
+        "return_required": ks.return_required(campaign),
+        "return_required_setting": kit.return_required is not False,
+        "return_incentive": ks.return_incentive(campaign),
+        "return_instructions": kit.return_instructions,
+        "return_locations": [
+            _location_dict(l) for l in ks.locations(db, campaign, active_only=active_only, purpose=LocationPurpose.RETURN)
+        ],
     }
 
 
@@ -242,6 +291,20 @@ def _rider_kit_dict(kit: Optional[RiderBrandKit]) -> Optional[dict]:
         "pickup_date": kit.pickup_date.isoformat() if kit.pickup_date else None,
         "collected_date": kit.collected_date.isoformat() if kit.collected_date else None,
         "issued_by": kit.issued_by.email if kit.issued_by else None,
+        **_return_dict(kit),
+    }
+
+
+def _return_dict(kit: RiderBrandKit) -> dict:
+    status = ks.return_status(kit.campaign, kit)
+    payment = kit.return_payment
+    return {
+        "return_status": status,
+        "return_status_label": KitReturnStatus.LABELS[status],
+        "returned_at": kit.returned_at,
+        "returned_by": kit.returned_by.email if kit.returned_by else None,
+        "return_incentive_amount": payment.amount if payment else None,
+        "return_incentive_status": payment.status if payment else None,
     }
 
 
@@ -298,6 +361,8 @@ def _photo_dict(photo: CampaignActivityPhoto) -> dict:
         "status": photo.status,
         "photo_status": photo.status,
         "rejection_reason": photo.rejection_reason,
+        "slot": photo.slot,
+        "slot_label": PhotoSlot.LABELS.get(photo.slot) if photo.slot else None,
         "uploaded_at": photo.uploaded_at,
         "reviewed_at": photo.reviewed_at,
         "day_status": activity.status,
@@ -435,7 +500,7 @@ def create_campaign(
 ):
     _require_active_brand(db, payload.brand_id)
     campaign = Campaign(
-        **payload.model_dump(exclude={"visibility"}),
+        **_campaign_fields(payload),
         status=CampaignStatus.DRAFT,
         visibility=CampaignVisibility.DRAFT,
         created_by_id=admin.id,
@@ -478,7 +543,7 @@ def update_campaign(
         raise HTTPException(status_code=400, detail="Total slots cannot be lower than the number of approved riders.")
     if payload.brand_id != campaign.brand_id:
         _require_active_brand(db, payload.brand_id)
-    for field, value in payload.model_dump().items():
+    for field, value in _campaign_fields(payload, only_set=True).items():
         setattr(campaign, field, value)
     db.commit()
     fs.recalculate_campaign_payouts(db, campaign)  # payout-beyond-contract may have changed
@@ -507,6 +572,7 @@ _STATUS_ACTIONS = {
     "resume": svc.resume_campaign,
     "complete": svc.complete_campaign,
     "cancel": svc.cancel_campaign,
+    "go-live": svc.go_live,
 }
 
 
@@ -516,13 +582,91 @@ def _status_action_route(action: str):
         _run(lambda: _STATUS_ACTIONS[action](db, campaign, admin))
         return _campaign_dict(db, campaign)
 
-    change_campaign_status.__name__ = f"{action}_campaign"
+    change_campaign_status.__name__ = f"{action.replace('-', '_')}_campaign"
     return change_campaign_status
 
 
 # Explicit routes (not /{campaign_id}/{action}) so they never shadow other POST routes.
 for _action in _STATUS_ACTIONS:
     router.add_api_route(f"/{{campaign_id}}/{_action}", _status_action_route(_action), methods=["POST"])
+
+
+def _slugify(text: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", (text or "").lower()).strip("-")[:60] or "campaign"
+
+
+def _share_dict(campaign: Campaign) -> dict:
+    base = settings.PUBLIC_CAMPAIGN_BASE_URL
+    return {
+        "enabled": bool(campaign.public_share_enabled),
+        "slug": campaign.public_slug,
+        # Empty when no base URL is configured: the dashboard builds it from its own address.
+        "url": f"{base.rstrip('/')}/{campaign.public_slug}" if base and campaign.public_slug else None,
+    }
+
+
+@router.post("/{campaign_id}/share")
+def share_campaign(
+    campaign_id: int, payload: ShareCampaignRequest, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)
+):
+    """Turns the public brand page (/campaign/<slug>) on or off. The slug is created once and kept."""
+    campaign = _get_campaign(db, campaign_id)
+    if payload.enabled and campaign.status == CampaignStatus.DRAFT:
+        raise HTTPException(status_code=400, detail="Publish the campaign before sharing its public page.")
+    if payload.enabled and not campaign.public_slug:
+        base = _slugify(f"{campaign.name} {campaign.location_area or ''}")
+        slug, n = base, 1
+        while db.query(Campaign.id).filter(Campaign.public_slug == slug).first():
+            n += 1
+            slug = f"{base}-{n}"
+        campaign.public_slug = slug
+    campaign.public_share_enabled = payload.enabled
+    db.commit()
+    log_admin_action(db=db, admin_user=admin, action="CAMPAIGN_SHARE_" + ("ENABLED" if payload.enabled else "DISABLED"),
+                     target_type="CAMPAIGN", target_id=str(campaign.id), details=f"Public page for {campaign.name} {'enabled' if payload.enabled else 'disabled'} ({campaign.public_slug})")
+    return _share_dict(campaign)
+
+
+@public_router.get("/{slug}")
+def public_campaign(slug: str, db: Session = Depends(get_db)):
+    """The brand-facing campaign page. Only fields meant for the public: no riders, admins, payouts,
+    rates or analytics."""
+    campaign = db.query(Campaign).filter(Campaign.public_slug == slug, Campaign.public_share_enabled == True).first()  # noqa: E712
+    if not campaign or campaign.status == CampaignStatus.DRAFT:
+        raise HTTPException(status_code=404, detail="This campaign page isn't available.")
+    svc.sync_campaign_status(db, campaign)
+    kit = campaign.brand_kit
+    lifecycle = svc.lifecycle(campaign)
+    windows = svc.slot_windows(campaign)
+    return {
+        "slug": campaign.public_slug,
+        "campaign_id": campaign.id,
+        "name": campaign.name,
+        "brand": {"name": campaign.brand.name if campaign.brand else None, "logo_url": campaign.brand.logo if campaign.brand else None},
+        "description": campaign.description,
+        "image_url": campaign.image_url,
+        "location_area": campaign.location_area,
+        "start_date": campaign.start_date.isoformat(),
+        "end_date": fs.effective_end_date(campaign).isoformat(),
+        "status": lifecycle["key"],
+        "status_label": lifecycle["label"],
+        "accepting_riders": lifecycle["key"] == "OPEN",
+        "eligible_vehicles": _vehicle_label(campaign),
+        "requirements": [line.strip() for line in (campaign.rules or "").splitlines() if line.strip()],
+        "photo_slots": [
+            {"slot": slot, "label": PhotoSlot.LABELS[slot], "start": windows[slot][0], "end": windows[slot][1]} for slot in PhotoSlot.ALL
+        ],
+        "tshirt": {
+            "required": ks.kit_required(campaign),
+            "sizes": ks.sizes_of(kit) if ks.kit_required(campaign) else [],
+            "return_required": ks.return_required(campaign),
+            # Where riders collect the kit (names and areas only; contacts stay in the rider app).
+            "pickup_points": [
+                {"name": l.name, "address": l.address} for l in ks.locations(db, campaign, active_only=True)
+            ] if ks.kit_required(campaign) else [],
+        },
+        "app_link": f"superriders://campaign/{campaign.id}",
+    }
 
 
 @router.get("/{campaign_id}/rider-visibility")
@@ -543,6 +687,31 @@ def campaign_rider_visibility(campaign_id: int, db: Session = Depends(get_db), a
         "remaining_slots": max(svc.slot_capacity(campaign) - svc.slots_used(db, campaign.id), 0),
         "riders_who_can_join": sum(1 for r in rows if r["can_join"]),
         "riders": rows,
+    }
+
+
+@router.get("/{campaign_id}/route-dates")
+def campaign_route_dates(
+    campaign_id: int, assignment_id: Optional[int] = None, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)
+):
+    """Dates that have a recorded route (for one rider, or any rider in the campaign)."""
+    return routes.route_dates(db, _get_campaign(db, campaign_id), assignment_id)
+
+
+@router.get("/{campaign_id}/routes")
+def campaign_routes(
+    campaign_id: int,
+    day: date = Query(..., alias="date"),
+    assignment_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
+    """Route lines for one day: one rider (assignment_id) or all riders. Coordinates only, no statistics."""
+    campaign = _get_campaign(db, campaign_id)
+    return {
+        "campaign": {"id": campaign.id, "name": campaign.name},
+        "date": day.isoformat(),
+        "routes": routes.routes_for_day(db, campaign, day, assignment_id),
     }
 
 
@@ -1042,7 +1211,29 @@ def rider_campaign_detail(campaign_id: int, rider: Rider = Depends(get_current_r
     if assignment and not kit:
         # Joined a campaign that needs no T-shirt (or the rider's kit record isn't created yet).
         data["my_kit"] = {"status": KitStatus.NOT_REQUIRED, "status_label": KitStatus.LABELS[KitStatus.NOT_REQUIRED]} if not ks.kit_required(campaign) else None
+    data["kit_return"] = _rider_return_block(db, campaign, assignment, kit)
     return data
+
+
+def _rider_return_block(db: Session, campaign: Campaign, assignment: Optional[CampaignAssignment], kit: Optional[RiderBrandKit]) -> Optional[dict]:
+    """T-shirt return details for the rider once their part of the campaign is over."""
+    if not kit:
+        return None
+    status = ks.return_status(campaign, kit)
+    if status == KitReturnStatus.NOT_REQUIRED:
+        return None
+    brand_kit = campaign.brand_kit
+    return {
+        "status": status,
+        "status_label": KitReturnStatus.LABELS[status],
+        "due": ks.return_due(campaign, assignment, svc.today_ist()),
+        "incentive": ks.return_incentive(campaign),
+        "instructions": brand_kit.return_instructions if brand_kit else None,
+        "locations": [_location_dict(l) for l in ks.locations(db, campaign, active_only=True, purpose=LocationPurpose.RETURN)],
+        "returned_at": kit.returned_at,
+        "incentive_credited": status == KitReturnStatus.INCENTIVE_CREDITED,
+        "incentive_amount": kit.return_payment.amount if kit.return_payment else None,
+    }
 
 
 @rider_router.post("/{campaign_id}/join")
@@ -1066,10 +1257,26 @@ def withdraw_campaign_request(campaign_id: int, rider: Rider = Depends(get_curre
     return _rider_campaign_card(db, campaign, rider)
 
 
+@rider_router.post("/{campaign_id}/route-points")
+def upload_route_points(
+    campaign_id: int, payload: RoutePointsUpload, rider: Rider = Depends(get_current_rider), db: Session = Depends(get_db)
+):
+    """GPS points recorded by the app while the rider's route is on."""
+    assignment = svc.current_assignment(db, rider.id)
+    if not assignment or assignment.campaign_id != campaign_id:
+        raise HTTPException(status_code=400, detail="You are not active in this campaign.")
+    try:
+        kept = routes.record_points(db, assignment, [p.model_dump() for p in payload.points])
+    except routes.RouteError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"received": len(payload.points), "stored": kept}
+
+
 @rider_router.post("/{campaign_id}/activity")
 async def submit_daily_proof(
     campaign_id: int,
     photo: UploadFile = File(...),
+    slot: Optional[str] = Form(None),  # MORNING / EVENING / NIGHT
     rider: Rider = Depends(get_current_rider),
     db: Session = Depends(get_db),
 ):
@@ -1084,9 +1291,9 @@ async def submit_daily_proof(
         raise HTTPException(status_code=400, detail="Campaign target reached. No more proof is needed for this campaign.")
     content, extension = await _read_image(photo)
     content_hash = hashlib.sha256(content).hexdigest()
-    _run(lambda: svc.check_photo_upload(db, assignment, content_hash))  # Before storing the file
+    slot = _run(lambda: svc.check_photo_upload(db, assignment, content_hash, slot))  # Before storing the file
     photo_url = _store_image(content, extension, "campaign-proofs")
-    activity = _run(lambda: svc.submit_activity(db, assignment, photo_url, content_hash))
+    activity = _run(lambda: svc.submit_activity(db, assignment, photo_url, content_hash, slot))
     counts = svc.photo_counts(activity)
     return {
         "id": activity.id,
@@ -1098,6 +1305,8 @@ async def submit_daily_proof(
         "photos_valid": counts["valid"],
         "photos_pending": counts["pending"],
         "photos_uploaded": counts["uploaded"],
+        "slot": slot,
+        "slots": svc.slot_rows(activity, assignment.campaign),
     }
 
 
@@ -1260,6 +1469,7 @@ def get_brand_kit(campaign_id: int, db: Session = Depends(get_db), admin: User =
         "summary": ks.summary(db, campaign),
         "riders": [_rider_kit_dict(k) for k in kits],
         "statuses": [{"value": s, "label": KitStatus.LABELS[s]} for s in KitStatus.ALL],
+        "return_summary": ks.return_summary(db, campaign),
     }
 
 
@@ -1271,7 +1481,10 @@ def update_brand_kit(
     admin: User = Depends(get_current_admin),
 ):
     campaign = _get_campaign(db, campaign_id)
-    kit = _kit_run(lambda: ks.update_kit(db, campaign, payload.tshirt_required, payload.size_options, payload.instructions))
+    kit = _kit_run(lambda: ks.update_kit(
+        db, campaign, payload.tshirt_required, payload.size_options, payload.instructions,
+        payload.return_required, payload.return_incentive, payload.return_instructions,
+    ))
     log_admin_action(db=db, admin_user=admin, action="CAMPAIGN_BRAND_KIT_UPDATED", target_type="CAMPAIGN", target_id=str(campaign.id),
                      details=f"Brand kit updated (T-shirt {'required' if kit.tshirt_required else 'not required'}; sizes {kit.size_options})")
     return get_brand_kit(campaign_id, db, admin)
@@ -1350,6 +1563,27 @@ def update_rider_kit(
         message = messages.get(kit.status) if kit.status != before[0] else f"Your T-shirt pickup location changed to {kit.pickup_location.name}."
         if message:
             svc.send_notification(db=db, user_id=rider.user_id, title="Brand kit update", message=message, category="CAMPAIGN", reference_id=str(campaign_id))
+    return _rider_kit_dict(kit)
+
+
+@router.post("/{campaign_id}/brand-kit/riders/{kit_id}/return")
+def mark_kit_returned(campaign_id: int, kit_id: int, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
+    """Admin verified the T-shirt came back. Credits the return incentive once (never twice)."""
+    kit = db.query(RiderBrandKit).filter(RiderBrandKit.id == kit_id, RiderBrandKit.campaign_id == campaign_id).first()
+    if not kit:
+        raise HTTPException(status_code=404, detail="Rider kit not found")
+    payment = _kit_run(lambda: ks.mark_returned(db, kit, admin.id))
+    rider, campaign = kit.rider, kit.campaign
+    credit = f"; ₹{payment.amount:,.0f} return incentive credited (payment #{payment.id})" if payment else ""
+    log_admin_action(db=db, admin_user=admin, action="CAMPAIGN_TSHIRT_RETURNED", target_type="CAMPAIGN", target_id=str(campaign_id),
+                     details=f"{rider.full_name} ({rider.rider_id}) returned the {campaign.name} T-shirt{credit}")
+    if rider.user_id:
+        svc.send_notification(
+            db=db, user_id=rider.user_id, category="PAYMENT" if payment else "CAMPAIGN", reference_id=str(campaign_id),
+            title="T-shirt returned" + (" 🎉" if payment else ""),
+            message=(f"₹{payment.amount:,.0f} T-shirt return incentive credited to your wallet." if payment
+                     else f"Your {campaign.name} T-shirt has been marked as returned. Thank you!"),
+        )
     return _rider_kit_dict(kit)
 
 

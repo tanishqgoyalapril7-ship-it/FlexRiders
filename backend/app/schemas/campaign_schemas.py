@@ -1,7 +1,9 @@
-from datetime import date
-from typing import Optional
+from datetime import date, datetime
+from typing import Dict, List, Optional
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+from app.models.campaign_models import VehicleCategory
 
 
 class CampaignBase(BaseModel):
@@ -17,6 +19,21 @@ class CampaignBase(BaseModel):
     brand_contract_value: float = Field(0, ge=0)  # What the brand pays; independent of rider payout
     allow_payout_beyond_contract: bool = False
     continue_after_fulfillment: bool = False
+    location_area: Optional[str] = Field(None, max_length=200)
+    # Vehicle categories that may join; empty/None = all.
+    eligible_vehicle_categories: Optional[List[str]] = None
+    # {"MORNING": ["06:00", "11:00"], "EVENING": [...], "NIGHT": [...]}; None = default slot times.
+    photo_slot_windows: Optional[Dict[str, List[str]]] = None
+
+    @field_validator("eligible_vehicle_categories")
+    @classmethod
+    def _valid_categories(cls, value):
+        if not value:
+            return None
+        unknown = [v for v in value if v not in VehicleCategory.ALL]
+        if unknown:
+            raise ValueError(f"Unknown vehicle category: {', '.join(unknown)}")
+        return [c for c in VehicleCategory.ALL if c in value]
 
     @model_validator(mode="after")
     def check_dates(self):
@@ -39,6 +56,17 @@ class ReasonRequest(BaseModel):
 
 class ApproveApplicationRequest(BaseModel):
     replacement_for_assignment_id: Optional[int] = None
+
+
+class RoutePointIn(BaseModel):
+    latitude: float = Field(..., ge=-90, le=90)
+    longitude: float = Field(..., ge=-180, le=180)
+    recorded_at: datetime
+    accuracy: Optional[float] = Field(None, ge=0)
+
+
+class RoutePointsUpload(BaseModel):
+    points: List[RoutePointIn] = Field(..., max_length=500)
 
 
 class RequestKitUpdate(BaseModel):
@@ -92,6 +120,9 @@ class BrandKitUpdate(BaseModel):
     tshirt_required: bool = False
     size_options: Optional[str] = Field("S,M,L,XL,XXL", max_length=120)
     instructions: Optional[str] = Field(None, max_length=2000)
+    return_required: Optional[bool] = None
+    return_incentive: Optional[float] = Field(None, ge=0, le=10000)
+    return_instructions: Optional[str] = Field(None, max_length=2000)
 
 
 class PickupLocationCreate(BaseModel):
@@ -106,6 +137,7 @@ class PickupLocationCreate(BaseModel):
     contact_name: Optional[str] = Field(None, max_length=120)
     contact_phone: Optional[str] = Field(None, max_length=30)
     instructions: Optional[str] = Field(None, max_length=2000)
+    purpose: Optional[str] = Field(None, pattern="^(PICKUP|RETURN)$")
 
 
 class PickupLocationUpdate(BaseModel):
@@ -122,6 +154,7 @@ class PickupLocationUpdate(BaseModel):
     contact_phone: Optional[str] = Field(None, max_length=30)
     instructions: Optional[str] = Field(None, max_length=2000)
     is_active: Optional[bool] = None
+    purpose: Optional[str] = Field(None, pattern="^(PICKUP|RETURN)$")
 
 
 class RiderKitUpdate(BaseModel):
@@ -135,3 +168,7 @@ class RiderKitUpdate(BaseModel):
 class ExcuseRequest(BaseModel):
     day: date
     reason: str = Field(..., min_length=3, max_length=255)
+
+
+class ShareCampaignRequest(BaseModel):
+    enabled: bool = True

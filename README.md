@@ -113,16 +113,27 @@ EXPO_PUBLIC_API_URL=http://192.168.1.20:8000/api/v1 npx expo start
 - **Join flow**: if the campaign needs a T-shirt, the rider picks a size (and a pickup location when there are several). A popup explains that the T-shirt must be collected before the campaign starts, with **Continue / Cancel**. Joining only creates a request; the rider isn't a campaign rider yet.
 - **Request status**: *Application Submitted*, T-shirt *Pending Collection / Collected*, Campaign *Waiting for Admin Approval*, and the pickup location's address, dates, hours, contact, instructions, plus **Open Map** and **Call** buttons. A rejected request shows *Application Rejected* with the reason.
 - **Daily photo proof (Photo Streaks)**:
-  - 3 different approved photos on a day = 1 completed day = 1 delivered rider-day.
-  - The Today's Photos card has 3 slots showing each photo as approved, in review or rejected, and an "Upload Photo 2 of 3" button.
+  - Three daily slots, **Morning, Evening and Night**, one photo each. All 3 approved = 1 completed Photo-Day = 1 delivered rider-day = the campaign's daily rate. A partial (2/3) or rejected day earns nothing.
+  - **Camera only**: tapping a slot opens the camera directly; there's no gallery, album or file picker.
+  - Each slot shows *Take Photo*, *In review*, *✓ Completed*, *⚠ Rejected → Retake*, or *🔒 Locked*, with a "2 / 3 photos completed" progress bar.
   - Current streak, longest streak, total photo-days and a "streak broken" warning.
   - Target days vs completed, completion %, missed and excused days.
   - A day-by-day timeline (x/3 photos per day, surplus days shown as "target reached, not paid").
 - **T-Shirt / Brand Kit Pickup card** with size, status, location, map and call buttons.
+- **Today's Route**: on an active campaign day the rider taps **Start Route** / **End Route**. Real GPS points are recorded only in between (in the background when the rider allows it, otherwise while the app is open), queued on the phone and uploaded every 30 s. Recording stops automatically at the end of the day and on logout. The rider sees no statistics.
 - A "Campaign target reached" banner when the brand's commitment is fully delivered.
 
 ### Money
-- Earnings summary and payment history.
+- **One earnings calculation** on the backend (`earnings_service`) feeds the campaign card, Home, the Earnings tab and the admin payout table, so they always agree.
+- Earned = approved Photo-Days × daily rate (plus any manual payments); Paid; Pending.
+- Today / last 7 days / this month / last month, and **campaign-wise earnings** (approved days × rate, paid, pending).
+- Payment history.
+
+### Refer & Earn (Profile → Settings)
+- Every rider has a unique referral code and a shareable link (`superriders://register?ref=CODE` opens registration with the code filled in); new riders can also type the code at registration.
+- When a referred rider completes their **first** Photo Streak (Morning, Evening and Night approved on one campaign day), the **referrer** gets **₹30** (`REFERRAL_REWARD_AMOUNT`), once per referred rider. The referred rider doesn't get it.
+- The reward is a real payment in the payments ledger (tagged *Referral reward*, pending until an admin pays it). It appears in the referrer's earnings and in the admin Payments list.
+- The screen shows the code, a Share button, successful referrals, referral earnings and referral history.
 
 ### Notifications
 - Filter (All / Unread / Payments / System), mark all read, delete one, delete all.
@@ -143,8 +154,12 @@ EXPO_PUBLIC_API_URL=http://192.168.1.20:8000/api/v1 npx expo start
 Sign-in is required. The session is stored in the browser, and an expired session returns to the login screen.
 
 ### Dashboard
-- KPIs, 7-day registrations, payment chart, brand distribution, campaign overview, pending approvals.
-- Monthly payments with real month-over-month change.
+- **KPIs**: total riders, active riders, pending review, suspended, live campaigns (with join requests), pending payout and total paid.
+- **Campaign Overview**: each live or recently completed campaign with brand, status, assigned vs required riders, delivered vs contracted rider-days with a fulfilment bar (the same count as the campaign's Delivery tab), and dates. Click a row to open the campaign.
+- **Rider Activity · Today**: riders working today, how many submitted photos, completed 3/3, who's missing, plus pending approvals, join requests and photos to review.
+- **Payments Overview**: total paid, pending payout (same rule as rider earnings), paid today, failed, monthly totals and recent transactions (rider, campaign / referral, amount, status, date).
+- **Recent Activity** feed from rider notifications, the admin audit log and photo uploads; pending approvals, brand-wise fleet and quick actions.
+- All figures come from `GET /reports/dashboard` and `GET /reports/operations`; nothing is hard-coded.
 
 ### Riders
 - Status tabs: All, Pending, Approved, Active, Suspended, Rejected, **Archived**. Search by name, ID, phone, vehicle number, email or UPI; filter by city.
@@ -163,10 +178,11 @@ Sign-in is required. The session is stored in the browser, and an expired sessio
 - A **rider visibility banner** on each campaign says whether riders can see it (and why not), how many slots are left, and why individual riders can't join.
 - Campaign detail tabs:
   - **Delivery**: contracted vs delivered rider-days, fulfilment %, expected-vs-actual chart, pace status, recovery plan (projected shortfall, replacement riders, extension days, each with its formula), active and at-risk riders.
-  - **Riders**: today's photos (x/3), current and longest streak, photo-days, target, remaining, completion %, Active / At Risk / Inactive, earnings, "Replaces …". Add a rider directly, remove a rider, open the activity view.
+  - **Riders**: **View Route** per rider and **View All Rider Routes**: a large map showing only rider, campaign, a date picker, the route line with a green start and red end marker, and automatic zoom. In the all-riders map each rider has their own coloured line, named on hover or tap. No distance, speed, duration or coordinates are shown.
+  - Also on the Riders tab: today's photos (x/3), current and longest streak, photo-days, target, remaining, completion %, Active / At Risk / Inactive, earnings, "Replaces …". Add a rider directly, remove a rider, open the activity view.
   - **Requests**: see *Join Requests* below.
-  - **Photos**: review each photo individually (approve, or reject with a reason). Each photo shows how many valid photos its day has.
-  - **Payouts**: approve and pay rider payouts (recorded in the payments ledger).
+  - **Photos**: review each photo individually (approve, or reject with a reason). Each photo shows its slot (Morning / Evening / Night) and how many valid photos its day has.
+  - **Payouts**: rider, Rider ID, **UPI ID** (from the rider's profile), campaign, approved Photo-Days, daily rate, earned, paid, pending. Approve and pay (recorded in the payments ledger).
   - **Extensions**: approve dated extensions to recover a shortfall.
   - **Brand Kit**: T-shirt requirement, size-wise counts, pickup locations, per-rider size / location / status / pickup date / collected date.
   - **Financials**: brand contract value, received / refunds / credits, payment status, rider payout totals, platform margin, overpayment adjustments (mark Recovered or Waived).
@@ -204,7 +220,9 @@ Four figures are kept strictly separate:
 4. **Brand money**: contract value plus explicit Received / Refund / Credit records. A delivery shortfall never changes billing automatically.
 
 ### Photo Streaks
-- A day completes only with **3 distinct approved photos** (`PHOTOS_PER_DAY`). Duplicate images (same file hash) are rejected at upload and never counted twice; extra photos never create extra days.
+- A day completes only when its **Morning, Evening and Night** photos are all approved. Each slot holds one live photo (enforced by a database index), and a rejected slot can be retaken. Duplicate images (same file hash) are rejected at upload.
+- Default slot windows are **Morning 6–11 AM, Evening 12–3 PM, Night 5–9 PM** (IST). Admins can change them per campaign (Create/Edit Campaign → Slots & Payout); they can't overlap. Uploads are only restricted to the windows when `ENFORCE_PHOTO_SLOT_WINDOWS=true`.
+- **Slot reminders:** a background loop in the API process (every minute) sends "Morning selfie slot is now open…" when a slot opens and "…closes soon" `SLOT_REMINDER_MINUTES` before it ends. Only riders actively assigned to a live campaign running today get them, never for a slot that already has a photo, and each reminder has a unique key so it is sent once, even across restarts or several server processes. They are in-app notifications (the app has no push notifications yet).
 - Streaks follow the **photo date**, not the approval time. Today stays open until it completes, days awaiting review don't break a streak, and excused days neither break nor extend it.
 - Rejecting a photo that was already approved needs a reason, recalculates payouts, logs the change and, if the rider was already paid, creates an **overpayment adjustment**. Nothing is deducted automatically.
 
@@ -229,6 +247,15 @@ Rider becomes an official campaign rider ─► campaign appears under My Active
 ```
 A join request is **never** an active campaign rider.
 
+### Campaign lifecycle: Open for Joining → Live
+- **Draft → Published (Open for Joining)**: riders see the campaign and can request to join.
+- **Live**: the admin clicks **Go Live**, or the campaign goes live by itself on its start date. From then on **new riders can't join** ("Campaign has already started. New riders cannot join this campaign."). The API enforces this; the app only mirrors it. Assigned riders carry on, requests made before it went live can still be approved, and admins can still add replacement riders.
+- Going live sends every approved rider (not requesters or rejected riders) "*Campaign* is now LIVE 🎉" once. Tapping a campaign notification in the rider app opens the campaign.
+- **Vehicle eligibility**: riders register as *Two Wheeler* or *Three Wheeler* (`riders.vehicle_category`). Campaigns set *Eligible Vehicle Type* (Two, Three or Both). Joining and approval check the rider's stored category on the server. Riders registered earlier can set their type once from Edit Profile; after that only an admin changes it. New categories are added in `VehicleCategory` (backend).
+
+### Shareable public campaign page
+Campaign detail → **Share Campaign** → *Create Public Link* gives a page at `/campaign/<slug>` (e.g. `/campaign/sector-57-promotion`) with Copy Link / Share Link / Open Public Page. It needs no login and shows only public details: brand and logo, name, description, area, dates, eligible vehicles, requirements, photo schedule, T-shirt info and status, plus a "Join in the Super Riders app" link (`superriders://campaign/<id>`). Rider, admin, payout, rate and analytics data are never included. It reads the same campaign record (no copy). Turning the link off makes the page return "not available". When hosting the dashboard, rewrite `/campaign/*` to `index.html` (a single-page app); set `PUBLIC_CAMPAIGN_BASE_URL` to use another domain.
+
 ### What riders see
 A campaign is visible in the rider app when it is **published**, not completed or cancelled, and hasn't ended (including extensions). A rider's approval status, brand or current campaign never hides a campaign; they only decide whether the rider can join. Set `CAMPAIGN_VISIBILITY_LOG=true` to log the reason each campaign is hidden.
 
@@ -236,6 +263,12 @@ A campaign is visible in the rider app when it is **published**, not completed o
 - Admins configure one or more **pickup locations** per campaign: name, address, Google Maps link, available dates and days, start and end time, contact person and phone, instructions. Locations can be activated or deactivated; one that riders were given can't be deleted.
 - With several active locations, the rider chooses one when joining; with one, it's assigned automatically. Riders can't change it afterwards; admins can.
 - Not required at all when the campaign has no T-shirt.
+
+### T-shirt return and the ₹50 return incentive
+- Brand Kit settings: *T-shirt return required* (on by default), **Return Incentive** (default ₹50, `TSHIRT_RETURN_INCENTIVE_DEFAULT`), return instructions and one or more **return locations** (same location records as pickup points, typed *Return*).
+- When the campaign ends (or the rider leaves it), riders who collected a T-shirt see **T-shirt Return Required** with the return location, dates, timings, contact and instructions.
+- Admin: Campaign → Brand Kit → *Rider Pickups & Returns* → **Mark Returned**. Statuses: Return Not Required / Return Pending / Returned / Incentive Credited.
+- Marking the return creates the incentive as a **pending payment** in the normal ledger ("T-shirt Return Incentive", category `TSHIRT_RETURN_INCENTIVE`, with the campaign). It counts in the rider's earnings and is paid out like other payments. A unique idempotency key (`TSHIRT_RETURN:<campaign>:<rider>`) guarantees it is credited **once per rider per campaign**; marking again is refused. The campaign ending on its own never credits anything.
 
 ---
 
@@ -277,11 +310,17 @@ A campaign is visible in the rider app when it is **published**, not completed o
 | `SECRET_KEY` | dev value | JWT signing key: **set a long random value** |
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | `1440` | Login session length |
 | `MOCK_OTP_CODE` | `123456` | Development OTP (riders only) |
-| `PHOTOS_PER_DAY` | `3` | Distinct approved photos for a completed day |
+| `ENFORCE_PHOTO_SLOT_WINDOWS` | `false` | Only accept Morning / Evening / Night photos inside their time windows |
 | `FULFILLMENT_ON_TRACK_PCT` / `FULFILLMENT_AT_RISK_PCT` | `95` / `80` | Campaign pace thresholds |
 | `LOW_SAMPLE_MIN_DAYS` / `LOW_SAMPLE_MIN_RIDER_DAYS` | `3` / `20` | "Preliminary" plan threshold |
 | `RIDER_BEHIND_PCT` / `INACTIVE_MISSED_DAYS` | `80` / `3` | Rider At Risk / Inactive rules |
 | `CAMPAIGN_VISIBILITY_LOG` | `false` | Log rider-app campaign visibility decisions |
+| `REFERRAL_REWARD_AMOUNT` | `30` | Refer & Earn reward paid to the referrer |
+| `REFERRAL_LINK_BASE` | `superriders://register?ref=` | Start of the shared referral link |
+| `SLOT_NOTIFICATIONS_ENABLED` | `true` | Photo slot open / closing-soon reminders (background loop in the API) |
+| `SLOT_REMINDER_MINUTES` | `30` | How long before a slot closes the reminder is sent |
+| `TSHIRT_RETURN_INCENTIVE_DEFAULT` | `50` | Return incentive for campaigns that don't set their own |
+| `PUBLIC_CAMPAIGN_BASE_URL` | empty | Base of shared public campaign links; empty = the dashboard's own address + `/campaign/` |
 
 **Supabase notes:** the session pooler allows 15 connections. The backend uses at most 8 and waits at most 10 s for one. Use the pooler host (the direct host is IPv6-only).
 
@@ -298,6 +337,8 @@ Base path `/api/v1`. Full, interactive reference at `/docs`.
 | Rider campaigns | `GET /riders/me/campaigns`, `GET /riders/me/campaigns/{id}`, `POST …/{id}/join`, `…/{id}/withdraw`, `…/{id}/activity` (photo upload) |
 | Admin riders | `GET/POST /admin/riders`, `GET/PUT/DELETE /admin/riders/{id}`, `…/delete-impact`, `…/archive`, `…/restore`, `…/approve`, `…/reject`, `…/suspend`, `…/reactivate` |
 | Brands | `GET/POST /brands`, `GET/PUT/DELETE /brands/{id}`, `…/delete-impact`, `POST /brands/assign/{rider_id}`, `DELETE /brands/unassign/{rider_id}` |
+| Referrals | `GET /riders/me/referrals`; `referral_code` on `POST /auth/register` |
+| Routes | `POST /riders/me/campaigns/{id}/route-points` (rider app), `GET /campaigns/{id}/route-dates`, `GET /campaigns/{id}/routes?date=…&assignment_id=…` (admin) |
 | Campaigns | CRUD, `…/{publish,unpublish,pause,resume,complete,cancel}`, `…/fulfillment`, `…/rider-visibility`, `…/riders`, `…/photos`, `…/payouts`, `…/extensions`, `…/brand-payments`, `…/adjustments`, `…/brand-kit`, `…/pickup-locations`, `…/activity-log`, `…/snapshot`, `…/export` |
 | Join requests | `GET /campaigns/join-requests`, `GET /campaigns/{id}/applications`, `POST …/applications/{id}/{kit,approve,reject}` |
 | Payments | `GET/POST /payments`, `PUT /payments/{id}`, `POST …/{id}/process`, `…/{id}/cancel` |
@@ -346,7 +387,7 @@ docs/                   earlier architecture, deployment and store guides (this 
 ```bash
 cd backend
 source venv/bin/activate
-python -m pytest -q          # 68 tests
+python -m pytest -q          # 75 tests
 ```
 
 The suite always uses a throwaway SQLite database. It covers:
@@ -356,6 +397,7 @@ The suite always uses a throwaway SQLite database. It covers:
 - photo streaks;
 - corrections and overpayments;
 - brand money;
+- Morning / Evening / Night slots and single-source earnings;
 - the T-shirt pickup and join-request flow;
 - rider visibility;
 - CRUD, archive and permission rules;
@@ -376,7 +418,9 @@ cd mobile && npx expo start    # then open the iOS/Android bundle; Metro reports
 - **Profile photo upload, Terms & Conditions and Privacy Policy** pages aren't built yet.
 - The rider app's **Support** screen is informational ("coming soon").
 - **Operating rules** are set in `backend/.env`, not from the dashboard.
-- **Performance**: the dashboard refreshes every 3 s. With Supabase in a distant region each query takes about 160 ms, so a nearer region or Supabase's transaction pooler is recommended as data grows.
+- **Performance**: the dashboard refreshes the open page every 15 s (paused in background tabs). With Supabase in a distant region each query takes about 190 ms, so a nearer region (Mumbai) or Supabase's transaction pooler is recommended as data grows.
+- **No push notifications**: slot reminders and campaign updates are in-app notifications, seen when the rider opens the app. Push (Expo push tokens + a sender) would be needed to alert riders while the app is closed.
+- All campaign times (slots, reminders, day boundaries) use **IST**; there is no per-campaign timezone.
 
 ---
 

@@ -78,8 +78,8 @@ def test_empty_database_to_campaign(empty_client):
     assert c.get(f"{API}/brands").json()[0]["active_riders_count"] == 1
     assert c.post(f"{API}/brands/assign/{rider_id}", json={"brand_id": brand["id"]}, headers=admin).status_code == 400  # already assigned
 
-    # 7. Admin creates a campaign for Brand A; the rider sees it and can join.
-    start = date.today().isoformat()
+    # 7. Admin creates a campaign for Brand A (starting tomorrow); the rider sees it and can join.
+    start = (date.today() + timedelta(days=1)).isoformat()
     end = (date.today() + timedelta(days=29)).isoformat()
     campaign = c.post(
         f"{API}/campaigns",

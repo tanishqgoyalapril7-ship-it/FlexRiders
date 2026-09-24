@@ -1,10 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, SafeAreaView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, Alert, Linking, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { registerRootComponent } from 'expo';
 import { Ionicons } from '@expo/vector-icons';
 import { getAuthToken, loadStoredToken, mobileApi, setAuthToken } from './src/services/api';
 import { ThemeProvider, useStyles, useTheme } from './src/theme';
-import { formatDate, formatDateTime, notificationStyle, summarizeEarnings } from './src/utils';
+import { formatDate, formatDateTime, notificationStyle } from './src/utils';
 import SplashScreen from './src/screens/SplashScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
@@ -14,6 +15,9 @@ import PaymentsScreen from './src/screens/PaymentsScreen';
 import BrandScreen from './src/screens/BrandScreen';
 import NotificationsScreen from './src/screens/NotificationsScreen';
 import ProfileScreen from './src/screens/ProfileScreen';
+import ReferScreen from './src/screens/ReferScreen';
+// Registers the background route task at startup (it must exist before location updates arrive).
+import { stopRoute } from './src/services/routeTracker';
 import SupportScreen from './src/screens/SupportScreen';
 import CampaignsScreen from './src/screens/CampaignsScreen';
 import CampaignDetailScreen from './src/screens/CampaignDetailScreen';
@@ -30,6 +34,7 @@ const EMPTY_RIDER = {
   email: '',
   vehicle: '',
   vehicle_number: '',
+  vehicle_category: '',
   upi_id: '',
   // Raw editable fields for Edit Profile
   dob: '',
@@ -46,13 +51,15 @@ const EMPTY_RIDER = {
   suspension_reason: '',
 };
 
+// Notifications open from the Home bell (and Profile → Settings), not from the tab bar.
 const TABS = [
   { key: 'home', label: 'Home', icon: 'home' },
   { key: 'campaigns', label: 'Campaigns', icon: 'megaphone' },
   { key: 'earnings', label: 'Earnings', icon: 'wallet' },
-  { key: 'notifications', label: 'Notifications', icon: 'notifications' },
   { key: 'profile', label: 'Profile', icon: 'person' },
 ];
+// Screens reached from a tab keep that tab highlighted.
+const TAB_OF_SCREEN = { campaign: 'campaigns', payments: 'earnings', refer: 'profile' };
 
 const toRider = (profile) => {
   const current = (profile.brand_history || []).find((a) => a.is_current);
@@ -66,6 +73,7 @@ const toRider = (profile) => {
     email: profile.email || '',
     vehicle: profile.vehicle_type || '',
     vehicle_number: profile.vehicle_number || '',
+    vehicle_category: profile.vehicle_category || '',
     dob: profile.dob || '',
     city: profile.primary_city || '',
     area: profile.primary_area || '',
@@ -82,6 +90,23 @@ const toRider = (profile) => {
   };
 };
 
+// Earnings come from the backend's single calculation (never recomputed on the phone).
+const EMPTY_EARNINGS = { today: 0, week: 0, month: 0, lastMonth: 0, total: 0, paid: 0, pending: 0, lastSevenDays: [], campaigns: [] };
+const toEarnings = (e) => ({
+  today: e.today_earnings,
+  week: e.week_earnings,
+  month: e.month_earnings,
+  lastMonth: e.last_month_earnings,
+  total: e.total_earnings,
+  paid: e.paid_earnings,
+  pending: e.pending_earnings,
+  lastSevenDays: e.last_seven_days.map((d) => ({
+    label: new Date(`${d.date}T00:00:00`).toLocaleDateString('en-GB', { weekday: 'short' }).slice(0, 2),
+    amount: d.amount,
+  })),
+  campaigns: e.campaigns,
+});
+
 const toPayment = (p) => ({
   id: p.id,
   date: new Date(p.payment_date),
@@ -96,6 +121,8 @@ const toNotification = (n) => ({
   title: n.title,
   message: n.message,
   category: n.category,
+  // Campaign notifications (slot reminders, campaign live) carry the campaign id.
+  campaignId: n.category === 'CAMPAIGN' && /^\d+$/.test(n.reference_id || '') ? Number(n.reference_id) : null,
   unread: !n.is_read,
   timeLabel: formatDateTime(n.created_at),
   ...notificationStyle(n.category, n.title),
@@ -108,6 +135,7 @@ const showDocumentsInfo = () =>
   );
 
 function RiderApp() {
+  const insets = useSafeAreaInsets();
   const styles = useStyles(makeStyles);
   const { colors } = useTheme();
   const [screen, setScreen] = useState('loading'); // loading | splash | login | register | main
@@ -117,14 +145,36 @@ function RiderApp() {
   const [payments, setPayments] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [campaigns, setCampaigns] = useState(null);
+  // A shared referral link (superriders://register?ref=CODE) opens registration with the code filled in.
+  // A campaign link (superriders://campaign/ID, from the public campaign page) opens that campaign after login.
+  const [referralCode, setReferralCode] = useState('');
+  const [linkedCampaign, setLinkedCampaign] = useState(null);
+  useEffect(() => {
+    const handle = (url) => {
+      const campaignMatch = /campaign\/(\d+)/.exec(url || '');
+      if (campaignMatch) setLinkedCampaign(Number(campaignMatch[1]));
+      const match = /[?&]ref=([A-Za-z0-9]+)/.exec(url || '');
+      if (match && !getAuthToken()) {
+        setReferralCode(match[1].toUpperCase());
+        setScreen('register');
+      }
+    };
+    Linking.getInitialURL().then(handle).catch(() => {});
+    const sub = Linking.addEventListener('url', ({ url }) => handle(url));
+    return () => sub.remove();
+  }, []);
+  const [earnings, setEarnings] = useState(EMPTY_EARNINGS);
   const [campaignId, setCampaignId] = useState(null);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    // Stop location sharing and upload the last points while still signed in.
+    await stopRoute().catch(() => {});
     setAuthToken('');
     setRider(EMPTY_RIDER);
     setPayments([]);
     setNotifications([]);
     setCampaigns(null);
+    setEarnings(EMPTY_EARNINGS);
     setTab('home');
     setScreen('splash');
   }, []);
@@ -139,11 +189,13 @@ function RiderApp() {
       if (err.status === 401) logout();
       return err.status === 404 ? false : null;
     }
-    const [paymentData, notificationData, campaignData] = await Promise.all([
+    const [paymentData, notificationData, campaignData, earningsData] = await Promise.all([
       mobileApi.getPaymentHistory().catch(() => null),
       mobileApi.getNotifications().catch(() => null),
       mobileApi.getCampaigns().catch(() => null),
+      mobileApi.getEarnings().catch(() => null),
     ]);
+    if (earningsData) setEarnings(toEarnings(earningsData));
     if (paymentData) setPayments((paymentData.payments || []).map(toPayment));
     if (notificationData) setNotifications(notificationData.map(toNotification));
     if (campaignData) setCampaigns(campaignData);
@@ -224,13 +276,26 @@ function RiderApp() {
     setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
   };
 
-  const navigate = (target) => (target === 'documents' ? showDocumentsInfo() : setTab(target));
+  // Notifications can be opened from Home or Profile; Back returns to where the rider came from.
+  const [notificationsBack, setNotificationsBack] = useState('home');
+  const openNotifications = (from) => {
+    setNotificationsBack(from);
+    setTab('notifications');
+  };
+  const navigate = (target) =>
+    target === 'documents' ? showDocumentsInfo() : target === 'notifications' ? openNotifications('home') : setTab(target);
   const openCampaign = (id) => {
     setCampaignId(id);
     setTab('campaign');
   };
   const goHome = () => setTab('home');
-  const earnings = useMemo(() => summarizeEarnings(payments), [payments]);
+  useEffect(() => {
+    if (screen === 'main' && linkedCampaign) {
+      openCampaign(linkedCampaign);
+      setLinkedCampaign(null);
+    }
+  }, [screen, linkedCampaign]);
+
   const unreadCount = notifications.filter((n) => n.unread).length;
 
   const renderTab = () => {
@@ -245,14 +310,17 @@ function RiderApp() {
         return (
           <NotificationsScreen
             notifications={notifications}
-            onBack={goHome}
+            onBack={() => setTab(notificationsBack)}
             onMarkAllRead={markAllRead}
             onDelete={deleteNotification}
             onClearAll={clearNotifications}
+            onOpenCampaign={openCampaign}
           />
         );
       case 'profile':
-        return <ProfileScreen rider={rider} onLogout={logout} onProfileChanged={refreshData} onAccountDeleted={handleAccountDeleted} />;
+        return <ProfileScreen rider={rider} onLogout={logout} onProfileChanged={refreshData} onAccountDeleted={handleAccountDeleted} onOpenRefer={() => setTab('refer')} onOpenNotifications={() => openNotifications('profile')} unreadCount={unreadCount} />;
+      case 'refer':
+        return <ReferScreen onBack={() => setTab('profile')} />;
       case 'support':
         return <SupportScreen onBack={goHome} />;
       case 'campaigns':
@@ -277,7 +345,11 @@ function RiderApp() {
   const isSplash = screen === 'splash';
 
   return (
-    <SafeAreaView style={[styles.safeArea, isSplash && { backgroundColor: '#071233' }]}>
+    // In the main app the tab bar pads for the bottom inset itself, so it reaches the screen edge.
+    <SafeAreaView
+      style={[styles.safeArea, isSplash && { backgroundColor: '#071233' }]}
+      edges={screen === 'main' ? ['top', 'left', 'right'] : ['top', 'bottom', 'left', 'right']}
+    >
       <StatusBar barStyle={isSplash ? 'light-content' : colors.statusBar} />
 
       {screen === 'loading' && (
@@ -309,26 +381,32 @@ function RiderApp() {
         />
       )}
 
-      {screen === 'register' && <RegisterScreen onBack={() => setScreen('splash')} onRegistered={handleRegistered} />}
+      {screen === 'register' && (
+        <RegisterScreen onBack={() => setScreen('splash')} onRegistered={handleRegistered} initialReferralCode={referralCode} />
+      )}
 
       {screen === 'main' && (
         <View style={{ flex: 1 }}>
           {renderTab()}
-          <View style={styles.tabBar}>
+          <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom, 8) }]} accessibilityRole="tablist">
             {TABS.map((t) => {
-              const active = tab === t.key || (t.key === 'campaigns' && tab === 'campaign');
+              const active = (TAB_OF_SCREEN[tab] || tab) === t.key;
               const color = active ? colors.primary : colors.textSubtle;
               return (
-                <TouchableOpacity key={t.key} style={styles.tabItem} onPress={() => setTab(t.key)}>
-                  <View>
-                    <Ionicons name={active ? t.icon : `${t.icon}-outline`} size={22} color={color} />
-                    {t.key === 'notifications' && unreadCount > 0 ? (
-                      <View style={styles.tabBadge}>
-                        <Text style={styles.tabBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
-                      </View>
-                    ) : null}
+                <TouchableOpacity
+                  key={t.key}
+                  style={styles.tabItem}
+                  onPress={() => setTab(t.key)}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={t.label}
+                >
+                  <View style={styles.tabIcon}>
+                    <Ionicons name={active ? t.icon : `${t.icon}-outline`} size={24} color={color} />
                   </View>
-                  <Text style={[styles.tabLabel, { color }, active && { fontWeight: '700' }]}>{t.label}</Text>
+                  <Text style={[styles.tabLabel, { color }, active && styles.tabLabelActive]} numberOfLines={1}>
+                    {t.label}
+                  </Text>
                 </TouchableOpacity>
               );
             })}
@@ -341,9 +419,11 @@ function RiderApp() {
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <RiderApp />
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <RiderApp />
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
 
@@ -351,29 +431,20 @@ const makeStyles = (c) =>
   StyleSheet.create({
     safeArea: { flex: 1, backgroundColor: c.background },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+    // Four equal columns; each centres a fixed-size icon slot above a single-line label,
+    // so icons line up and labels share one baseline on every screen width.
     tabBar: {
       flexDirection: 'row',
+      alignItems: 'stretch',
       backgroundColor: c.surface,
-      borderTopWidth: 1,
+      borderTopWidth: StyleSheet.hairlineWidth,
       borderTopColor: c.border,
       paddingTop: 8,
-      paddingBottom: 6,
     },
-    tabItem: { flex: 1, alignItems: 'center', gap: 3 },
-    tabLabel: { fontSize: 10.5, fontWeight: '600' },
-    tabBadge: {
-      position: 'absolute',
-      top: -4,
-      right: -8,
-      minWidth: 16,
-      height: 16,
-      borderRadius: 8,
-      paddingHorizontal: 3,
-      backgroundColor: c.danger,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    tabBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '700' },
+    tabItem: { flex: 1, alignItems: 'center', justifyContent: 'flex-start' },
+    tabIcon: { width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
+    tabLabel: { marginTop: 3, fontSize: 11, lineHeight: 14, fontWeight: '600', textAlign: 'center' },
+    tabLabelActive: { fontWeight: '700' },
   });
 
 registerRootComponent(App);

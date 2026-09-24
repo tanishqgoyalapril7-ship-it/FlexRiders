@@ -64,6 +64,7 @@ def get_all_payments(
             transaction_id=p.transaction_id,
             status=p.status,
             notes=p.notes,
+            category=p.category,
         )
         for p in payments
     ]
@@ -107,6 +108,7 @@ def create_new_payment(
         transaction_id=payment.transaction_id,
         status=payment.status,
         notes=payment.notes,
+        category=payment.category,
     )
 
 
@@ -146,6 +148,7 @@ def process_payment(
         transaction_id=payment.transaction_id,
         status=payment.status,
         notes=payment.notes,
+        category=payment.category,
     )
 
 
@@ -166,6 +169,7 @@ def _payment_response(p: Payment) -> PaymentResponse:
         transaction_id=p.transaction_id,
         status=p.status,
         notes=p.notes,
+        category=p.category,
     )
 
 

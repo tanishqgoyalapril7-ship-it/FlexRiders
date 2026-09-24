@@ -25,6 +25,16 @@ export function StatusPill({ status, label }) {
   );
 }
 
+/** Campaign status as riders and brands see it: Open for Joining → Live → Completed. */
+export function CampaignStatusPill({ campaign }) {
+  const key = campaign.lifecycle && campaign.lifecycle.key;
+  let label;
+  if (key === 'LIVE') label = 'Live';
+  else if (key === 'OPEN') label = campaign.status === 'FULL' ? 'Full · Not Live' : 'Open for Joining';
+  else if (key === 'COMPLETED' && campaign.status !== 'COMPLETED') label = 'Ended';
+  return <StatusPill status={campaign.status} label={label} />;
+}
+
 export function SlotProgress({ used, total }) {
   const percent = total ? Math.min((used / total) * 100, 100) : 0;
   return (
@@ -61,6 +71,31 @@ export function EmptyState({ icon: Icon, children }) {
     <div className="empty-state">
       {Icon ? <Icon size={28} color="#CBD5E1" /> : null}
       <span>{children}</span>
+    </div>
+  );
+}
+
+const SLOT_STATE = {
+  APPROVED: { text: '✓', label: 'Approved', color: '#047857' },
+  PENDING: { text: 'Pending', label: 'In review', color: '#1D4ED8' },
+  REJECTED: { text: 'Rejected', label: 'Rejected', color: '#B91C1C' },
+  NOT_STARTED: { text: '—', label: 'Not taken', color: '#94A3B8' },
+};
+
+/** Morning / Evening / Night photo status for one day. */
+export function SlotStatuses({ slots, inline }) {
+  if (!slots) return null;
+  return (
+    <div style={{ display: 'flex', flexDirection: inline ? 'row' : 'column', gap: inline ? 10 : 2, fontSize: '0.74rem', flexWrap: 'wrap' }}>
+      {slots.map((s) => {
+        const state = SLOT_STATE[s.status] || SLOT_STATE.NOT_STARTED;
+        return (
+          <span key={s.slot} title={`${s.label}: ${state.label}${s.rejection_reason ? ` (${s.rejection_reason})` : ''}`}>
+            <span style={{ color: '#64748B' }}>{inline ? s.label.charAt(0) : s.label}:</span>{' '}
+            <strong style={{ color: state.color }}>{state.text}</strong>
+          </span>
+        );
+      })}
     </div>
   );
 }

@@ -3,7 +3,7 @@
 Four figures are kept strictly separate and never derived from one another:
 
 1. PURCHASED  contracted rider-days (C) = required riders (R) × contract days (D), fixed at publish
-2. DELIVERED  completed rider-days (Photo Streak days: PHOTOS_PER_DAY distinct approved photos on one
+2. DELIVERED  completed rider-days (Photo Streak days: Morning, Evening and Night photos all approved on one
               date) on eligible dates (contract period + approved extensions)
 3. EARNED     payable approved days × each rider's daily rate
 4. BRAND PAID contract value adjusted only by explicit payment / refund / credit records
@@ -34,6 +34,7 @@ from app.models.campaign_models import (
     CampaignStatus,
     FinancialAdjustment,
     PayoutStatus,
+    PhotoSlot,
     PhotoStatus,
 )
 
@@ -484,7 +485,7 @@ def campaign_fulfillment(db: Session, campaign: Campaign, today: Optional[date] 
         "daily_average": round(actual_to_date / elapsed, 2) if elapsed else None,
         "delivery_status": delivery_status,
         "excused_rider_days": excused_days,
-        "photos_per_day": settings.PHOTOS_PER_DAY,
+        "photos_per_day": len(PhotoSlot.ALL),
         "active_riders": len(current),
         "riders_behind_target": sum(1 for a in current if riders[a.id]["behind_target"]),
         "inactive_riders": sum(1 for a in current if riders[a.id]["inactive"]),

@@ -3,13 +3,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from app.core.config import settings
-from app.core.database import Base, engine, lock_down_public_api, add_missing_columns
+from app.core.database import Base, SessionLocal, engine, lock_down_public_api, add_missing_columns, ensure_indexes
 from app.api.v1.api import api_router
+from app.services import slot_reminder_service
+from app.services.campaign_service import backfill_live_dates
 
 # Initialize database tables
 Base.metadata.create_all(bind=engine)
 add_missing_columns()
+ensure_indexes()
 lock_down_public_api()
+backfill_live_dates()
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -34,6 +38,12 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 
 # Uploaded campaign banners and daily proof photos
 app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
+
+
+@app.on_event("startup")
+def start_slot_reminders():
+    # Photo slot open / closing-soon notifications (and campaigns going live on their start date).
+    slot_reminder_service.start_background_loop(SessionLocal)
 
 
 @app.get("/", include_in_schema=False)

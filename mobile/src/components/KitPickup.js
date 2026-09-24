@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useStyles, useTheme } from '../theme';
 import { Card, SectionHeader, toneColors } from './ui';
 import { mobileApi } from '../services/api';
-import { formatDate } from '../utils';
+import { formatDate, formatINR } from '../utils';
 
 export const KIT_STATUS = {
   NOT_REQUIRED: { label: 'Not Required', tone: 'neutral', icon: 'remove-circle-outline' },
@@ -225,6 +225,42 @@ function InfoRow({ icon, children }) {
   );
 }
 
+/** One official pickup or return point: address, dates, timings, contact, map and call buttons. */
+function LocationBox({ location: l }) {
+  const styles = useStyles(makeStyles);
+  const { colors } = useTheme();
+  const w = pickupWindow(l);
+  const open = (url) => Linking.openURL(url).catch(() => Alert.alert('Could not open', url));
+  return (
+    <View style={styles.locationBox}>
+      <Text style={styles.optionTitle}>{l.name}</Text>
+      <InfoRow icon="location-outline">{l.address}</InfoRow>
+      {w.dates ? <InfoRow icon="calendar-outline">{w.dates}</InfoRow> : null}
+      {w.days || w.hours ? <InfoRow icon="time-outline">{[w.days, w.hours].filter(Boolean).join(' · ')}</InfoRow> : null}
+      {l.contact_name || l.contact_phone ? (
+        <InfoRow icon="person-outline">{[l.contact_name, l.contact_phone].filter(Boolean).join(' · ')}</InfoRow>
+      ) : null}
+      {l.instructions ? <InfoRow icon="document-text-outline">{l.instructions}</InfoRow> : null}
+      {l.map_url || l.contact_phone ? (
+        <View style={styles.actions}>
+          {l.map_url ? (
+            <TouchableOpacity style={styles.action} onPress={() => open(l.map_url)} accessibilityRole="link">
+              <Ionicons name="navigate-outline" size={16} color={colors.primary} />
+              <Text style={styles.actionText}>Open Map</Text>
+            </TouchableOpacity>
+          ) : null}
+          {l.contact_phone ? (
+            <TouchableOpacity style={styles.action} onPress={() => open(`tel:${l.contact_phone.replace(/[^\d+]/g, '')}`)}>
+              <Ionicons name="call-outline" size={16} color={colors.primary} />
+              <Text style={styles.actionText}>Call {l.contact_name || 'Contact'}</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 export function PickupCard({ campaign, myKit, joined }) {
   const styles = useStyles(makeStyles);
   const { colors } = useTheme();
@@ -237,8 +273,6 @@ export function PickupCard({ campaign, myKit, joined }) {
   // After joining: the rider's own location. Before: the official options.
   const location = myKit && myKit.pickup_location ? myKit.pickup_location : null;
   const options = !joined ? activeLocations(kit) : location ? [location] : activeLocations(kit).length === 1 ? activeLocations(kit) : [];
-
-  const open = (url) => Linking.openURL(url).catch(() => Alert.alert('Could not open', url));
 
   return (
     <>
@@ -281,39 +315,74 @@ export function PickupCard({ campaign, myKit, joined }) {
         ) : null}
 
         {required
-          ? options.map((l) => {
-              const w = pickupWindow(l);
-              return (
-                <View key={l.id} style={styles.locationBox}>
-                  <Text style={styles.optionTitle}>{l.name}</Text>
-                  <InfoRow icon="location-outline">{l.address}</InfoRow>
-                  {w.dates ? <InfoRow icon="calendar-outline">{w.dates}</InfoRow> : null}
-                  {w.days || w.hours ? <InfoRow icon="time-outline">{[w.days, w.hours].filter(Boolean).join(' · ')}</InfoRow> : null}
-                  {l.contact_name || l.contact_phone ? (
-                    <InfoRow icon="person-outline">{[l.contact_name, l.contact_phone].filter(Boolean).join(' · ')}</InfoRow>
-                  ) : null}
-                  {l.instructions ? <InfoRow icon="document-text-outline">{l.instructions}</InfoRow> : null}
-                  {l.map_url || l.contact_phone ? (
-                    <View style={styles.actions}>
-                      {l.map_url ? (
-                        <TouchableOpacity style={styles.action} onPress={() => open(l.map_url)} accessibilityRole="link">
-                          <Ionicons name="navigate-outline" size={16} color={colors.primary} />
-                          <Text style={styles.actionText}>Open Map</Text>
-                        </TouchableOpacity>
-                      ) : null}
-                      {l.contact_phone ? (
-                        <TouchableOpacity style={styles.action} onPress={() => open(`tel:${l.contact_phone.replace(/[^\d+]/g, '')}`)}>
-                          <Ionicons name="call-outline" size={16} color={colors.primary} />
-                          <Text style={styles.actionText}>Call {l.contact_name || 'Contact'}</Text>
-                        </TouchableOpacity>
-                      ) : null}
-                    </View>
-                  ) : null}
-                </View>
-              );
-            })
+          ? options.map((l) => <LocationBox key={l.id} location={l} />)
           : null}
         {required && kit.instructions ? <InfoRow icon="alert-circle-outline">{kit.instructions}</InfoRow> : null}
+      </Card>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// T-shirt return after the campaign (with the one-time return incentive)
+// ---------------------------------------------------------------------------
+
+const RETURN_TONE = { PENDING: 'warning', RETURNED: 'success', INCENTIVE_CREDITED: 'success' };
+
+export function ReturnCard({ kitReturn }) {
+  const styles = useStyles(makeStyles);
+  const { colors } = useTheme();
+  if (!kitReturn) return null;
+  const pending = kitReturn.status === 'PENDING';
+  // Before the campaign ends only a short reminder is shown; the full card appears once the return is due.
+  if (pending && !kitReturn.due) {
+    return kitReturn.incentive > 0 ? (
+      <View style={[styles.locationBox, { marginTop: 14, flexDirection: 'row', gap: 10, alignItems: 'center' }]}>
+        <Ionicons name="gift-outline" size={18} color={colors.primary} />
+        <Text style={[styles.optionText, { flex: 1 }]}>
+          Return your T-shirt after the campaign to get a {formatINR(kitReturn.incentive)} return incentive.
+        </Text>
+      </View>
+    ) : null;
+  }
+  const tone = toneColors(colors, RETURN_TONE[kitReturn.status] || 'neutral');
+  const credited = kitReturn.incentive_credited;
+  return (
+    <>
+      <SectionHeader title={pending ? 'T-shirt Return Required' : 'T-shirt Return'} />
+      <Card style={[{ gap: 12 }, pending && { borderColor: colors.warning }]}>
+        <View style={styles.titleRow}>
+          <View style={[styles.kitIcon, { backgroundColor: tone.bg }]}>
+            <Ionicons name={pending ? 'return-down-back-outline' : 'checkmark-done-outline'} size={22} color={tone.fg} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.cardTitle}>
+              {pending ? 'T-shirt return required' : credited ? `${formatINR(kitReturn.incentive_amount)} incentive credited` : 'T-shirt returned'}
+            </Text>
+            <Text style={styles.optionText}>
+              {pending
+                ? kitReturn.incentive > 0
+                  ? `Return your campaign T-shirt to receive your ${formatINR(kitReturn.incentive)} return incentive.`
+                  : 'Please return your campaign T-shirt.'
+                : credited
+                ? `${formatINR(kitReturn.incentive_amount)} T-shirt return incentive credited to your wallet.`
+                : `Returned${kitReturn.returned_at ? ` on ${formatDate(kitReturn.returned_at)}` : ''}. Thank you!`}
+            </Text>
+          </View>
+          <View style={[styles.badge, { backgroundColor: tone.bg }]}>
+            <Text style={[styles.badgeText, { color: tone.fg }]}>{kitReturn.status_label}</Text>
+          </View>
+        </View>
+        {pending ? (
+          <>
+            {kitReturn.locations.length === 0 ? (
+              <InfoRow icon="information-circle-outline">The team will share where to return it here.</InfoRow>
+            ) : (
+              kitReturn.locations.map((l) => <LocationBox key={l.id} location={l} />)
+            )}
+            {kitReturn.instructions ? <InfoRow icon="alert-circle-outline">{kitReturn.instructions}</InfoRow> : null}
+          </>
+        ) : null}
       </Card>
     </>
   );

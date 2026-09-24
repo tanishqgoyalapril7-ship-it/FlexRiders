@@ -1,484 +1,396 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Users,
   Clock,
-  UserCheck,
   Bike,
-  AlertCircle,
-  TrendingUp,
-  TrendingDown,
-  ArrowUpRight,
-  PlusCircle,
-  Briefcase,
-  FileSpreadsheet,
-  CreditCard,
-  Download,
-  CheckCircle2,
-  AlertTriangle,
   Megaphone,
+  Wallet,
+  CreditCard,
+  CalendarDays,
+  TrendingUp,
+  UserPlus,
+  UserCheck,
+  UserX,
+  Briefcase,
+  Inbox,
+  Camera,
+  ShieldCheck,
+  Bell,
+  CircleDollarSign,
+  ChevronRight,
 } from 'lucide-react';
-import { RegistrationsBarChart, PaymentsOverviewChart, BrandDonutChart } from '../components/Charts';
+import { api } from '../services/api';
 
-export function DashboardView({
-  dashboardData,
-  notifications = [],
-  onViewRider,
-  onApproveRider,
-  onRejectRider,
-  onQuickAction,
-  onDownloadReport,
-  campaignSummary,
-}) {
-  const stats = dashboardData?.stats || {
-    total_riders: 0,
-    pending_approvals: 0,
-    approved_riders: 0,
-    active_riders: 0,
-    suspended_riders: 0,
-    total_payments: 0,
-    pending_payments: 0,
-    today_payments: 0,
-    growth_riders: 0.0,
-    growth_active: 0.0,
-    growth_payments: 0.0,
-  };
+const inr = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+const dayMonth = (iso) => new Date(`${iso.slice(0, 10)}T00:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+const dayMonthYear = (iso) => new Date(`${iso.slice(0, 10)}T00:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+const asDate = (value) => new Date(/Z|[+-]\d\d:?\d\d$/.test(value) ? value : `${value}Z`);
 
-  const pendingRiders = dashboardData?.pending_riders || [];
-  const recentRegistrations = dashboardData?.recent_registrations || [];
-  const recentPayments = dashboardData?.recent_payments || [];
-  const monthlyReport = dashboardData?.monthly_report || {
-    this_month: 0,
-    last_month: 0,
-    last_3_months: 0,
-    growth: 0.0,
-  };
+/** "13:08" today, "Yesterday", or "22 Sep". */
+function feedTime(value) {
+  if (!value) return '';
+  const d = asDate(value);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  if (d.toDateString() === today.toDateString()) return d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+}
+
+const STATUS = {
+  ACTIVE: ['Active', 'dpill-green'],
+  OPEN: ['Open', 'dpill-blue'],
+  FULL: ['Full', 'dpill-amber'],
+  PAUSED: ['Paused', 'dpill-gray'],
+  COMPLETED: ['Completed', 'dpill-blue'],
+  PAID: ['Paid', 'dpill-green'],
+  PENDING: ['Pending', 'dpill-amber'],
+  FAILED: ['Failed', 'dpill-red'],
+  CANCELLED: ['Cancelled', 'dpill-gray'],
+  PROCESSING: ['Processing', 'dpill-blue'],
+};
+
+const FEED_ICONS = {
+  REGISTRATION: [UserPlus, '#2563EB', '#EFF6FF'],
+  CAMPAIGN: [Megaphone, '#7C3AED', '#F5F3FF'],
+  PAYMENT: [CircleDollarSign, '#059669', '#ECFDF5'],
+  PHOTO: [Camera, '#16A34A', '#F0FDF4'],
+  RIDER: [Users, '#2563EB', '#EFF6FF'],
+  BRAND: [Briefcase, '#0891B2', '#ECFEFF'],
+  ADMIN: [ShieldCheck, '#EA580C', '#FFF7ED'],
+  SYSTEM: [Bell, '#475569', '#F1F5F9'],
+};
+
+function Kpi({ label, value, icon: Icon, color, bg, sub, subTone, onClick }) {
+  return (
+    <button type="button" className="dkpi" onClick={onClick} disabled={!onClick}>
+      <div className="dkpi-top">
+        <span className="dkpi-label">{label}</span>
+        <span className="dkpi-icon" style={{ color, background: bg }}>
+          <Icon size={17} />
+        </span>
+      </div>
+      <span className="dkpi-value">{value}</span>
+      <span className={`dkpi-sub ${subTone || ''}`}>{sub}</span>
+    </button>
+  );
+}
+
+function Pill({ status }) {
+  const [label, cls] = STATUS[status] || [status, 'dpill-gray'];
+  return <span className={`dpill ${cls}`}>{label}</span>;
+}
+
+function Empty({ icon: Icon, text, action, onAction }) {
+  return (
+    <div className="dempty">
+      <span className="dempty-icon">
+        <Icon size={20} />
+      </span>
+      <span>{text}</span>
+      {action ? (
+        <button className="btn-secondary" onClick={onAction}>
+          {action}
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+function BrandMark({ name, logo }) {
+  if (logo) return <img src={logo} alt={name} className="dbrand-logo" />;
+  return <span className="dbrand-name">{name}</span>;
+}
+
+const fulfilColor = (pct) => (pct >= 75 ? '#16A34A' : pct >= 40 ? '#F59E0B' : '#EF4444');
+
+/** Admin home. Every figure comes from GET /reports/operations (real records, existing rules). */
+export function DashboardView({ onQuickAction, onOpenCampaign }) {
+  const [ops, setOps] = useState(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const load = () =>
+      api
+        .getOperationsOverview()
+        .then((d) => {
+          setOps(d);
+          setError('');
+        })
+        .catch((err) => setError(err.message));
+    load();
+    const id = setInterval(() => document.visibilityState === 'visible' && load(), 15000);
+    return () => clearInterval(id);
+  }, []);
+
+  const k = ops ? ops.kpis : null;
+  const ra = ops ? ops.rider_activity : null;
+  const pay = ops ? ops.payments : null;
+  const dash = (v) => (ops ? v : '—');
 
   return (
-    <div className="page-container">
-      {/* Page Title */}
+    <div className="page-container dashboard">
       <div className="page-header-row">
         <div>
           <h1 className="page-title">Dashboard</h1>
-          <p className="page-subtitle">Overview of your riders, brands and payments</p>
+          <p className="page-subtitle">Overview of your riders, campaigns and payments</p>
         </div>
+        {ops ? (
+          <span className="ddate">
+            <CalendarDays size={15} /> {dayMonthYear(ops.today)}
+          </span>
+        ) : null}
       </div>
 
-      {/* Row 1: 5 Rider KPI Cards */}
-      <div className="stats-grid-5">
-        {/* Total Riders */}
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <span className="stat-card-title">Total Riders</span>
-            <div className="stat-icon-wrapper" style={{ background: '#EFF6FF', color: '#2563EB' }}>
-              <Users size={18} />
-            </div>
-          </div>
-          <div className="stat-value">{stats.total_riders}</div>
-          <div className={`stat-trend ${stats.total_riders > 0 ? 'trend-up' : 'trend-neutral'}`}>
-            {stats.total_riders > 0 && <TrendingUp size={13} />}
-            <span>{stats.total_riders > 0 ? `${stats.total_riders} registered` : '0%'}</span>
-          </div>
-        </div>
+      {error ? <div className="form-error">Could not load the dashboard: {error}</div> : null}
 
-        {/* Pending Approvals */}
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <span className="stat-card-title">Pending Approvals</span>
-            <div className="stat-icon-wrapper" style={{ background: '#FFFBEB', color: '#D97706' }}>
-              <Clock size={18} />
-            </div>
-          </div>
-          <div className="stat-value">{stats.pending_approvals}</div>
-          <div className={`stat-trend ${stats.pending_approvals > 0 ? 'trend-down' : 'trend-neutral'}`}>
-            <span>{stats.pending_approvals > 0 ? `${stats.pending_approvals} awaiting action` : '0%'}</span>
-          </div>
-        </div>
-
-        {/* Approved Riders */}
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <span className="stat-card-title">Approved Riders</span>
-            <div className="stat-icon-wrapper" style={{ background: '#ECFDF5', color: '#10B981' }}>
-              <UserCheck size={18} />
-            </div>
-          </div>
-          <div className="stat-value">{stats.approved_riders}</div>
-          <div className={`stat-trend ${stats.approved_riders > 0 ? 'trend-up' : 'trend-neutral'}`}>
-            {stats.approved_riders > 0 && <TrendingUp size={13} />}
-            <span>{stats.approved_riders > 0 ? `${stats.approved_riders} approved` : '0%'}</span>
-          </div>
-        </div>
-
-        {/* Active Riders */}
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <span className="stat-card-title">Active Riders</span>
-            <div className="stat-icon-wrapper" style={{ background: '#ECFDF5', color: '#059669' }}>
-              <Bike size={18} />
-            </div>
-          </div>
-          <div className="stat-value">{stats.active_riders}</div>
-          <div className={`stat-trend ${stats.active_riders > 0 ? 'trend-up' : 'trend-neutral'}`}>
-            {stats.active_riders > 0 && <TrendingUp size={13} />}
-            <span>{stats.active_riders > 0 ? `${stats.active_riders} on duty` : '0%'}</span>
-          </div>
-        </div>
-
-        {/* Suspended Riders */}
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <span className="stat-card-title">Suspended Riders</span>
-            <div className="stat-icon-wrapper" style={{ background: '#FEF2F2', color: '#EF4444' }}>
-              <AlertCircle size={18} />
-            </div>
-          </div>
-          <div className="stat-value">{stats.suspended_riders}</div>
-          <div className="stat-trend trend-neutral">
-            <span>{stats.suspended_riders > 0 ? `${stats.suspended_riders} suspended` : '0%'}</span>
-          </div>
-        </div>
+      <div className="dkpi-row">
+        <Kpi label="Total Riders" value={dash(k?.total_riders)} icon={Users} color="#2563EB" bg="#EFF6FF" sub={<><TrendingUp size={12} /> {k?.approved_riders ?? 0} approved</>} subTone="green" onClick={() => onQuickAction('all_riders')} />
+        <Kpi label="Active Riders" value={dash(k?.active_riders)} icon={Bike} color="#16A34A" bg="#F0FDF4" sub={<><TrendingUp size={12} /> {k?.active_riders ?? 0} on duty</>} subTone="green" onClick={() => onQuickAction('all_riders')} />
+        <Kpi
+          label="Pending Approvals"
+          value={dash(k?.pending_approvals)}
+          icon={Clock}
+          color="#F59E0B"
+          bg="#FFFBEB"
+          sub={k?.pending_approvals ? `${k.pending_approvals} awaiting review` : 'All caught up'}
+          subTone="amber"
+          onClick={() => onQuickAction('pending_riders')}
+        />
+        <Kpi
+          label="Active Campaigns"
+          value={dash(k?.active_campaigns)}
+          icon={Megaphone}
+          color="#7C3AED"
+          bg="#F5F3FF"
+          sub={<><span className="ddot" /> {k?.running_campaigns ?? 0} running</>}
+          onClick={() => onQuickAction('campaigns')}
+        />
+        <Kpi
+          label="Pending Payments"
+          value={pay ? inr(pay.pending_payout) : '—'}
+          icon={Wallet}
+          color="#EA580C"
+          bg="#FFF7ED"
+          sub={pay && pay.pending_payout ? 'Earned, not yet paid' : 'All cleared'}
+          subTone="amber"
+          onClick={() => onQuickAction('payments')}
+        />
+        <Kpi label="Total Payments" value={pay ? inr(pay.total_paid) : '—'} icon={CreditCard} color="#2563EB" bg="#EFF6FF" sub={pay ? `${inr(pay.this_month)} this month` : ''} subTone="green" onClick={() => onQuickAction('payments')} />
       </div>
 
-      {/* Row 2: 3 Financial Cards */}
-      <div className="stats-grid-3">
-        {/* Total Payments */}
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <span className="stat-card-title">Total Payments</span>
-            <div className="stat-icon-wrapper" style={{ background: '#EFF6FF', color: '#2563EB' }}>
-              <CreditCard size={18} />
-            </div>
+      <div className="drow-main">
+        <section className="card dcard">
+          <div className="dcard-head">
+            <h2>Campaign Overview</h2>
+            <button className="dlink" onClick={() => onQuickAction('campaigns')}>
+              View all campaigns
+            </button>
           </div>
-          <div className="stat-value">₹{stats.total_payments.toLocaleString('en-IN')}</div>
-          <div className={`stat-trend ${stats.total_payments > 0 ? 'trend-up' : 'trend-neutral'}`}>
-            {stats.total_payments > 0 && <TrendingUp size={13} />}
-            <span>{stats.total_payments > 0 ? 'Live ledger' : '₹0.00 settled'}</span>
-          </div>
-        </div>
-
-        {/* Pending Payments */}
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <span className="stat-card-title">Pending Payments</span>
-            <div className="stat-icon-wrapper" style={{ background: '#FFFBEB', color: '#D97706' }}>
-              <Clock size={18} />
-            </div>
-          </div>
-          <div className="stat-value">₹{stats.pending_payments.toLocaleString('en-IN')}</div>
-          <div className="stat-trend trend-neutral">
-            <span>{stats.pending_payments > 0 ? `₹${stats.pending_payments.toLocaleString('en-IN')} pending` : 'All cleared'}</span>
-          </div>
-        </div>
-
-        {/* Today's Payments */}
-        <div className="stat-card">
-          <div className="stat-card-top">
-            <span className="stat-card-title">Today's Payments</span>
-            <div className="stat-icon-wrapper" style={{ background: '#ECFDF5', color: '#10B981' }}>
-              <TrendingUp size={18} />
-            </div>
-          </div>
-          <div className="stat-value">₹{stats.today_payments.toLocaleString('en-IN')}</div>
-          <div className={`stat-trend ${stats.today_payments > 0 ? 'trend-up' : 'trend-neutral'}`}>
-            {stats.today_payments > 0 && <TrendingUp size={13} />}
-            <span>{stats.today_payments > 0 ? `₹${stats.today_payments.toLocaleString('en-IN')} today` : '₹0 today'}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Row 3: Middle Grid (Charts + Right Side Widgets) */}
-      <div className="dashboard-middle-grid">
-        {/* Left: Charts Column */}
-        <div className="charts-column">
-          <RegistrationsBarChart data={dashboardData?.registration_chart} />
-
-          <div className="charts-row-split">
-            <PaymentsOverviewChart data={dashboardData?.payments_chart} />
-            <BrandDonutChart data={dashboardData?.brand_distribution} onCreateBrand={() => onQuickAction('create_brand')} />
-          </div>
-        </div>
-
-        {/* Right: Side Widgets Column */}
-        <div className="side-widgets-column">
-          {/* Pending Approvals Widget */}
-          <div className="card">
-            <div className="card-header-bar">
-              <span className="card-title-text">Pending Approvals</span>
-              <span className="card-action-link" onClick={() => onQuickAction('pending_riders')}>
-                View all
-              </span>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              {pendingRiders.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '24px 12px', color: '#94A3B8', fontSize: '0.8rem' }}>
-                  <CheckCircle2 size={24} color="#10B981" style={{ margin: '0 auto 6px' }} />
-                  <div style={{ fontWeight: 600, color: '#475569' }}>All Caught Up!</div>
-                  <div style={{ fontSize: '0.72rem', color: '#94A3B8', marginTop: '2px' }}>
-                    0 pending rider reviews. New registrations from the mobile app will stream in live.
-                  </div>
-                </div>
-              ) : (
-                pendingRiders.slice(0, 5).map((r) => (
-                  <div key={r.id} className="pending-rider-card">
-                    <div className="pending-rider-info">
-                      <span className="pending-rider-id">{r.rider_id}</span>
-                      <span className="pending-rider-name">{r.full_name}</span>
-                      <span className="pending-rider-meta">
-                        {[r.current_company, r.primary_city].filter(Boolean).join(' • ')}
-                      </span>
-                    </div>
-                    <div className="pending-rider-actions">
-                      <button className="btn-sm-view" onClick={() => onViewRider(r)}>
-                        View
-                      </button>
-                      <button className="btn-sm-approve" onClick={() => onApproveRider(r.id)}>
-                        Approve
-                      </button>
-                      <button className="btn-sm-reject" onClick={() => onRejectRider(r.id)}>
-                        Reject
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-
-          {/* Campaign Overview */}
-          <div className="card">
-            <div className="card-header-bar">
-              <span className="card-title-text" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                <Megaphone size={16} color="#2563EB" />
-                Campaign Overview
-              </span>
-              <span className="card-action-link" onClick={() => onQuickAction('campaigns')}>
-                View Campaigns
-              </span>
-            </div>
-            <div className="mini-stat-list">
-              {[
-                ['Active Campaigns', campaignSummary?.active_campaigns ?? 0],
-                ['Open Campaigns', campaignSummary?.open_campaigns ?? 0],
-                ['Full Campaigns', campaignSummary?.full_campaigns ?? 0],
-                ['Assigned Riders', campaignSummary?.total_assigned_riders ?? 0],
-              ].map(([label, value]) => (
-                <div key={label} className="mini-stat">
-                  <div className="mini-stat-label">{label}</div>
-                  <div className="mini-stat-value">{value}</div>
-                </div>
-              ))}
-            </div>
-            <div className="mini-stat" style={{ marginTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div>
-                <div className="mini-stat-label">Total Campaign Payout</div>
-                <div className="mini-stat-value">₹{Number(campaignSummary?.total_campaign_payout || 0).toLocaleString('en-IN')}</div>
-              </div>
-              {campaignSummary?.pending_requests ? (
-                <span className="badge-counter badge-orange">{campaignSummary.pending_requests} requests</span>
-              ) : null}
-            </div>
-          </div>
-
-          {/* Quick Actions Panel */}
-          <div className="card">
-            <div className="card-header-bar">
-              <span className="card-title-text">Quick Actions</span>
-            </div>
-            <div>
-              <button className="quick-action-btn" onClick={() => onQuickAction('add_rider')}>
-                <PlusCircle size={18} color="#2563EB" />
-                <span>Add New Rider</span>
-              </button>
-              <button className="quick-action-btn" onClick={() => onQuickAction('create_brand')}>
-                <Briefcase size={18} color="#10B981" />
-                <span>Create Brand</span>
-              </button>
-              <button className="quick-action-btn" onClick={() => onQuickAction('reports')}>
-                <FileSpreadsheet size={18} color="#F59E0B" />
-                <span>Generate Report</span>
-              </button>
-              <button className="quick-action-btn" onClick={() => onQuickAction('payments')}>
-                <CreditCard size={18} color="#8B5CF6" />
-                <span>View All Payments</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Recent Notifications Widget */}
-          <div className="card">
-            <div className="card-header-bar">
-              <span className="card-title-text">Recent Notifications</span>
-              <span className="card-action-link" onClick={() => onQuickAction('notifications')}>
-                View all
-              </span>
-            </div>
-            <div>
-              {notifications && notifications.length > 0 ? (
-                notifications.slice(0, 5).map((n) => (
-                  <div key={n.id} className="notif-row">
-                    <div className="notif-icon-circle" style={{ background: '#EFF6FF', color: '#2563EB' }}>
-                      <Users size={14} />
-                    </div>
-                    <div className="notif-content-text">
-                      <span className="notif-title-row">{n.title}: {n.message}</span>
-                      <span className="notif-time-ago">
-                        {n.created_at ? new Date(n.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Just now'}
-                      </span>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div style={{ padding: '24px 16px', textAlign: 'center', color: '#94A3B8', fontSize: '0.8rem' }}>
-                  No notifications yet. Real-time alerts will appear here as riders register and payments are made.
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Monthly Payment Report Card */}
-          <div className="card" style={{ background: 'linear-gradient(135deg, #1E293B 0%, #0F172A 100%)', color: '#FFFFFF' }}>
-            <div className="card-header-bar" style={{ marginBottom: '12px' }}>
-              <span style={{ fontSize: '0.92rem', fontWeight: 700, color: '#FFFFFF' }}>Monthly Payment Report</span>
-              <button
-                className="btn-secondary"
-                style={{ padding: '4px 10px', fontSize: '0.72rem', background: 'rgba(255,255,255,0.1)', color: '#FFFFFF', borderColor: 'transparent' }}
-                onClick={onDownloadReport}
-              >
-                <Download size={12} style={{ marginRight: '4px', verticalAlign: 'middle' }} />
-                Download Report
-              </button>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr', gap: '8px', marginTop: '10px' }}>
-              <div>
-                <div style={{ fontSize: '0.68rem', color: '#94A3B8' }}>This Month</div>
-                <div style={{ fontSize: '1.05rem', fontWeight: 800, color: '#38BDF8' }}>₹{monthlyReport.this_month?.toLocaleString('en-IN')}</div>
-                <div style={{ fontSize: '0.68rem', color: (monthlyReport.growth || 0) >= 0 ? '#34D399' : '#EF4444', marginTop: '2px' }}>
-                  {monthlyReport.growth > 0 ? `↑ ${monthlyReport.growth}%` : '0%'}
-                </div>
-              </div>
-              <div>
-                <div style={{ fontSize: '0.68rem', color: '#94A3B8' }}>Last Month</div>
-                <div style={{ fontSize: '0.95rem', fontWeight: 700 }}>₹{monthlyReport.last_month?.toLocaleString('en-IN')}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: '0.68rem', color: '#94A3B8' }}>Last 3 Months</div>
-                <div style={{ fontSize: '0.95rem', fontWeight: 700 }}>₹{monthlyReport.last_3_months?.toLocaleString('en-IN')}</div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Row 4: Bottom Tables Row (Recent Registrations & Recent Payments) */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-        {/* Recent Rider Registrations Table */}
-        <div className="card">
-          <div className="card-header-bar">
-            <span className="card-title-text">Recent Rider Registrations</span>
-            <span className="card-action-link" onClick={() => onQuickAction('all_riders')}>
-              View all riders
-            </span>
-          </div>
-
-          <div className="table-responsive">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Rider ID</th>
-                  <th>Name</th>
-                  <th>Company</th>
-                  <th>Location</th>
-                  <th>Status</th>
-                  <th>Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentRegistrations.length === 0 ? (
+          {!ops ? (
+            <Empty icon={Megaphone} text="Loading campaigns…" />
+          ) : ops.campaigns.length === 0 ? (
+            <Empty icon={Megaphone} text="No active campaigns" action="Create Campaign" onAction={() => onQuickAction('campaigns')} />
+          ) : (
+            <div className="table-responsive">
+              <table className="dtable">
+                <thead>
                   <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', padding: '32px 16px', color: '#94A3B8', fontSize: '0.82rem' }}>
-                      No riders registered yet. Mobile app registrations will appear here in real time.
-                    </td>
+                    <th>Campaign</th>
+                    <th>Brand</th>
+                    <th>Status</th>
+                    <th className="num">Required Rider-Days</th>
+                    <th className="num">Assigned Riders</th>
+                    <th className="num">Delivered Rider-Days</th>
+                    <th>Fulfillment</th>
+                    <th>Dates</th>
                   </tr>
-                ) : (
-                  recentRegistrations.slice(0, 6).map((r) => (
-                    <tr key={r.id}>
+                </thead>
+                <tbody>
+                  {ops.campaigns.map((c) => (
+                    <tr key={c.id} className="drow-click" onClick={() => onOpenCampaign(c.id)}>
                       <td>
-                        <strong style={{ color: '#2563EB', fontSize: '0.78rem' }}>{r.rider_id}</strong>
-                      </td>
-                      <td>{r.full_name}</td>
-                      <td>{r.current_company || '—'}</td>
-                      <td>{r.primary_city}</td>
-                      <td>
-                        <span className={`status-pill pill-${r.status?.toLowerCase()}`}>{r.status}</span>
+                        <strong>{c.name}</strong>
                       </td>
                       <td>
-                        <button className="btn-sm-view" onClick={() => onViewRider(r)}>
-                          View
-                        </button>
+                        <BrandMark name={c.brand} logo={c.brand_logo} />
+                      </td>
+                      <td>
+                        <Pill status={c.status} />
+                      </td>
+                      <td className="num">{c.contracted_rider_days}</td>
+                      <td className="num">
+                        {c.assigned_riders}
+                        <span className="dmuted"> / {c.required_riders}</span>
+                      </td>
+                      <td className="num">{c.delivered_rider_days}</td>
+                      <td>
+                        <span className="dpct">{Math.round(c.fulfillment_pct)}%</span>
+                        <div className="dbar">
+                          <div style={{ width: `${Math.min(c.fulfillment_pct, 100)}%`, background: fulfilColor(c.fulfillment_pct) }} />
+                        </div>
+                      </td>
+                      <td className="ddates">
+                        {dayMonth(c.start_date)} –<br />
+                        {dayMonthYear(c.end_date)}
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
 
-        {/* Recent Payments Table */}
-        <div className="card">
-          <div className="card-header-bar">
-            <span className="card-title-text">Recent Payments</span>
-            <span className="card-action-link" onClick={() => onQuickAction('payments')}>
+        <section className="card dcard">
+          <div className="dcard-head">
+            <h2>Rider Activity (Today)</h2>
+          </div>
+          <div className="dtiles">
+            {[
+              [Bike, '#16A34A', '#F0FDF4', 'Active Riders Today', ra?.active_today, 'On duty', 'all_riders'],
+              [UserCheck, '#16A34A', '#F0FDF4', 'Activity Submitted', ra?.submitted_today, `${ra?.completed_today ?? 0} completed 3/3`, null],
+              [UserX, '#DC2626', '#FEF2F2', 'Missing Activity', ra?.missing_today, 'Yet to submit', null],
+              [Clock, '#F59E0B', '#FFFBEB', 'Pending Approvals', ra?.pending_join_requests, 'New join requests', 'join_requests'],
+            ].map(([Icon, color, bg, label, value, sub, action]) => (
+              <button type="button" key={label} className="dtile" onClick={action ? () => onQuickAction(action) : undefined} disabled={!action}>
+                <span className="dtile-icon" style={{ color, background: bg }}>
+                  <Icon size={17} />
+                </span>
+                <span className="dtile-body">
+                  <span className="dtile-label">{label}</span>
+                  <span className="dtile-value">{ra ? value : '—'}</span>
+                  <span className="dtile-sub">{sub}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+          {ra && ra.missing.length ? (
+            <div className="dmissing">
+              <span className="dsub-title">Yet to submit today</span>
+              {ra.missing.map((m) => (
+                <button type="button" key={`${m.rider_id}-${m.campaign_id}`} className="dmissing-row" onClick={() => onOpenCampaign(m.campaign_id)}>
+                  <span>
+                    <strong>{m.rider}</strong> <span className="dmuted">{m.rider_id}</span>
+                  </span>
+                  <span className="dmuted">{m.campaign}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </section>
+      </div>
+
+      <div className="drow-bottom">
+        <section className="card dcard">
+          <div className="dcard-head">
+            <h2>Payments Overview</h2>
+            <button className="dlink" onClick={() => onQuickAction('payments')}>
               View all payments
-            </span>
+            </button>
           </div>
-
-          <div className="table-responsive">
-            <table className="data-table">
+          <div className="dpay-tiles">
+            {[
+              ['Total Paid', pay ? inr(pay.total_paid) : '—', 'All time', 'green'],
+              ['Pending Payout', pay ? inr(pay.pending_payout) : '—', pay && pay.pending_payout ? 'Earned, unpaid' : 'All cleared', 'amber'],
+              ["Today's Payouts", pay ? inr(pay.paid_today) : '—', `${pay?.paid_today_count ?? 0} transactions`, 'blue'],
+              ['Failed Payouts', pay ? inr(pay.failed_amount) : '—', `${pay?.failed_count ?? 0} transactions`, 'red'],
+            ].map(([label, value, sub, tone]) => (
+              <div key={label} className="dpay-tile">
+                <span className="dtile-label">{label}</span>
+                <span className="dpay-value">{value}</span>
+                <span className={`dkpi-sub ${tone}`}>{sub}</span>
+              </div>
+            ))}
+          </div>
+          <div className="dsubcard">
+            <span className="dsub-title">Recent Payout Transactions</span>
+            <table className="dtable dtable-sm">
               <thead>
                 <tr>
                   <th>Rider</th>
-                  <th>Brand</th>
+                  <th>Campaign</th>
                   <th>Amount</th>
-                  <th>Date</th>
                   <th>Status</th>
+                  <th>Date</th>
                 </tr>
               </thead>
               <tbody>
-                {recentPayments.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} style={{ textAlign: 'center', padding: '32px 16px', color: '#94A3B8', fontSize: '0.82rem' }}>
-                      No payment settlements recorded yet. Real-time payouts will be listed here.
-                    </td>
-                  </tr>
-                ) : (
-                  recentPayments.slice(0, 6).map((p) => (
-                    <tr key={p.id}>
-                      <td>
-                        <div>
-                          <strong>{p.rider_name}</strong>
-                          <div style={{ fontSize: '0.7rem', color: '#94A3B8' }}>{p.rider_sr_id}</div>
-                        </div>
-                      </td>
-                      <td>{p.brand_name || '-'}</td>
-                      <td>
-                        <strong>₹{Number(p.amount || 0).toLocaleString('en-IN')}</strong>
-                      </td>
-                      <td style={{ fontSize: '0.76rem', color: '#64748B' }}>
-                        {p.payment_date ? new Date(p.payment_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Recent'}
-                      </td>
-                      <td>
-                        <span className={`status-pill pill-${p.status?.toLowerCase()}`}>{p.status}</span>
-                      </td>
-                    </tr>
-                  ))
-                )}
+                {pay && pay.recent.length
+                  ? pay.recent.map((p) => (
+                      <tr key={p.id}>
+                        <td>
+                          <strong>{p.rider}</strong>
+                        </td>
+                        <td className="dmuted">{p.for}</td>
+                        <td>
+                          <strong>{inr(p.amount)}</strong>
+                        </td>
+                        <td>
+                          <Pill status={p.status} />
+                        </td>
+                        <td className="dmuted">{p.date ? dayMonth(p.date) : ''}</td>
+                      </tr>
+                    ))
+                  : null}
               </tbody>
             </table>
+            {pay && pay.recent.length === 0 ? <Empty icon={Inbox} text="No payout transactions found." /> : null}
           </div>
-        </div>
+        </section>
+
+        <section className="card dcard">
+          <div className="dcard-head">
+            <h2>Recent Activity</h2>
+            <button className="dlink" onClick={() => onQuickAction('notifications')}>
+              View all
+            </button>
+          </div>
+          {!ops ? (
+            <Empty icon={Bell} text="Loading…" />
+          ) : ops.activity.length === 0 ? (
+            <Empty icon={Bell} text="No activity yet" />
+          ) : (
+            <div className="dfeed">
+              {ops.activity.map((e, i) => {
+                const [Icon, color, bg] = FEED_ICONS[e.kind] || FEED_ICONS.SYSTEM;
+                return (
+                  <div key={i} className="dfeed-row">
+                    <span className="dfeed-icon" style={{ color, background: bg }}>
+                      <Icon size={15} />
+                    </span>
+                    <span className="dfeed-title">{e.title}</span>
+                    <span className="dfeed-time">{feedTime(e.at)}</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
+
+        <section className="card dcard">
+          <div className="dcard-head">
+            <h2>Quick Actions</h2>
+          </div>
+          <div className="dquick">
+            {[
+              [UserPlus, '#2563EB', '#EFF6FF', 'Add New Rider', 'add_rider'],
+              [Briefcase, '#16A34A', '#F0FDF4', 'Create Brand', 'create_brand'],
+              [Megaphone, '#7C3AED', '#F5F3FF', 'Create Campaign', 'campaigns'],
+              [Users, '#EA580C', '#FFF7ED', 'Review Join Requests', 'join_requests'],
+              [CreditCard, '#2563EB', '#EFF6FF', 'View All Payments', 'payments'],
+            ].map(([Icon, color, bg, label, action]) => (
+              <button key={label} type="button" className="dquick-row" onClick={() => onQuickAction(action)}>
+                <span className="dquick-icon" style={{ color, background: bg }}>
+                  <Icon size={17} />
+                </span>
+                <span>{label}</span>
+                <ChevronRight size={16} className="dquick-arrow" />
+              </button>
+            ))}
+          </div>
+        </section>
       </div>
     </div>
   );

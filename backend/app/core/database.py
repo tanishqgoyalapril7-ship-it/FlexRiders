@@ -60,6 +60,13 @@ def lock_down_public_api():
                 conn.exec_driver_sql(f'ALTER TABLE "{table.name}" ENABLE ROW LEVEL SECURITY')
 
 
+def ensure_indexes():
+    """create_all() skips indexes on tables that already exist; create any that are missing."""
+    for table in Base.metadata.sorted_tables:
+        for index in table.indexes:
+            index.create(bind=engine, checkfirst=True)
+
+
 def add_missing_columns():
     """create_all() creates new tables but never alters existing ones, so add any columns
     introduced after a table was first created. Only ever adds nullable columns."""

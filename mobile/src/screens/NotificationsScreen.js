@@ -7,7 +7,7 @@ import ConfirmSheet from '../components/ConfirmSheet';
 
 const FILTERS = ['All', 'Unread', 'Payments', 'System'];
 
-export default function NotificationsScreen({ notifications, onBack, onMarkAllRead, onDelete, onClearAll }) {
+export default function NotificationsScreen({ notifications, onBack, onMarkAllRead, onDelete, onClearAll, onOpenCampaign }) {
   const styles = useStyles(makeStyles);
   const { colors } = useTheme();
   const [filter, setFilter] = useState('All');
@@ -51,11 +51,20 @@ export default function NotificationsScreen({ notifications, onBack, onMarkAllRe
                 <View style={[styles.icon, { backgroundColor: tone.bg }]}>
                   <Ionicons name={n.icon} size={18} color={tone.fg} />
                 </View>
-                <View style={{ flex: 1 }}>
+                <TouchableOpacity
+                  style={{ flex: 1 }}
+                  disabled={!n.campaignId || !onOpenCampaign}
+                  onPress={() => onOpenCampaign(n.campaignId)}
+                  activeOpacity={0.7}
+                  accessibilityRole={n.campaignId ? 'button' : undefined}
+                >
                   <Text style={styles.title}>{n.title}</Text>
                   <Text style={styles.message}>{n.message}</Text>
-                  <Text style={styles.time}>{n.timeLabel}</Text>
-                </View>
+                  <Text style={styles.time}>
+                    {n.timeLabel}
+                    {n.campaignId ? '  ·  Open campaign ›' : ''}
+                  </Text>
+                </TouchableOpacity>
                 <View style={{ alignItems: 'center', gap: 10 }}>
                   {n.unread ? <View style={styles.unreadDot} /> : null}
                   <TouchableOpacity

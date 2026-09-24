@@ -34,7 +34,7 @@ def available_ids(client, headers):
 def test_draft_hidden_until_published_then_join_approve_flow(client, db_session, caplog, monkeypatch):
     admin, _ = make_admin(client, db_session)
     brand = client.post(f"{API}/brands", json={"name": f"Vis Brand {uuid.uuid4().hex[:5]}"}, headers=admin).json()
-    draft = _campaign(client, admin, brand["id"])  # Saved as draft, like the reported campaign
+    draft = _campaign(client, admin, brand["id"], start_offset=1)  # Saved as draft, like the reported campaign
     rider, headers = _rider(client, admin)
 
     assert draft["id"] not in available_ids(client, headers)
@@ -67,7 +67,7 @@ def test_draft_hidden_until_published_then_join_approve_flow(client, db_session,
     application = client.get(f"{API}/campaigns/{draft['id']}/applications", headers=admin).json()[0]
     assert client.post(f"{API}/campaigns/{draft['id']}/applications/{application['id']}/approve", headers=admin).status_code == 200
     mine = client.get(f"{API}/riders/me/campaigns", headers=headers).json()
-    assert mine["active"]["id"] == draft["id"] and mine["active"]["my_status"] == "ACTIVE"
+    assert mine["active"]["id"] == draft["id"] and mine["active"]["my_status"] == "ASSIGNED"  # Starts tomorrow
 
     # A second published campaign is still visible to the assigned rider, but they can't join it.
     other = _campaign(client, admin, brand["id"], visibility="PUBLIC")

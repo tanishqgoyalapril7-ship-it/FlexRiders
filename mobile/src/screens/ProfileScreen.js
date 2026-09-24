@@ -3,7 +3,7 @@ import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, T
 import { Ionicons } from '@expo/vector-icons';
 import { useStyles, useTheme } from '../theme';
 import { Card, OutlineButton, PrimaryButton, ScreenHeader, SectionHeader, StatusBadge } from '../components/ui';
-import { AutocompleteField, DateOfBirthField, FieldLabel, ageOn } from '../components/formFields';
+import { AutocompleteField, DateOfBirthField, FieldLabel, VehicleCategoryField, ageOn, vehicleCategoryLabel } from '../components/formFields';
 import ConfirmSheet from '../components/ConfirmSheet';
 import { VEHICLE_MODELS, areaSuggestionsFor } from '../data/suggestions';
 import { mobileApi } from '../services/api';
@@ -45,7 +45,8 @@ function ClearableField({ label, value, onChangeText, ...props }) {
 function EditProfileModal({ rider, visible, onClose, onSaved }) {
   const styles = useStyles(makeStyles);
   const { colors } = useTheme();
-  const initial = Object.fromEntries(EDITABLE.map(([field, key]) => [field, rider[key] || '']));
+  // The vehicle type decides campaign eligibility: riders set it once, then operations change it.
+  const initial = { ...Object.fromEntries(EDITABLE.map(([field, key]) => [field, rider[key] || ''])), vehicle_category: rider.vehicle_category || '' };
   const [form, setForm] = useState(initial);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -82,6 +83,13 @@ function EditProfileModal({ rider, visible, onClose, onSaved }) {
               <Text style={{ color: colors.danger, fontSize: 13, fontWeight: '600' }}>Remove date of birth</Text>
             </TouchableOpacity>
           ) : null}
+          <VehicleCategoryField
+            label="Vehicle Type"
+            value={form.vehicle_category}
+            onChange={set('vehicle_category')}
+            disabled={Boolean(rider.vehicle_category)}
+            hint={rider.vehicle_category ? 'Set. Contact your operations manager to change it.' : 'Needed to join campaigns for two or three wheelers. You can set this once.'}
+          />
           <AutocompleteField label="Vehicle Model" icon="bicycle-outline" value={form.vehicle_type} onChangeText={set('vehicle_type')} options={VEHICLE_MODELS} placeholder="e.g. Honda Activa" />
           <AutocompleteField label="Area / Zone" value={form.primary_area} onChangeText={set('primary_area')} options={areaSuggestionsFor(rider.city)} placeholder="e.g. Sector 29" />
           <ClearableField label="UPI ID" value={form.upi_id} onChangeText={set('upi_id')} autoCapitalize="none" autoCorrect={false} placeholder="yourname@upi" />
@@ -106,7 +114,7 @@ function EditProfileModal({ rider, visible, onClose, onSaved }) {
   );
 }
 
-export default function ProfileScreen({ rider, onLogout, onProfileChanged, onAccountDeleted }) {
+export default function ProfileScreen({ rider, onLogout, onProfileChanged, onAccountDeleted, onOpenRefer, onOpenNotifications, unreadCount = 0 }) {
   const styles = useStyles(makeStyles);
   const { colors, preference, setPreference } = useTheme();
   const [editing, setEditing] = useState(false);
@@ -114,6 +122,7 @@ export default function ProfileScreen({ rider, onLogout, onProfileChanged, onAcc
   const rows = [
     { icon: 'call-outline', label: 'Mobile Number', value: rider.phone },
     { icon: 'mail-outline', label: 'Email', value: rider.email },
+    { icon: 'speedometer-outline', label: 'Vehicle Type', value: vehicleCategoryLabel(rider.vehicle_category) },
     { icon: 'bicycle-outline', label: 'Vehicle', value: rider.vehicle },
     { icon: 'card-outline', label: 'Vehicle Number', value: rider.vehicle_number },
     { icon: 'location-outline', label: 'Location', value: rider.location },
@@ -170,6 +179,29 @@ export default function ProfileScreen({ rider, onLogout, onProfileChanged, onAcc
         style={{ marginTop: 24, borderColor: colors.danger }}
         textStyle={{ color: colors.danger }}
       />
+
+      <SectionHeader title="Settings" />
+      <TouchableOpacity style={styles.referRow} onPress={onOpenRefer} activeOpacity={0.7} accessibilityRole="button">
+        <View style={styles.referIcon}>
+          <Ionicons name="gift-outline" size={20} color={colors.primary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.referTitle}>Refer & Earn</Text>
+          <Text style={styles.lockedText}>Earn ₹30 for every friend who completes their first Photo Streak</Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={colors.textSubtle} />
+      </TouchableOpacity>
+      <TouchableOpacity style={[styles.referRow, { marginTop: 10 }]} onPress={onOpenNotifications} activeOpacity={0.7} accessibilityRole="button">
+        <View style={styles.referIcon}>
+          <Ionicons name="notifications-outline" size={20} color={colors.primary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.referTitle}>Notifications</Text>
+          <Text style={styles.lockedText}>{unreadCount ? `${unreadCount} unread` : 'Application, campaign and payment updates'}</Text>
+        </View>
+        {unreadCount ? <View style={styles.unreadDot} /> : null}
+        <Ionicons name="chevron-forward" size={18} color={colors.textSubtle} />
+      </TouchableOpacity>
 
       <SectionHeader title="Account" />
       <Card style={{ gap: 10 }}>
@@ -252,4 +284,8 @@ const makeStyles = (c) =>
     lockedText: { flex: 1, fontSize: 12.5, color: c.textMuted, lineHeight: 18 },
     deleteRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
     deleteText: { fontSize: 15, fontWeight: '700', color: c.danger },
+    referRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.surface, borderWidth: 1, borderColor: c.border, borderRadius: 16, padding: 14 },
+    referIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: c.primarySoft, alignItems: 'center', justifyContent: 'center' },
+    referTitle: { fontSize: 15, fontWeight: '700', color: c.text },
+    unreadDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: c.primary },
   });

@@ -3,11 +3,20 @@ import { X, Check, CheckCircle2, XCircle, Clock, ImageOff, Flame, Trophy, Calend
 import { api } from '../services/api';
 import { toast } from './Feedback';
 import { KitSettingsEditor, kitToDraft, syncBrandKit } from './BrandKitEditor';
-import { formatDate, formatINR, StatusPill, EmptyState } from './CampaignShared';
+import { formatDate, formatINR, StatusPill, EmptyState, SlotStatuses } from './CampaignShared';
 
 const STEPS = ['Basics', 'Slots & Payout', 'T-Shirt & Pickup', 'Details'];
 
 const toInputDate = (d) => d.toISOString().slice(0, 10);
+
+const DEFAULT_SLOTS = { MORNING: ['06:00', '11:00'], EVENING: ['12:00', '15:00'], NIGHT: ['17:00', '21:00'] };
+const SLOT_LABELS = { MORNING: 'Morning', EVENING: 'Evening', NIGHT: 'Night' };
+const VEHICLE_OPTIONS = [
+  ['BOTH', 'Both (Two & Three Wheeler)'],
+  ['TWO_WHEELER', 'Two Wheeler only'],
+  ['THREE_WHEELER', 'Three Wheeler only'],
+];
+const vehicleChoice = (categories) => (categories && categories.length === 1 ? categories[0] : 'BOTH');
 
 function emptyForm() {
   const start = new Date();
@@ -26,6 +35,9 @@ function emptyForm() {
     brand_contract_value: 0,
     allow_payout_beyond_contract: false,
     continue_after_fulfillment: false,
+    location_area: '',
+    vehicle_choice: 'BOTH',
+    photo_slot_windows: DEFAULT_SLOTS,
   };
 }
 
@@ -49,6 +61,9 @@ export function CampaignFormModal({ brands = [], campaign, onClose, onSaved, onC
           brand_contract_value: campaign.brand_contract_value || 0,
           allow_payout_beyond_contract: campaign.allow_payout_beyond_contract,
           continue_after_fulfillment: campaign.continue_after_fulfillment,
+          location_area: campaign.location_area || '',
+          vehicle_choice: vehicleChoice(campaign.eligible_vehicle_categories),
+          photo_slot_windows: campaign.photo_slot_windows || DEFAULT_SLOTS,
         }
       : emptyForm()
   );
@@ -91,6 +106,11 @@ export function CampaignFormModal({ brands = [], campaign, onClose, onSaved, onC
       if (editing && Number(form.total_slots) < campaign.stats.assigned_riders)
         return `Total slots cannot be lower than the ${campaign.stats.assigned_riders} riders already approved.`;
       if (!(Number(form.daily_rate) > 0)) return 'Daily payout must be greater than ₹0.';
+      const order = ['MORNING', 'EVENING', 'NIGHT'].map((k) => form.photo_slot_windows[k]);
+      for (const [i, [start, end]] of order.entries()) {
+        if (!start || !end || start >= end) return `The ${Object.values(SLOT_LABELS)[i]} slot must end after it starts.`;
+        if (i > 0 && start < order[i - 1][1]) return 'Photo slots can’t overlap: Morning, then Evening, then Night.';
+      }
     }
     if (index === 2 && kitDraft.tshirt_required && !kitDraft.size_options.split(',').some((x) => x.trim())) {
       return 'Add at least one T-shirt size.';
@@ -112,8 +132,11 @@ export function CampaignFormModal({ brands = [], campaign, onClose, onSaved, onC
     }
     setSaving(true);
     setError('');
+    const { vehicle_choice: vehicleChoiceValue, ...rest } = form;
     const payload = {
-      ...form,
+      ...rest,
+      eligible_vehicle_categories: vehicleChoiceValue === 'BOTH' ? [] : [vehicleChoiceValue],
+      location_area: form.location_area.trim(),
       brand_id: Number(form.brand_id),
       total_slots: Number(form.total_slots),
       daily_rate: Number(form.daily_rate),
@@ -214,6 +237,24 @@ export function CampaignFormModal({ brands = [], campaign, onClose, onSaved, onC
               {locked ? (
                 <span className="form-hint">Dates and required riders are locked after publishing. Use an extension or replacement slots instead.</span>
               ) : null}
+              <div className="form-row-2">
+                <div className="form-group">
+                  <label className="form-label">Location / Area</label>
+                  <input className="form-input" value={form.location_area} onChange={set('location_area')} placeholder="e.g. Sector 57, Gurugram" />
+                  <span className="form-hint">Shown to riders and on the public campaign page.</span>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Eligible Vehicle Type *</label>
+                  <select className="form-input" value={form.vehicle_choice} onChange={set('vehicle_choice')}>
+                    {VEHICLE_OPTIONS.map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="form-hint">Checked against each rider’s registered vehicle type when they join.</span>
+                </div>
+              </div>
             </>
           )}
 
@@ -269,6 +310,35 @@ export function CampaignFormModal({ brands = [], campaign, onClose, onSaved, onC
                   />
                   <span className="form-hint">Fills the contract value as rate × {riderDays} rider-days.</span>
                 </div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Daily Photo Slots (IST)</label>
+                <div className="slot-window-grid">
+                  {['MORNING', 'EVENING', 'NIGHT'].map((slot) => (
+                    <div key={slot} className="slot-window">
+                      <strong>{SLOT_LABELS[slot]}</strong>
+                      {[0, 1].map((i) => (
+                        <input
+                          key={i}
+                          type="time"
+                          className="form-input"
+                          aria-label={`${SLOT_LABELS[slot]} ${i ? 'end' : 'start'}`}
+                          value={form.photo_slot_windows[slot][i]}
+                          onChange={(e) =>
+                            setForm((prev) => {
+                              const pair = [...prev.photo_slot_windows[slot]];
+                              pair[i] = e.target.value;
+                              return { ...prev, photo_slot_windows: { ...prev.photo_slot_windows, [slot]: pair } };
+                            })
+                          }
+                        />
+                      ))}
+                    </div>
+                  ))}
+                </div>
+                <span className="form-hint">
+                  One photo per slot; all 3 approved = 1 Photo-Day. Riders get a reminder when each slot opens and before it closes.
+                </span>
               </div>
               <label className="toggle-row">
                 <input type="checkbox" checked={form.continue_after_fulfillment} onChange={toggle('continue_after_fulfillment')} />
@@ -327,7 +397,7 @@ export function CampaignFormModal({ brands = [], campaign, onClose, onSaved, onC
                   <div className="visibility-options">
                     {[
                       ['DRAFT', 'Draft', 'Only admins can see it. Publish it later.'],
-                      ['PUBLIC', 'Public', 'Eligible riders can see and join it right away.'],
+                      ['PUBLIC', 'Public', 'Eligible riders can see and join it until it goes live.'],
                     ].map(([value, title, text]) => (
                       <button
                         type="button"
@@ -482,6 +552,7 @@ export function PhotoReviewCard({ campaignId, photo, riderName, onPreview, onCha
           <StatusPill status={status} />
         </div>
         {riderName ? <span style={{ color: '#64748B' }}>{formatDate(photo.date)}</span> : null}
+        {photo.slot_label ? <span style={{ fontWeight: 700, color: '#1D4ED8' }}>{photo.slot_label} photo</span> : null}
         {photo.photos_required ? (
           <span style={{ color: photo.day_valid >= photo.photos_required ? '#047857' : '#64748B', fontWeight: 600 }}>
             Day: {Math.min(photo.day_valid, photo.photos_required)}/{photo.photos_required} valid photos
@@ -533,7 +604,15 @@ export function RiderActivityModal({ campaignId, assignmentId, onClose, onChange
           if (d.photos.length === 0) {
             return d.photo_url ? [{ ...day, id: null, photo_url: d.photo_url, photo_status: d.photo_status, rejection_reason: d.rejection_reason }] : [];
           }
-          return d.photos.map((p) => ({ ...day, id: p.id, photo_url: p.photo_url, photo_status: p.status, rejection_reason: p.rejection_reason }));
+          const labels = { MORNING: 'Morning', EVENING: 'Evening', NIGHT: 'Night' };
+          return d.photos.map((p) => ({
+            ...day,
+            id: p.id,
+            photo_url: p.photo_url,
+            photo_status: p.status,
+            rejection_reason: p.rejection_reason,
+            slot_label: labels[p.slot] || null,
+          }));
         })
     : [];
 
@@ -622,9 +701,10 @@ export function RiderActivityModal({ campaignId, assignmentId, onClose, onChange
                           {DAY_LABELS[day.status]}
                         </span>
                         <span style={{ fontSize: '0.72rem', color: '#64748B' }}>
-                          {Math.min(day.photos_valid, day.photos_required)}/{day.photos_required} photos
-                          {day.photos_pending ? ` · ${day.photos_pending} in review` : ''}
+                          Photos {Math.min(day.photos_valid, day.photos_required)}/{day.photos_required}
+                          {day.status === 'COMPLETED' ? ' · Photo-Day completed' : ''}
                         </span>
+                        <SlotStatuses slots={day.slots} />
                         <span style={{ fontSize: '0.78rem', fontWeight: 700 }}>
                           {day.unpaid_surplus ? 'Surplus – unpaid' : formatINR(day.earned)}
                         </span>

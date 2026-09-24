@@ -241,7 +241,7 @@ export function JoinRequestsView({ onChanged }) {
 
   useEffect(() => {
     load();
-    const id = setInterval(load, 10000);
+    const id = setInterval(() => document.visibilityState === 'visible' && load(), 15000);
     return () => clearInterval(id);
   }, [status, campaignId]);
   useEffect(() => {

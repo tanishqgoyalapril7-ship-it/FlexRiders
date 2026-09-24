@@ -130,6 +130,20 @@ def normalize_vehicle_number(value: Optional[str]) -> Optional[str]:
     return cleaned
 
 
+def normalize_vehicle_category(value: Optional[str]) -> Optional[str]:
+    """TWO_WHEELER / THREE_WHEELER (also accepts the labels, e.g. "Two Wheeler"); "" means clear."""
+    from app.models.campaign_models import VehicleCategory
+
+    if value is None:
+        return None
+    cleaned = value.strip().upper().replace("-", "_").replace(" ", "_")
+    if not cleaned:
+        return ""
+    if cleaned not in VehicleCategory.ALL:
+        raise ValueError(f"Vehicle type must be one of: {', '.join(VehicleCategory.LABELS.values())}")
+    return cleaned
+
+
 class RiderRegistrationRequest(BaseModel):
     # Step 1: Personal
     full_name: str
@@ -146,6 +160,8 @@ class RiderRegistrationRequest(BaseModel):
     experience_months: Optional[int] = 0
     vehicle_type: Optional[str] = "Bike"
     vehicle_number: Optional[str] = None
+    vehicle_category: Optional[str] = None  # TWO_WHEELER / THREE_WHEELER, used for campaign eligibility
+    referral_code: Optional[str] = None  # A friend's Refer & Earn code
 
     # Step 3: Location
     primary_city: str = "Gurugram"
@@ -167,6 +183,11 @@ class RiderRegistrationRequest(BaseModel):
     def _valid_vehicle_number(cls, value):
         return normalize_vehicle_number(value)
 
+    @field_validator("vehicle_category")
+    @classmethod
+    def _valid_vehicle_category(cls, value):
+        return normalize_vehicle_category(value) or None
+
 
 class AdminRiderCreate(BaseModel):
     """Admin creates a rider directly (e.g. walk-in). The rider logs in with the mobile number and password."""
@@ -179,6 +200,7 @@ class AdminRiderCreate(BaseModel):
     current_role: Optional[str] = "Rider"
     vehicle_type: Optional[str] = None
     vehicle_number: Optional[str] = None
+    vehicle_category: Optional[str] = None
     primary_city: str = Field(..., min_length=2, max_length=80)
     primary_area: Optional[str] = None
     upi_id: Optional[str] = None
@@ -189,6 +211,11 @@ class AdminRiderCreate(BaseModel):
     @classmethod
     def _valid_email(cls, value):
         return normalize_email(value)
+
+    @field_validator("vehicle_category")
+    @classmethod
+    def _valid_vehicle_category(cls, value):
+        return normalize_vehicle_category(value) or None
 
     @field_validator("vehicle_number")
     @classmethod
@@ -206,6 +233,7 @@ class AdminRiderUpdate(BaseModel):
     current_role: Optional[str] = None
     vehicle_type: Optional[str] = None
     vehicle_number: Optional[str] = None
+    vehicle_category: Optional[str] = None
     primary_city: Optional[str] = None
     primary_area: Optional[str] = None
     upi_id: Optional[str] = None
@@ -217,6 +245,11 @@ class AdminRiderUpdate(BaseModel):
         if value is None:
             return None
         return normalize_vehicle_number(value) or ""  # "" means clear
+
+    @field_validator("vehicle_category")
+    @classmethod
+    def _valid_vehicle_category(cls, value):
+        return normalize_vehicle_category(value)
 
 
 class ArchiveRequest(BaseModel):
@@ -292,6 +325,7 @@ class RiderResponse(BaseModel):
     experience_months: Optional[int] = 0
     vehicle_type: Optional[str] = None
     vehicle_number: Optional[str] = None
+    vehicle_category: Optional[str] = None
     primary_city: str
     primary_area: Optional[str] = None
     additional_locations: Optional[str] = None
@@ -325,8 +359,15 @@ class RiderProfileUpdateRequest(BaseModel):
     additional_locations: Optional[str] = None
     preferred_radius: Optional[str] = None
     vehicle_type: Optional[str] = None
+    # Riders can set this once (e.g. accounts created before it existed); after that only an admin changes it.
+    vehicle_category: Optional[str] = None
     upi_id: Optional[str] = None
     gpay_number: Optional[str] = None
+
+    @field_validator("vehicle_category")
+    @classmethod
+    def _valid_vehicle_category(cls, value):
+        return normalize_vehicle_category(value)
 
 
 # ==================== PAYMENT SCHEMAS ====================
@@ -374,6 +415,7 @@ class PaymentResponse(BaseModel):
     transaction_id: Optional[str] = None
     status: str
     notes: Optional[str] = None
+    category: Optional[str] = None  # REFERRAL_REWARD for referral rewards
 
     model_config = ConfigDict(from_attributes=True)
 

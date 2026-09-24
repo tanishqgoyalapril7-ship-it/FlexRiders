@@ -143,7 +143,10 @@ export default function RidersView({
                     <div style={{ fontSize: '0.72rem', color: '#94A3B8' }}>{r.current_role}</div>
                   </td>
                   <td>
-                    <div>{r.vehicle_type || '—'}</div>
+                    <div>
+                      {r.vehicle_category ? (r.vehicle_category === 'THREE_WHEELER' ? 'Three Wheeler' : 'Two Wheeler') : 'Type not set'}
+                      {r.vehicle_type ? ` · ${r.vehicle_type}` : ''}
+                    </div>
                     {r.vehicle_number ? <div style={{ fontSize: '0.72rem', fontWeight: 600 }}>{r.vehicle_number}</div> : null}
                     <div style={{ fontSize: '0.72rem', color: '#64748B' }}>{r.primary_city}</div>
                   </td>

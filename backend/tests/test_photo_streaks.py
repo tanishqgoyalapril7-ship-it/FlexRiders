@@ -20,6 +20,8 @@ from app.services import fulfillment_service as fs
 from app.services.campaign_service import today_ist
 from tests.test_fulfillment import add_rider, admin, day, make_campaign  # noqa: F401  (admin is a fixture)
 
+from tests.conftest import before_start
+
 API = "/api/v1"
 
 
@@ -227,9 +229,10 @@ def test_photo_upload_api(client, db_session):
     rider = db_session.query(Rider).filter(Rider.mobile_number == "9100000077").first()
     rider.status = RiderStatus.APPROVED
     db_session.commit()
-    client.post(f"{API}/riders/me/campaigns/{cid}/join", headers=rider_headers)
-    app_id = client.get(f"{API}/campaigns/{cid}/applications", headers=admin_headers).json()[0]["id"]
-    client.post(f"{API}/campaigns/{cid}/applications/{app_id}/approve", headers=admin_headers)
+    with before_start(db_session, cid):  # Riders join before a campaign goes live
+        client.post(f"{API}/riders/me/campaigns/{cid}/join", headers=rider_headers)
+        app_id = client.get(f"{API}/campaigns/{cid}/applications", headers=admin_headers).json()[0]["id"]
+        client.post(f"{API}/campaigns/{cid}/applications/{app_id}/approve", headers=admin_headers)
 
     upload = lambda data: client.post(
         f"{API}/riders/me/campaigns/{cid}/activity", files={"photo": ("p.jpg", data, "image/jpeg")}, headers=rider_headers

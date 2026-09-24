@@ -2,8 +2,10 @@
 
 All payout figures are derived here on the server; clients only display them.
 """
+import json
+import re
 from datetime import date, datetime, timedelta
-from typing import Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -24,9 +26,11 @@ from app.models.campaign_models import (
     CampaignPayout,
     CampaignStatus,
     KitStatus,
+    PhotoSlot,
     CampaignVisibility,
     PayoutStatus,
     PhotoStatus,
+    VehicleCategory,
 )
 from app.services import fulfillment_service as fs
 from app.services import kit_service as ks
@@ -70,15 +74,21 @@ def target_reached(db: Session, campaign: Campaign) -> bool:
 
 
 def sync_campaign_status(db: Session, campaign: Campaign, today: Optional[date] = None) -> Campaign:
-    """Derives OPEN / ACTIVE / FULL for published campaigns and starts assignments on day one."""
+    """Derives OPEN / FULL / ACTIVE (Live) for published campaigns and starts assignments on day one.
+
+    A campaign goes Live when an admin says so or, at the latest, on its start date. Once Live it stays
+    ACTIVE and new riders can no longer join."""
     today = today or today_ist()
     changed = False
 
     if campaign.status in CampaignStatus.PUBLISHED:
-        if slots_used(db, campaign.id) >= slot_capacity(campaign):
-            new_status = CampaignStatus.FULL
-        elif campaign.start_date <= today:
+        if not campaign.live_at and campaign.start_date <= today:
+            go_live(db, campaign, None)
+            return campaign
+        if campaign.live_at:
             new_status = CampaignStatus.ACTIVE
+        elif slots_used(db, campaign.id) >= slot_capacity(campaign):
+            new_status = CampaignStatus.FULL
         else:
             new_status = CampaignStatus.OPEN
         if new_status != campaign.status:
@@ -102,6 +112,84 @@ def sync_campaign_status(db: Session, campaign: Campaign, today: Optional[date] 
         db.commit()
         db.refresh(campaign)
     return campaign
+
+
+def go_live(db: Session, campaign: Campaign, admin: Optional[User]) -> Campaign:
+    """Published → Live. Closes joining and tells every approved rider, once (the live notification is
+    de-duplicated per rider). `admin` is None when the start date arrives on its own."""
+    if campaign.live_at:
+        raise CampaignError("This campaign is already live.")
+    if campaign.status not in CampaignStatus.PUBLISHED:
+        raise CampaignError("Only published campaigns can go live.")
+    campaign.live_at = datetime.utcnow()
+    campaign.status = CampaignStatus.ACTIVE
+    db.commit()
+    sync_campaign_status(db, campaign)  # Starts waiting assignments if the start date has arrived
+    if admin:
+        log_admin_action(db=db, admin_user=admin, action="CAMPAIGN_LIVE", target_type="CAMPAIGN", target_id=str(campaign.id), details=f"{campaign.name} is now live; joining closed")
+    notify_campaign_live(db, campaign)
+    return campaign
+
+
+def notify_campaign_live(db: Session, campaign: Campaign) -> int:
+    """'Campaign is now LIVE' to every rider currently assigned (not requested, rejected or removed)."""
+    assignments = (
+        db.query(CampaignAssignment)
+        .filter(CampaignAssignment.campaign_id == campaign.id, CampaignAssignment.status.in_(AssignmentStatus.CURRENT))
+        .all()
+    )
+    starts = "" if campaign.start_date <= today_ist() else f" Your first photo day is {campaign.start_date:%d %b}."
+    sent = 0
+    for a in assignments:
+        if not a.rider or not a.rider.user_id:
+            continue
+        sent += bool(
+            send_notification(
+                db=db,
+                user_id=a.rider.user_id,
+                title=f"{campaign.name} is now LIVE 🎉",
+                message=f"Your campaign {campaign.name} has started.{starts} Please follow your daily photo schedule and complete all required slots.",
+                category="CAMPAIGN",
+                reference_id=str(campaign.id),
+                dedupe_key=f"CAMPAIGN_LIVE:{campaign.id}:{a.rider_id}",
+            )
+        )
+    return sent
+
+
+def backfill_live_dates() -> None:
+    """Campaigns that started before Live was tracked count as live from their publish date (no notice sent)."""
+    from app.core.database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        db.query(Campaign).filter(
+            Campaign.live_at.is_(None),
+            Campaign.status != CampaignStatus.DRAFT,
+            Campaign.start_date < today_ist(),
+        ).update({Campaign.live_at: func.coalesce(Campaign.published_at, Campaign.created_at)}, synchronize_session=False)
+        db.commit()
+    finally:
+        db.close()
+
+
+def lifecycle(campaign: Campaign, today: Optional[date] = None) -> Dict:
+    """The campaign state riders and brands see: Draft, Open for Joining, Live, Paused, Completed, Cancelled."""
+    today = today or today_ist()
+    if campaign.status == CampaignStatus.DRAFT:
+        key = "DRAFT"
+    elif campaign.status == CampaignStatus.CANCELLED:
+        key = "CANCELLED"
+    elif campaign.status == CampaignStatus.COMPLETED or fs.effective_end_date(campaign) < today:
+        key = "COMPLETED"
+    elif campaign.status == CampaignStatus.PAUSED:
+        key = "PAUSED"
+    elif campaign.live_at:
+        key = "LIVE"
+    else:
+        key = "OPEN"
+    labels = {"DRAFT": "Draft", "OPEN": "Open for Joining", "LIVE": "Live", "PAUSED": "Paused", "COMPLETED": "Completed", "CANCELLED": "Cancelled"}
+    return {"key": key, "label": labels[key], "live_at": campaign.live_at}
 
 
 def is_running(campaign: Campaign, today: Optional[date] = None) -> bool:
@@ -154,8 +242,33 @@ def pending_application(db: Session, rider_id: int) -> Optional[CampaignApplicat
     )
 
 
-def join_eligibility(db: Session, campaign: Campaign, rider: Rider, today: Optional[date] = None) -> Tuple[bool, Optional[str]]:
-    """Returns (can_join, reason shown to the rider when they cannot)."""
+LIVE_JOIN_CLOSED = "Campaign has already started. New riders cannot join this campaign."
+
+
+def eligible_categories(campaign: Campaign) -> List[str]:
+    """Vehicle categories allowed in this campaign; empty means all."""
+    return [c for c in (campaign.eligible_vehicle_categories or "").split(",") if c in VehicleCategory.ALL]
+
+
+def vehicle_block_reason(campaign: Campaign, rider: Rider) -> Optional[str]:
+    """Why the rider's stored vehicle category doesn't fit this campaign, or None."""
+    allowed = eligible_categories(campaign)
+    if not allowed or set(allowed) == set(VehicleCategory.ALL):
+        return None
+    names = " or ".join(VehicleCategory.LABELS[c] for c in allowed)
+    if not rider.vehicle_category:
+        return f"This campaign is for {names} riders. Add your vehicle type in your profile to join."
+    if rider.vehicle_category not in allowed:
+        return f"This campaign is only for {names} riders."
+    return None
+
+
+def join_eligibility(
+    db: Session, campaign: Campaign, rider: Rider, today: Optional[date] = None, by_admin: bool = False
+) -> Tuple[bool, Optional[str]]:
+    """Returns (can_join, reason shown to the rider when they cannot).
+
+    by_admin: an admin adding a (replacement) rider directly may do so after the campaign went live."""
     today = today or today_ist()
 
     assignment = current_assignment(db, rider.id)
@@ -172,6 +285,11 @@ def join_eligibility(db: Session, campaign: Campaign, rider: Rider, today: Optio
 
     if rider.status not in ELIGIBLE_RIDER_STATUSES:
         return False, "Your rider account must be approved before you can join campaigns."
+    if campaign.status in CampaignStatus.PUBLISHED and campaign.live_at and not by_admin:
+        return False, LIVE_JOIN_CLOSED
+    vehicle = vehicle_block_reason(campaign, rider)
+    if vehicle:
+        return False, vehicle
     if campaign.status == CampaignStatus.FULL:
         return False, "This campaign is full."
     if campaign.status == CampaignStatus.PAUSED:
@@ -263,6 +381,9 @@ def approve_application(
     rider = application.rider
     if rider is None or rider.archived_at or rider.status not in ELIGIBLE_RIDER_STATUSES:
         raise CampaignError("Only approved, non-archived riders can be approved for a campaign.")
+    vehicle = vehicle_block_reason(campaign, rider)
+    if vehicle:
+        raise CampaignError(f"{rider.full_name} can't be approved: {vehicle[0].lower()}{vehicle[1:]}")
     if ks.kit_required(campaign) and ks.request_kit_status(application) != KitStatus.COLLECTED:
         raise CampaignError("Mark the rider's T-shirt as collected before approving them for this campaign.")
 
@@ -415,11 +536,99 @@ def _log_change(db: Session, activity: CampaignDailyActivity, old_status: Option
 
 
 # ---------------------------------------------------------------------------
-# Photo Streaks: N distinct approved photos on one date = 1 completed rider-day
+# Photo Streaks: Morning + Evening + Night photos approved on one date = 1 completed rider-day
 # ---------------------------------------------------------------------------
 
 def photos_required() -> int:
-    return settings.PHOTOS_PER_DAY
+    return len(PhotoSlot.ALL)
+
+
+_TIME = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
+
+
+def slot_windows(campaign: Optional[Campaign] = None) -> dict:
+    """Time window (IST, "HH:MM") per slot: the campaign's own windows, else the defaults."""
+    windows = dict(PhotoSlot.DEFAULT_WINDOWS)
+    if campaign is not None and campaign.photo_slot_windows:
+        try:
+            stored = json.loads(campaign.photo_slot_windows)
+            for slot in PhotoSlot.ALL:
+                if slot in stored:
+                    windows[slot] = tuple(stored[slot])
+        except (ValueError, TypeError):
+            pass  # A malformed value falls back to the defaults
+    return windows
+
+
+def validate_slot_windows(windows: Optional[Dict]) -> Optional[str]:
+    """Checks admin-entered windows and returns them as stored JSON (None = defaults)."""
+    if not windows:
+        return None
+    clean = {}
+    for slot in PhotoSlot.ALL:
+        pair = windows.get(slot)
+        if not pair or len(pair) != 2 or not all(isinstance(t, str) and _TIME.match(t) for t in pair):
+            raise CampaignError(f"Enter the {PhotoSlot.LABELS[slot]} slot as start and end times (HH:MM).")
+        if pair[0] >= pair[1]:
+            raise CampaignError(f"The {PhotoSlot.LABELS[slot]} slot must end after it starts.")
+        clean[slot] = [pair[0], pair[1]]
+    ordered = [clean[s] for s in PhotoSlot.ALL]
+    for earlier, later in zip(ordered, ordered[1:]):
+        if later[0] < earlier[1]:
+            raise CampaignError("Photo slots can't overlap: Morning, then Evening, then Night.")
+    if {s: tuple(v) for s, v in clean.items()} == PhotoSlot.DEFAULT_WINDOWS:
+        return None
+    return json.dumps(clean)
+
+
+def slot_view(activity: Optional[CampaignDailyActivity]) -> dict:
+    """The photo shown in each slot: its live (pending/approved) photo, else its latest rejected one.
+    Photos taken before slots existed fill the remaining slots in upload order (duplicates once)."""
+    view = {slot: None for slot in PhotoSlot.ALL}
+    if not activity or not activity.photos:
+        return view
+    photos = list(activity.photos)  # Upload order (the relationship is ordered by id; new photos are appended)
+    for slot in PhotoSlot.ALL:
+        in_slot = [p for p in photos if p.slot == slot]
+        live = [p for p in in_slot if p.status != PhotoStatus.REJECTED]
+        view[slot] = (live or in_slot or [None])[-1]
+    seen = {p.content_hash or p.photo_url for p in view.values() if p is not None and p.status != PhotoStatus.REJECTED}
+    free = [slot for slot in PhotoSlot.ALL if view[slot] is None or view[slot].status == PhotoStatus.REJECTED]
+    for p in photos:
+        if p.slot is not None or not free:
+            continue
+        key = p.content_hash or p.photo_url
+        if p.status != PhotoStatus.REJECTED:
+            if key in seen:
+                continue  # The same image never fills two slots
+            seen.add(key)
+        slot = free[0]
+        if view[slot] is None or p.status != PhotoStatus.REJECTED:
+            view[slot] = p
+            if p.status != PhotoStatus.REJECTED:
+                free.pop(0)
+    return view
+
+
+def slot_status(photo) -> str:
+    return photo.status if photo is not None else "NOT_STARTED"
+
+
+def slot_rows(activity: Optional[CampaignDailyActivity], campaign: Optional[Campaign] = None) -> list:
+    """Morning / Evening / Night with each slot's photo and status, for the apps."""
+    view, windows = slot_view(activity), slot_windows(campaign)
+    return [
+        {
+            "slot": slot,
+            "label": PhotoSlot.LABELS[slot],
+            "window": {"start": windows[slot][0], "end": windows[slot][1]},
+            "status": slot_status(view[slot]),
+            "photo_id": view[slot].id if view[slot] else None,
+            "photo_url": view[slot].photo_url if view[slot] else None,
+            "rejection_reason": view[slot].rejection_reason if view[slot] and view[slot].status == PhotoStatus.REJECTED else None,
+        }
+        for slot in PhotoSlot.ALL
+    ]
 
 
 def photo_counts(activity: Optional[CampaignDailyActivity]) -> dict:
@@ -438,11 +647,12 @@ def photo_counts(activity: Optional[CampaignDailyActivity]) -> dict:
             "rejected": 1 if activity.photo_status == PhotoStatus.REJECTED else 0,
             "uploaded": 1 if activity.photo_url else 0,
         }
-    approved = {p.content_hash or p.photo_url for p in activity.photos if p.status == PhotoStatus.APPROVED}
+    # Valid = slots holding an approved photo: at most one per slot, so at most 3 per day.
+    view = slot_view(activity)
     return {
         "required": required,
-        "valid": len(approved),
-        "pending": sum(1 for p in activity.photos if p.status == PhotoStatus.PENDING),
+        "valid": sum(1 for p in view.values() if p is not None and p.status == PhotoStatus.APPROVED),
+        "pending": sum(1 for p in view.values() if p is not None and p.status == PhotoStatus.PENDING),
         "rejected": sum(1 for p in activity.photos if p.status == PhotoStatus.REJECTED),
         "uploaded": len(activity.photos),
     }
@@ -491,8 +701,9 @@ def _adopt_legacy_photo(db: Session, activity: CampaignDailyActivity) -> None:
     db.flush()
 
 
-def check_photo_upload(db: Session, assignment: CampaignAssignment, content_hash: Optional[str]) -> None:
-    """Raises CampaignError if the rider can't add this photo today. Call before storing the file."""
+def check_photo_upload(db: Session, assignment: CampaignAssignment, content_hash: Optional[str], slot: Optional[str] = None) -> str:
+    """Raises CampaignError if the rider can't add this photo today, otherwise returns the slot it
+    goes into (the requested slot, or the first open one for older clients). Call before storing the file."""
     today = today_ist()
     campaign = sync_campaign_status(db, assignment.campaign, today)
     if assignment.status != AssignmentStatus.ACTIVE:
@@ -516,6 +727,23 @@ def check_photo_upload(db: Session, assignment: CampaignAssignment, content_hash
             raise CampaignError(f"Today's {required} photos are already approved. See you tomorrow!")
         if activity.photos and counts["valid"] + counts["pending"] >= required:
             raise CampaignError(f"You've uploaded {required} photos for today. Wait for review; rejected photos can be replaced.")
+    view = slot_view(activity)
+    open_slots = [s for s in PhotoSlot.ALL if slot_status(view[s]) in ("NOT_STARTED", PhotoStatus.REJECTED)]
+    if slot is None:
+        if not open_slots:
+            raise CampaignError("All of today's photo slots are taken.")
+        slot = open_slots[0]
+    slot = slot.upper()
+    if slot not in PhotoSlot.ALL:
+        raise CampaignError("Choose the Morning, Evening or Night photo slot.")
+    if slot not in open_slots:
+        state = "approved" if slot_status(view[slot]) == PhotoStatus.APPROVED else "waiting for review"
+        raise CampaignError(f"Today's {PhotoSlot.LABELS[slot]} photo is already {state}.")
+    if settings.ENFORCE_PHOTO_SLOT_WINDOWS:
+        start, end = slot_windows(campaign)[slot]
+        now = (datetime.utcnow() + timedelta(hours=5, minutes=30)).strftime("%H:%M")
+        if not (start <= now <= end):
+            raise CampaignError(f"{PhotoSlot.LABELS[slot]} photos can be taken between {start} and {end}.")
     if content_hash:
         duplicate = (
             db.query(CampaignActivityPhoto.id)
@@ -528,11 +756,14 @@ def check_photo_upload(db: Session, assignment: CampaignAssignment, content_hash
         )
         if duplicate:
             raise CampaignError("This photo has already been uploaded. Please take a new photo.")
+    return slot
 
 
-def submit_activity(db: Session, assignment: CampaignAssignment, photo_url: str, content_hash: Optional[str] = None) -> CampaignDailyActivity:
-    """Adds one of today's proof photos. The day completes once enough distinct photos are approved."""
-    check_photo_upload(db, assignment, content_hash)
+def submit_activity(
+    db: Session, assignment: CampaignAssignment, photo_url: str, content_hash: Optional[str] = None, slot: Optional[str] = None
+) -> CampaignDailyActivity:
+    """Adds today's photo for one slot. The day completes once all three slots are approved."""
+    slot = check_photo_upload(db, assignment, content_hash, slot)
     today = today_ist()
     activity = (
         db.query(CampaignDailyActivity)
@@ -560,6 +791,7 @@ def submit_activity(db: Session, assignment: CampaignAssignment, photo_url: str,
             photo_url=photo_url,
             content_hash=content_hash,
             status=PhotoStatus.PENDING,
+            slot=slot,
         )
     )
     activity.photo_url = photo_url  # Latest photo, kept for older clients
@@ -577,6 +809,11 @@ def _after_day_change(db: Session, activity: CampaignDailyActivity, old_status: 
         fs.recalculate_campaign_payouts(db, activity.assignment.campaign)
         db.refresh(activity)
         _log_change(db, activity, old_status, old_earned, reason, admin)
+        if activity.status == ActivityStatus.COMPLETED:
+            # Refer & Earn: a referred rider's first completed Photo Streak credits their referrer (once).
+            from app.services import referral_service
+
+            referral_service.on_photo_day_completed(db, activity.rider_id, activity.id)
 
 
 def review_photo(db: Session, photo: CampaignActivityPhoto, admin: User, approve: bool, reason: Optional[str] = None) -> CampaignActivityPhoto:
@@ -584,6 +821,10 @@ def review_photo(db: Session, photo: CampaignActivityPhoto, admin: User, approve
     activity = photo.activity
     if not approve and photo.status == PhotoStatus.APPROVED and not (reason or "").strip():
         raise CampaignError("A reason is required to reject a photo that was already approved.")
+    if approve and photo.status == PhotoStatus.REJECTED and photo.slot:
+        retaken = [p for p in activity.photos if p.slot == photo.slot and p.id != photo.id and p.status != PhotoStatus.REJECTED]
+        if retaken:
+            raise CampaignError(f"The rider has already retaken the {PhotoSlot.LABELS[photo.slot]} photo. Review the new one instead.")
     old_status, old_earned = activity.status, activity.earned_amount
     photo.status = PhotoStatus.APPROVED if approve else PhotoStatus.REJECTED
     photo.rejection_reason = None if approve else (reason or "Photo does not meet the campaign requirements")
@@ -829,7 +1070,7 @@ def admin_add_rider(
     if pending and pending.campaign_id == campaign.id:
         application = pending
     else:
-        can_join, reason = join_eligibility(db, campaign, rider)
+        can_join, reason = join_eligibility(db, campaign, rider, by_admin=True)
         if not can_join:
             raise CampaignError(_ADMIN_JOIN_MESSAGES.get(reason, reason))
         size, location_id = _kit_choice(db, campaign, tshirt_size, pickup_location_id)
@@ -1007,9 +1248,10 @@ def rider_progress(assignment: CampaignAssignment, today: Optional[date] = None,
                 "photos_pending": counts["pending"],
                 "photos_rejected": counts["rejected"],
                 "photos": [
-                    {"id": p.id, "photo_url": p.photo_url, "status": p.status, "rejection_reason": p.rejection_reason}
+                    {"id": p.id, "photo_url": p.photo_url, "status": p.status, "rejection_reason": p.rejection_reason, "slot": p.slot}
                     for p in (activity.photos if activity else [])
                 ],
+                "slots": slot_rows(activity, campaign),
             }
         )
         current += timedelta(days=1)
@@ -1082,6 +1324,8 @@ def rider_progress(assignment: CampaignAssignment, today: Optional[date] = None,
             "in_window": today_entry is not None,
             **today_counts,
             "completed": today_counts["valid"] >= today_counts["required"],
+            "slots": slot_rows(today_activity, campaign),
+            "windows_enforced": settings.ENFORCE_PHOTO_SLOT_WINDOWS,
         },
         "completion_pct": round(completed_days / closed_days * 100, 1) if closed_days else None,
         "photos_submitted": sum(photo_counts(a)["uploaded"] for a in assignment.activities),

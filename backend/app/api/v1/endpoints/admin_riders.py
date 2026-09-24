@@ -100,6 +100,7 @@ def get_all_riders(
                 experience_months=r.experience_months,
                 vehicle_type=r.vehicle_type,
                 vehicle_number=r.vehicle_number,
+                vehicle_category=r.vehicle_category,
                 archived_at=r.archived_at,
                 archive_reason=r.archive_reason,
                 primary_city=r.primary_city,
@@ -181,6 +182,7 @@ def get_rider_detail(
         experience_months=rider.experience_months,
         vehicle_type=rider.vehicle_type,
         vehicle_number=rider.vehicle_number,
+        vehicle_category=rider.vehicle_category,
         archived_at=rider.archived_at,
         archive_reason=rider.archive_reason,
         primary_city=rider.primary_city,
@@ -411,6 +413,7 @@ def create_rider(data: AdminRiderCreate, db: Session = Depends(get_db), admin: U
         current_role=clean(data.current_role) or "Rider",
         vehicle_type=clean(data.vehicle_type),
         vehicle_number=data.vehicle_number,
+        vehicle_category=data.vehicle_category,
         primary_city=data.primary_city.strip(),
         primary_area=clean(data.primary_area),
         upi_id=clean(data.upi_id),
@@ -426,7 +429,7 @@ def create_rider(data: AdminRiderCreate, db: Session = Depends(get_db), admin: U
 
 EDITABLE_FIELDS = (
     "full_name", "email", "dob", "current_company", "current_role", "vehicle_type", "vehicle_number",
-    "primary_city", "primary_area", "upi_id", "gpay_number",
+    "vehicle_category", "primary_city", "primary_area", "upi_id", "gpay_number",
 )
 
 

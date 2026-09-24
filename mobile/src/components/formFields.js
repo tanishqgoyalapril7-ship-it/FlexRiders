@@ -272,3 +272,48 @@ const makeStyles = (c) =>
     columnTextActive: { color: c.primary, fontWeight: '700' },
     sheetNote: { fontSize: 12, color: c.textMuted, textAlign: 'center', marginTop: 12, paddingHorizontal: 20 },
   });
+
+
+export const VEHICLE_CATEGORIES = [
+  ['TWO_WHEELER', 'Two Wheeler', 'bicycle-outline'],
+  ['THREE_WHEELER', 'Three Wheeler', 'car-outline'],
+];
+export const vehicleCategoryLabel = (value) => (VEHICLE_CATEGORIES.find(([v]) => v === value) || [])[1] || '';
+
+/** "What type of vehicle do you use?" — decides which campaigns the rider can join. */
+export function VehicleCategoryField({ label = 'What type of vehicle do you use?', required, value, onChange, disabled, hint }) {
+  const styles = useStyles(makeChoiceStyles);
+  const { colors } = useTheme();
+  return (
+    <View style={{ marginBottom: 14 }}>
+      <FieldLabel label={label} required={required} />
+      <View style={styles.row}>
+        {VEHICLE_CATEGORIES.map(([v, text, icon]) => {
+          const selected = value === v;
+          return (
+            <TouchableOpacity
+              key={v}
+              style={[styles.option, selected && { borderColor: colors.primary, backgroundColor: colors.primarySoft }, disabled && !selected && { opacity: 0.5 }]}
+              onPress={() => !disabled && onChange(v)}
+              activeOpacity={0.85}
+              accessibilityRole="radio"
+              accessibilityState={{ selected, disabled }}
+            >
+              <Ionicons name={icon} size={22} color={selected ? colors.primary : colors.textMuted} />
+              <Text style={[styles.optionText, selected && { color: colors.primary }]}>{text}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+      {hint ? <Text style={styles.hint}>{hint}</Text> : null}
+    </View>
+  );
+}
+
+const makeChoiceStyles = (c) =>
+  StyleSheet.create({
+    row: { flexDirection: 'row', gap: 10 },
+    option: { flex: 1, alignItems: 'center', gap: 6, paddingVertical: 14, borderRadius: 12, borderWidth: 1.5, borderColor: c.border, backgroundColor: c.surface },
+    optionText: { fontSize: 14, fontWeight: '700', color: c.text },
+    hint: { fontSize: 12, color: c.textMuted, marginTop: 6 },
+  });

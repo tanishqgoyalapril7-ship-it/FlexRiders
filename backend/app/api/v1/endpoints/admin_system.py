@@ -138,7 +138,10 @@ def system_settings(admin: User = Depends(get_current_admin)):
     return [
         {"group": "Riders", "label": "Rider ID prefix", "value": "SR-"},
         {"group": "Riders", "label": "Brand assignment", "value": "One current brand per rider"},
-        {"group": "Campaigns", "label": "Photos needed per completed rider-day", "value": settings.PHOTOS_PER_DAY},
+        {"group": "Campaigns", "label": "Photos per completed rider-day", "value": "3 (Morning, Evening, Night)"},
+        {"group": "Campaigns", "label": "Photo slot time windows", "value": "Enforced" if settings.ENFORCE_PHOTO_SLOT_WINDOWS else "Shown, not enforced"},
+        {"group": "Campaigns", "label": "Photo slot reminders", "value": f"On ({settings.SLOT_REMINDER_MINUTES} min before close)" if settings.SLOT_NOTIFICATIONS_ENABLED else "Off"},
+        {"group": "Campaigns", "label": "Default T-shirt return incentive", "value": f"₹{settings.TSHIRT_RETURN_INCENTIVE_DEFAULT:,.0f}"},
         {"group": "Campaigns", "label": "On track at or above (% of expected)", "value": f"{settings.FULFILLMENT_ON_TRACK_PCT:g}%"},
         {"group": "Campaigns", "label": "Behind target below (% of expected)", "value": f"{settings.FULFILLMENT_AT_RISK_PCT:g}%"},
         {"group": "Campaigns", "label": "Rider at risk below (% of their days)", "value": f"{settings.RIDER_BEHIND_PCT:g}%"},

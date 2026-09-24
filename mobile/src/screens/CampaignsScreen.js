@@ -24,7 +24,7 @@ export function AvailableCampaignCard({ campaign, onOpen, onChanged }) {
           <Text style={styles.campaignName}>{campaign.name}</Text>
           <Text style={styles.brand}>{campaign.brand_name}</Text>
         </View>
-        <StatusBadge status={campaign.my_status || campaign.status} />
+        <StatusBadge status={campaign.my_status || (campaign.lifecycle && campaign.lifecycle.key) || campaign.status} />
       </View>
 
       <View style={styles.metaRow}>
@@ -36,6 +36,18 @@ export function AvailableCampaignCard({ campaign, onOpen, onChanged }) {
           <Ionicons name="cash-outline" size={14} color={colors.success} />
           <Text style={[styles.metaText, { color: colors.success, fontWeight: '700' }]}>{formatINR(campaign.daily_rate)} / eligible day</Text>
         </View>
+        {campaign.location_area ? (
+          <View style={styles.metaItem}>
+            <Ionicons name="location-outline" size={14} color={colors.textMuted} />
+            <Text style={styles.metaText}>{campaign.location_area}</Text>
+          </View>
+        ) : null}
+        {campaign.eligible_vehicle_label && campaign.eligible_vehicle_label !== 'All vehicles' ? (
+          <View style={styles.metaItem}>
+            <Ionicons name="bicycle-outline" size={14} color={colors.textMuted} />
+            <Text style={styles.metaText}>{campaign.eligible_vehicle_label} only</Text>
+          </View>
+        ) : null}
       </View>
 
       <View style={{ gap: 6, marginTop: 12 }}>

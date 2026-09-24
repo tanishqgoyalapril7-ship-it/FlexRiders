@@ -76,7 +76,7 @@ export function PasswordInput({ value, onChange, placeholder, autoComplete = 'ne
 
 const RIDER_FIELDS = [
   'full_name', 'mobile_number', 'email', 'dob', 'current_company', 'current_role', 'vehicle_type',
-  'vehicle_number', 'primary_city', 'primary_area', 'upi_id', 'gpay_number',
+  'vehicle_number', 'vehicle_category', 'primary_city', 'primary_area', 'upi_id', 'gpay_number',
 ];
 
 // "DD-MM-YYYY" (stored) <-> "YYYY-MM-DD" (date input)
@@ -163,6 +163,15 @@ export function RiderFormModal({ rider, onClose, onSaved }) {
               <label className="form-label">Role</label>
               <input className="form-input" value={form.current_role} onChange={set('current_role')} />
             </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Vehicle Type</label>
+            <select className="form-input" value={form.vehicle_category} onChange={set('vehicle_category')}>
+              <option value="">Not set</option>
+              <option value="TWO_WHEELER">Two Wheeler</option>
+              <option value="THREE_WHEELER">Three Wheeler</option>
+            </select>
+            <span className="form-hint">Decides which campaigns the rider can join.</span>
           </div>
           <div className="form-row-2">
             <div className="form-group">

@@ -13,6 +13,7 @@ export const toneColors = (colors, tone) =>
   }[tone] || { fg: colors.textMuted, bg: colors.surfaceAlt });
 
 const STATUS_TONES = {
+  LIVE: 'success',
   ACTIVE: 'success',
   PAID: 'success',
   COMPLETED: 'success',

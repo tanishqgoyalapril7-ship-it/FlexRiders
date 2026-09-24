@@ -18,6 +18,8 @@ import { AddToCampaignModal, PaymentEditModal, RiderFormModal } from './componen
 import { DangerDialog, Toaster, toast } from './components/Feedback';
 import { api, getAuthToken } from './services/api';
 
+const REFRESH_MS = 15000;
+
 export default function App() {
   const [authed, setAuthed] = useState(Boolean(getAuthToken()));
   const [currentAdmin, setCurrentAdmin] = useState(null);
@@ -52,6 +54,8 @@ export default function App() {
   const [editingPayment, setEditingPayment] = useState(null);
   const loadingRef = useRef(false);
   const riderFilterRef = useRef(riderFilter);
+  const activeViewRef = useRef(activeView);
+  activeViewRef.current = activeView;
   riderFilterRef.current = riderFilter;
 
   // Session: a 401 from any call returns to the login screen.
@@ -74,15 +78,19 @@ export default function App() {
     }
     loadingRef.current = true;
     try {
+      // Only what the current page shows (each request is a remote database round trip), plus the
+      // small shared data: notifications for the bell, riders and campaign counts for the sidebar.
+      const view = activeViewRef.current;
+      const needs = (...views) => views.includes(view);
+      const skip = Promise.resolve(null);
       const [dash, rList, archived, bList, pList, nList, aList, cSummary] = await Promise.all([
-        api.getDashboard().catch(() => null),
+        needs('reports') ? api.getDashboard().catch(() => null) : skip,
         api.getRiders().catch(() => null),
-        // Archived riders only load while their tab is open, to keep each refresh light.
-        riderFilterRef.current === 'ARCHIVED' ? api.getRiders({ archived: 'only' }).catch(() => null) : null,
-        api.getBrands().catch(() => null),
-        api.getPayments().catch(() => null),
+        needs('riders') && riderFilterRef.current === 'ARCHIVED' ? api.getRiders({ archived: 'only' }).catch(() => null) : skip,
+        needs('brands', 'riders', 'assignments', 'campaigns', 'campaign-detail', 'payments') ? api.getBrands().catch(() => null) : skip,
+        needs('payments') ? api.getPayments().catch(() => null) : skip,
         api.getNotifications().catch(() => null),
-        api.getAuditLogs().catch(() => null),
+        needs('audit') ? api.getAuditLogs().catch(() => null) : skip,
         api.getCampaignSummary().catch(() => null),
       ]);
       if (dash) setDashboardData(dash);
@@ -113,9 +121,23 @@ export default function App() {
       .then(setCurrentAdmin)
       .catch(() => {});
     refreshAllData();
-    const interval = setInterval(() => refreshAllData(false), 3000);
-    return () => clearInterval(interval);
+    // Background refresh every 15 s, paused while the browser tab is hidden.
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') refreshAllData(false);
+    }, REFRESH_MS);
+    const onVisible = () => document.visibilityState === 'visible' && refreshAllData(false);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
   }, [authed]);
+
+  // Opening a page loads its data straight away.
+  useEffect(() => {
+    activeViewRef.current = activeView;
+    if (authed) refreshAllData();
+  }, [activeView]);
 
   const logout = () => {
     api.logout();
@@ -436,6 +458,8 @@ export default function App() {
       setActiveView('notifications');
     } else if (action === 'campaigns') {
       setActiveView('campaigns');
+    } else if (action === 'join_requests') {
+      setActiveView('join-requests');
     }
   };
 
@@ -501,7 +525,10 @@ export default function App() {
             onRejectRider={(id) => handleRejectRider(id)}
             onQuickAction={handleQuickAction}
             onDownloadReport={() => api.downloadPaymentsExport().catch((err) => toast.error(err.message))}
-            campaignSummary={campaignSummary}
+            onOpenCampaign={(id) => {
+              setSelectedCampaignId(id);
+              setActiveView('campaign-detail');
+            }}
           />
         )}
 

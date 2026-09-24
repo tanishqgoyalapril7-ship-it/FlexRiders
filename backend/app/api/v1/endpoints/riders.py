@@ -83,6 +83,7 @@ def get_rider_dashboard(
         experience_months=rider.experience_months,
         vehicle_type=rider.vehicle_type,
         vehicle_number=rider.vehicle_number,
+        vehicle_category=rider.vehicle_category,
         archived_at=rider.archived_at,
         archive_reason=rider.archive_reason,
         primary_city=rider.primary_city,
@@ -112,8 +113,15 @@ def update_rider_profile(
     db: Session = Depends(get_db),
 ):
     """Rider edits their own non-verified details. An empty value removes an optional field.
-    Verified fields (name, mobile, vehicle number) can only be changed by an admin."""
-    for field, value in update_data.model_dump(exclude_unset=True).items():
+    Verified fields (name, mobile, vehicle number) can only be changed by an admin; the vehicle
+    category (which decides campaign eligibility) can be set once, then only by an admin."""
+    changes = update_data.model_dump(exclude_unset=True)
+    category = changes.pop("vehicle_category", None)
+    if category:
+        if rider.vehicle_category and rider.vehicle_category != category:
+            raise HTTPException(status_code=400, detail="Your vehicle type is already set. Contact support to change it.")
+        rider.vehicle_category = category
+    for field, value in changes.items():
         if value is None:
             continue
         setattr(rider, field, value.strip() or None if isinstance(value, str) else value)
@@ -158,6 +166,7 @@ def get_rider_payment_history(
             transaction_id=p.transaction_id,
             status=p.status,
             notes=p.notes,
+            category=p.category,
         )
         for p in payments
     ]
@@ -199,3 +208,20 @@ def delete_my_account(
         "deleted": False,
         "message": "Your account has been deactivated. Payment and campaign records are kept as required for payouts.",
     }
+
+
+@router.get("/me/earnings")
+def get_my_earnings(rider: Rider = Depends(get_current_rider), db: Session = Depends(get_db)):
+    """Earnings summary for the rider app: totals, today/week/month, last 7 days and per campaign.
+    Same calculation as the admin dashboard and the campaign screens."""
+    from app.services.earnings_service import rider_earnings
+
+    return rider_earnings(db, rider.id)
+
+
+@router.get("/me/referrals")
+def get_my_referrals(rider: Rider = Depends(get_current_rider), db: Session = Depends(get_db)):
+    """Refer & Earn: the rider's code and link, successful referrals, reward earnings and history."""
+    from app.services import referral_service
+
+    return referral_service.summary(db, rider)

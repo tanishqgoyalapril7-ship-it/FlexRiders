@@ -15,6 +15,7 @@ import {
   Download,
   Pencil,
   Send,
+  Map as MapIcon,
   Eye,
   EyeOff,
   PauseCircle,
@@ -22,13 +23,22 @@ import {
   Flag,
   Image as ImageIcon,
   Inbox,
+  Radio,
+  Share2,
+  Link2,
+  Copy,
+  ExternalLink,
+  MapPin,
+  Bike,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { CampaignAddRiderModal } from '../components/AdminCrud';
 import { DangerDialog, toast } from '../components/Feedback';
 import { JoinRequestsTable } from '../components/JoinRequests';
+// The map (Leaflet) only loads when an admin opens a route.
+const RouteMapModal = React.lazy(() => import('../components/RouteMap').then((m) => ({ default: m.RouteMapModal })));
 import { ConfirmDialog, CampaignFormModal, PhotoLightbox, PhotoReviewCard, RiderActivityModal } from '../components/CampaignModals';
-import { EmptyState, SlotProgress, StatCard, StatusPill, formatDate, formatDateRange, formatINR } from '../components/CampaignShared';
+import { CampaignStatusPill, EmptyState, SlotProgress, SlotStatuses, StatCard, StatusPill, formatDate, formatINR } from '../components/CampaignShared';
 import {
   BrandKitPanel,
   DeliveryPanel,
@@ -83,6 +93,18 @@ function RiderVisibility({ campaign, onPublish }) {
       </div>
     );
   }
+  if (campaign.live_at && ['OPEN', 'FULL', 'ACTIVE'].includes(campaign.status)) {
+    return (
+      <div className="visibility-banner visibility-shown" role="status">
+        <Radio size={18} />
+        <div style={{ flex: 1 }}>
+          <strong>Live since {formatDate(campaign.live_at)}.</strong> Joining is closed for new riders; the{' '}
+          {campaign.stats.assigned_riders} approved rider{campaign.stats.assigned_riders === 1 ? '' : 's'} continue with their daily photo slots.
+          You can still add a replacement rider from the Riders tab.
+        </div>
+      </div>
+    );
+  }
   const blocked = data.riders.filter((r) => !r.can_join);
   return (
     <div className="visibility-banner visibility-shown" role="status">
@@ -109,6 +131,87 @@ function RiderVisibility({ campaign, onPublish }) {
   );
 }
 
+const publicUrl = (campaign) => `${window.location.origin}/campaign/${campaign.public_slug}`;
+
+/** Shareable public page for the brand: turn it on, then copy / share / open the link. */
+function ShareCampaignCard({ campaign, onChanged }) {
+  const [busy, setBusy] = useState(false);
+  const [url, setUrl] = useState(null);
+  const link = url || (campaign.public_slug ? publicUrl(campaign) : '');
+  const setEnabled = async (enabled) => {
+    setBusy(true);
+    try {
+      const res = await api.shareCampaign(campaign.id, enabled);
+      setUrl(res.url);
+      toast.success(enabled ? 'Public campaign page is on. Share the link with the brand.' : 'Public campaign page turned off.');
+      onChanged();
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(link);
+      toast.success('Link copied.');
+    } catch {
+      toast.error('Could not copy. Select the link and copy it manually.');
+    }
+  };
+  const share = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: campaign.name, text: `${campaign.name} on Super Riders`, url: link });
+      } catch {
+        /* Share sheet closed */
+      }
+    } else {
+      copy();
+    }
+  };
+  if (campaign.status === 'DRAFT') return null;
+  return (
+    <div className="share-card">
+      <div className="share-card-icon">
+        <Share2 size={18} />
+      </div>
+      <div className="share-card-body">
+        <strong>Share Campaign</strong>
+        {campaign.public_share_enabled ? (
+          <span className="share-link" title={link}>
+            <Link2 size={13} /> {link}
+          </span>
+        ) : (
+          <span>Give the brand a public page with this campaign’s details. No rider, payout or internal data is shown.</span>
+        )}
+      </div>
+      <div className="row-actions">
+        {campaign.public_share_enabled ? (
+          <>
+            <button className="btn-secondary" onClick={copy}>
+              <Copy size={14} /> Copy Link
+            </button>
+            <button className="btn-secondary" onClick={share}>
+              <Share2 size={14} /> Share Link
+            </button>
+            <a className="btn-secondary" href={link} target="_blank" rel="noreferrer">
+              <ExternalLink size={14} /> Open Public Page
+            </a>
+            <button className="card-action-link" disabled={busy} onClick={() => setEnabled(false)}>
+              Turn off
+            </button>
+          </>
+        ) : (
+          <button className="btn-primary" disabled={busy} onClick={() => setEnabled(true)}>
+            <Link2 size={14} /> {busy ? 'Creating…' : 'Create Public Link'}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function CampaignDetailView({ campaignId, brands = [], onBack, onViewRider, onChanged }) {
   const [campaign, setCampaign] = useState(null);
   const [riders, setRiders] = useState([]);
@@ -125,6 +228,7 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
   const [preview, setPreview] = useState(null);
   const [danger, setDanger] = useState(null);
   const [addingRider, setAddingRider] = useState(false);
+  const [routeFor, setRouteFor] = useState(null); // assignment row, or 'ALL'
   const [fulfillment, setFulfillment] = useState(null);
   const [ridersAvailable, setRidersAvailable] = useState('');
   const [showSlots, setShowSlots] = useState(false);
@@ -153,7 +257,8 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
 
   useEffect(() => {
     load();
-    const interval = setInterval(load, 8000);
+    // Refresh while visible (each refresh is several remote database round trips).
+    const interval = setInterval(() => document.visibilityState === 'visible' && load(), 20000);
     return () => clearInterval(interval);
   }, [campaignId, ridersAvailable]);
 
@@ -206,7 +311,7 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
             <div style={{ flex: 1, minWidth: 280 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                 <h1 className="page-title">{campaign.name}</h1>
-                <StatusPill status={status} />
+                <CampaignStatusPill campaign={campaign} />
               </div>
               <div className="campaign-meta-row">
                 <span>
@@ -230,6 +335,16 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
                   <Wallet size={15} />
                   {formatINR(campaign.daily_rate)} / day
                 </span>
+                {campaign.location_area ? (
+                  <span>
+                    <MapPin size={15} />
+                    {campaign.location_area}
+                  </span>
+                ) : null}
+                <span>
+                  <Bike size={15} />
+                  {campaign.eligible_vehicle_label}
+                </span>
               </div>
             </div>
             <div className="row-actions">
@@ -250,6 +365,22 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
                 >
                   <Send size={15} />
                   Publish Campaign
+                </button>
+              )}
+              {published && !campaign.live_at && (
+                <button
+                  className="btn-primary"
+                  onClick={() =>
+                    statusAction(
+                      'go-live',
+                      'Go Live',
+                      `New riders will no longer be able to join. Every approved rider (${s.assigned_riders}) gets a “Campaign is now LIVE” notification. ` +
+                        `It also goes live automatically on ${formatDate(campaign.start_date)}. Pending join requests can still be approved.`
+                    )
+                  }
+                >
+                  <Radio size={15} />
+                  Go Live
                 </button>
               )}
               {(published || status === 'PAUSED') && applications.length === 0 && (
@@ -361,6 +492,7 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
         campaign={campaign}
         onPublish={() => statusAction('publish', 'Publish Campaign', 'Eligible riders will be able to see this campaign and request to join.')}
       />
+      <ShareCampaignCard campaign={campaign} onChanged={load} />
 
       <div className="tabs-header-bar">
         {TABS.map(([key, label]) => (
@@ -447,6 +579,9 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
         <div className="card">
           <div className="card-header-bar">
             <span className="card-title-text">Assigned Riders</span>
+            <button className="btn-secondary" onClick={() => setRouteFor('ALL')} style={{ marginLeft: 'auto', marginRight: 8 }}>
+              <MapIcon size={15} /> <span>View All Rider Routes</span>
+            </button>
             {published ? (
               <button className="btn-primary" onClick={() => setAddingRider(true)}>
                 <Users size={15} /> <span>Add Rider</span>
@@ -495,10 +630,9 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
                         <>
                           <strong style={{ color: r.today_photos.completed ? '#047857' : '#0F172A' }}>
                             {Math.min(r.today_photos.valid, r.photos_required)}/{r.photos_required}
+                            {r.today_photos.completed ? ' · Photo-Day completed' : ''}
                           </strong>
-                          {r.today_photos.pending ? (
-                            <div style={{ fontSize: '0.7rem', color: '#B45309' }}>{r.today_photos.pending} in review</div>
-                          ) : null}
+                          <SlotStatuses slots={r.today_photos.slots} />
                         </>
                       ) : (
                         <span style={{ color: '#94A3B8' }}>—</span>
@@ -529,6 +663,9 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
                         </button>
                         <button className="btn-sm-view" onClick={() => setActivityFor(r.assignment_id)}>
                           Activity
+                        </button>
+                        <button className="btn-sm-view" onClick={() => setRouteFor(r)}>
+                          View Route
                         </button>
                         <button
                           className="btn-sm-view"
@@ -653,7 +790,7 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
           <div className="card-header-bar">
             <span className="card-title-text">Rider Payouts</span>
             <span style={{ fontSize: '0.8rem', color: '#64748B' }}>
-              Earned = approved days × daily rate. Paid payouts are recorded in Payments.
+              Earned = approved Photo-Days (Morning, Evening and Night all approved) × daily rate. Same figures as the rider app.
             </span>
           </div>
           <div className="table-responsive">
@@ -661,8 +798,9 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
               <thead>
                 <tr>
                   <th>Rider</th>
-                  <th>Rider Status</th>
-                  <th>Approved Days</th>
+                  <th>UPI ID</th>
+                  <th>Campaign</th>
+                  <th>Approved Photo-Days</th>
                   <th>Daily Rate</th>
                   <th>Earned</th>
                   <th>Paid</th>
@@ -677,10 +815,14 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
                     <td>
                       <strong>{p.rider.full_name}</strong>
                       <div style={{ fontSize: '0.72rem', color: '#2563EB', fontWeight: 600 }}>{p.rider.rider_id}</div>
+                      <div style={{ marginTop: 4 }}>
+                        <StatusPill status={p.assignment_status} />
+                      </div>
                     </td>
-                    <td>
-                      <StatusPill status={p.assignment_status} />
+                    <td style={{ fontSize: '0.8rem' }}>
+                      {p.rider.upi_id ? <code className="confirm-code">{p.rider.upi_id}</code> : <span style={{ color: '#B45309' }}>Not on file</span>}
                     </td>
+                    <td style={{ fontSize: '0.82rem' }}>{campaign.name}</td>
                     <td>{p.eligible_days}</td>
                     <td>{formatINR(p.daily_rate)}</td>
                     <td>
@@ -794,6 +936,11 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
       ) : null}
       <PhotoLightbox url={preview} onClose={() => setPreview(null)} />
       {danger ? <DangerDialog {...danger} onClose={() => setDanger(null)} /> : null}
+      {routeFor ? (
+        <React.Suspense fallback={null}>
+          <RouteMapModal campaign={campaign} assignment={routeFor === 'ALL' ? null : routeFor} onClose={() => setRouteFor(null)} />
+        </React.Suspense>
+      ) : null}
       {addingRider ? (
         <CampaignAddRiderModal
           campaign={campaign}

@@ -73,6 +73,19 @@ class PhotoStatus:
     PARTIAL = "PARTIAL"  # Day-level only: some photos approved, fewer than required
 
 
+class PhotoSlot:
+    """The three daily photo slots. All three approved = 1 completed Photo-Day.
+
+    DEFAULT_WINDOWS apply unless a campaign sets its own (Campaign.photo_slot_windows). Windows drive the
+    slot reminders; uploads are only restricted to them when ENFORCE_PHOTO_SLOT_WINDOWS is on."""
+    MORNING = "MORNING"
+    EVENING = "EVENING"
+    NIGHT = "NIGHT"
+    ALL = (MORNING, EVENING, NIGHT)
+    LABELS = {MORNING: "Morning", EVENING: "Evening", NIGHT: "Night"}
+    DEFAULT_WINDOWS = {MORNING: ("06:00", "11:00"), EVENING: ("12:00", "15:00"), NIGHT: ("17:00", "21:00")}
+
+
 class RequestLabels:
     """How join-request statuses are shown to admins and riders."""
     CAMPAIGN = {
@@ -100,6 +113,32 @@ class AdjustmentStatus:
     OPEN = "OPEN"
     RECOVERED = "RECOVERED"
     WAIVED = "WAIVED"
+
+
+class VehicleCategory:
+    """Rider vehicle categories, used for campaign eligibility. Add a category here to support it everywhere."""
+    TWO_WHEELER = "TWO_WHEELER"
+    THREE_WHEELER = "THREE_WHEELER"
+    ALL = (TWO_WHEELER, THREE_WHEELER)
+    LABELS = {TWO_WHEELER: "Two Wheeler", THREE_WHEELER: "Three Wheeler"}
+
+
+class LocationPurpose:
+    PICKUP = "PICKUP"  # Where riders collect the T-shirt (also stored as null on older rows)
+    RETURN = "RETURN"  # Where riders hand it back after the campaign
+
+
+class KitReturnStatus:
+    NOT_REQUIRED = "NOT_REQUIRED"
+    PENDING = "PENDING"
+    RETURNED = "RETURNED"
+    INCENTIVE_CREDITED = "INCENTIVE_CREDITED"
+    LABELS = {
+        NOT_REQUIRED: "Return Not Required",
+        PENDING: "Return Pending",
+        RETURNED: "Returned",
+        INCENTIVE_CREDITED: "Incentive Credited",
+    }
 
 
 class KitStatus:
@@ -144,6 +183,16 @@ class Campaign(Base):
     extra_replacement_slots = Column(Integer, default=0, nullable=True)  # Opened by admin to replace inactive riders
     status = Column(String(20), default=CampaignStatus.DRAFT, nullable=False, index=True)
     visibility = Column(String(20), default=CampaignVisibility.DRAFT, nullable=False)
+    # When the campaign went Live (admin "Go Live" or its start date). New riders can't join after this.
+    live_at = Column(DateTime, nullable=True)
+    location_area = Column(String(200), nullable=True)  # e.g. "Sector 57, Gurugram"
+    # Comma-separated VehicleCategory values; empty means every category may join.
+    eligible_vehicle_categories = Column(String(120), nullable=True)
+    # JSON {"MORNING": ["06:00", "11:00"], ...}; empty means PhotoSlot.DEFAULT_WINDOWS.
+    photo_slot_windows = Column(Text, nullable=True)
+    # Shareable public page (/campaign/<public_slug>) for the brand.
+    public_slug = Column(String(80), unique=True, index=True, nullable=True)
+    public_share_enabled = Column(Boolean, default=False, nullable=True)
     created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     published_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
@@ -259,7 +308,7 @@ class CampaignDailyActivity(Base):
 
 class CampaignActivityPhoto(Base):
     """One proof photo. A rider-day is complete (1 Photo Streak day) once it has the required number of
-    distinct approved photos; the day's status is always derived from these rows."""
+    approved slot photos (Morning, Evening, Night); the day's status is always derived from these rows."""
 
     __tablename__ = "campaign_activity_photos"
 
@@ -272,11 +321,25 @@ class CampaignActivityPhoto(Base):
     content_hash = Column(String(64), nullable=True, index=True)
     status = Column(String(20), default=PhotoStatus.PENDING, nullable=False, index=True)
     rejection_reason = Column(String(255), nullable=True)
+    # MORNING / EVENING / NIGHT. Null only for photos uploaded before slots existed.
+    slot = Column(String(10), nullable=True)
     uploaded_at = Column(DateTime, default=datetime.utcnow)
     reviewed_at = Column(DateTime, nullable=True)
     reviewed_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
 
     activity = relationship("CampaignDailyActivity", back_populates="photos")
+
+    __table_args__ = (
+        # One live (pending/approved) photo per slot per day; rejected photos stay as history.
+        Index(
+            "uq_live_photo_per_slot",
+            "activity_id",
+            "slot",
+            unique=True,
+            postgresql_where=text("slot IS NOT NULL AND status <> 'REJECTED'"),
+            sqlite_where=text("slot IS NOT NULL AND status <> 'REJECTED'"),
+        ),
+    )
 
 
 class CampaignPayout(Base):
@@ -392,6 +455,10 @@ class CampaignBrandKit(Base):
     contact_name = Column(String(120), nullable=True)
     contact_phone = Column(String(30), nullable=True)
     instructions = Column(Text, nullable=True)  # General kit instructions (all locations)
+    # Returning the T-shirt after the campaign; the incentive is credited once when an admin marks it returned.
+    return_required = Column(Boolean, default=True, nullable=True)
+    return_incentive = Column(Float, nullable=True)  # Null means settings.TSHIRT_RETURN_INCENTIVE_DEFAULT
+    return_instructions = Column(Text, nullable=True)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     campaign = relationship("Campaign", back_populates="brand_kit")
@@ -416,6 +483,7 @@ class CampaignPickupLocation(Base):
     contact_phone = Column(String(30), nullable=True)
     instructions = Column(Text, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
+    purpose = Column(String(10), nullable=True)  # LocationPurpose; null = PICKUP
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -433,11 +501,19 @@ class RiderBrandKit(Base):
     collected_date = Column(Date, nullable=True)
     issued_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     pickup_location_id = Column(Integer, ForeignKey("campaign_pickup_locations.id"), nullable=True)
+    # T-shirt return after the campaign (KitReturnStatus); null = derived.
+    return_status = Column(String(20), nullable=True)
+    returned_at = Column(DateTime, nullable=True)
+    returned_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    return_payment_id = Column(Integer, ForeignKey("payments.id"), nullable=True)  # The incentive credit
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    campaign = relationship("Campaign")
     rider = relationship("Rider")
-    issued_by = relationship("User")
+    issued_by = relationship("User", foreign_keys=[issued_by_id])
+    returned_by = relationship("User", foreign_keys=[returned_by_id])
     pickup_location = relationship("CampaignPickupLocation")
+    return_payment = relationship("Payment")
 
 
 class CampaignFulfillmentSnapshot(Base):
@@ -449,3 +525,26 @@ class CampaignFulfillmentSnapshot(Base):
     campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=False, unique=True)
     data = Column(Text, nullable=False)  # JSON
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class RoutePoint(Base):
+    """One GPS fix recorded by the rider app while the rider's route is on (campaign days only).
+    Used only to draw the rider's route line on the admin map."""
+
+    __tablename__ = "campaign_route_points"
+
+    id = Column(Integer, primary_key=True, index=True)
+    campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=False, index=True)
+    assignment_id = Column(Integer, ForeignKey("campaign_assignments.id"), nullable=False)
+    rider_id = Column(Integer, ForeignKey("riders.id"), nullable=False, index=True)
+    route_date = Column(Date, nullable=False)  # IST date of recorded_at
+    recorded_at = Column(DateTime, nullable=False)  # UTC, from the device
+    latitude = Column(Float, nullable=False)
+    longitude = Column(Float, nullable=False)
+    accuracy_m = Column(Float, nullable=True)  # Used to drop poor fixes; never shown
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        Index("ix_route_points_assignment_day", "assignment_id", "route_date", "recorded_at"),
+        UniqueConstraint("assignment_id", "recorded_at", name="uq_route_point_time"),
+    )

@@ -24,5 +24,6 @@ api_router.include_router(audit_logs.router, prefix="/audit-logs", tags=["Audit 
 api_router.include_router(reports.router, prefix="/reports", tags=["Analytics & Reports"])
 api_router.include_router(campaigns.router, prefix="/campaigns", tags=["Campaign Management"])
 api_router.include_router(campaigns.rider_router, prefix="/riders/me/campaigns", tags=["Rider Campaigns"])
+api_router.include_router(campaigns.public_router, prefix="/public/campaigns", tags=["Public Campaign Page"])
 api_router.include_router(admin_system.users_router, prefix="/admin/users", tags=["Admin Accounts"])
 api_router.include_router(admin_system.system_router, prefix="/admin/system", tags=["System"])

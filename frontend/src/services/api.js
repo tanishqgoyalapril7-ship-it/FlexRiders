@@ -43,6 +43,13 @@ const fetchWithAuth = async (endpoint, options = {}) => {
 };
 
 export const api = {
+  // Public brand page (no login)
+  getPublicCampaign: async (slug) => {
+    const response = await fetch(`${API_BASE}/public/campaigns/${encodeURIComponent(slug)}`);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.detail || 'This campaign page is not available.');
+    return data;
+  },
   // Auth
   login: async (phone, password) => {
     const data = await fetchWithAuth('/auth/login', {
@@ -189,9 +196,13 @@ export const api = {
     return fetchWithAuth(`/campaigns${query ? `?${query}` : ''}`);
   },
   getCampaignSummary: () => fetchWithAuth('/campaigns/summary'),
+  getOperationsOverview: () => fetchWithAuth('/reports/operations'),
   getCampaign: (id) => fetchWithAuth(`/campaigns/${id}`),
   createCampaign: (data) => fetchWithAuth('/campaigns', { method: 'POST', body: JSON.stringify(data) }),
   updateCampaign: (id, data) => fetchWithAuth(`/campaigns/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  getRouteDates: (id, assignmentId) => fetchWithAuth(`/campaigns/${id}/route-dates${assignmentId ? `?assignment_id=${assignmentId}` : ''}`),
+  getRoutes: (id, date, assignmentId) =>
+    fetchWithAuth(`/campaigns/${id}/routes?date=${date}${assignmentId ? `&assignment_id=${assignmentId}` : ''}`),
   getCampaignRiderVisibility: (id) => fetchWithAuth(`/campaigns/${id}/rider-visibility`),
   getCampaignDeleteImpact: (id) => fetchWithAuth(`/campaigns/${id}/delete-impact`),
   deleteCampaign: (id) => fetchWithAuth(`/campaigns/${id}`, { method: 'DELETE' }),
@@ -259,6 +270,8 @@ export const api = {
     fetchWithAuth(`/campaigns/${id}/brand-kit/riders/${kitId}`, { method: 'PATCH', body: JSON.stringify(data) }),
   excuseRiderDay: (id, assignmentId, day, reason) =>
     fetchWithAuth(`/campaigns/${id}/riders/${assignmentId}/excuse`, { method: 'POST', body: JSON.stringify({ day, reason }) }),
+  markKitReturned: (id, kitId) => fetchWithAuth(`/campaigns/${id}/brand-kit/riders/${kitId}/return`, { method: 'POST' }),
+  shareCampaign: (id, enabled) => fetchWithAuth(`/campaigns/${id}/share`, { method: 'POST', body: JSON.stringify({ enabled }) }),
   getActivityLog: (id) => fetchWithAuth(`/campaigns/${id}/activity-log`),
   getCampaignSnapshot: (id) => fetchWithAuth(`/campaigns/${id}/snapshot`),
 

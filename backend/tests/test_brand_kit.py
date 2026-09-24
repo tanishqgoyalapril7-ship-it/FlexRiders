@@ -25,7 +25,7 @@ def admin(client, db_session):
 
 def _campaign(client, admin, slots=3):
     brand = client.post(f"{API}/brands", json={"name": f"Kit Brand {uuid.uuid4().hex[:5]}"}, headers=admin).json()
-    start = today_ist()
+    start = today_ist() + timedelta(days=1)  # Open for joining (riders can't join once it's live)
     return client.post(
         f"{API}/campaigns",
         json={"name": f"Kit Campaign {uuid.uuid4().hex[:5]}", "brand_id": brand["id"], "start_date": start.isoformat(),

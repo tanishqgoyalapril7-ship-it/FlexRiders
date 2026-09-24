@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.security import UserRole
 from app.models.all_models import (
+    RiderReferral,
     Brand,
     Notification,
     Payment,
@@ -44,6 +45,7 @@ from app.models.campaign_models import (
     FinancialAdjustment,
     PayoutStatus,
     RiderBrandKit,
+    RoutePoint,
 )
 from app.services.audit_service import log_admin_action
 
@@ -102,6 +104,11 @@ def hard_delete_rider(db: Session, rider: Rider, admin: Optional[User], reason: 
         )
     label, user = impact["name"], rider.user
     db.query(CampaignApplication).filter(CampaignApplication.rider_id == rider.id).delete(synchronize_session=False)
+    # Referral links to or from this rider (a rider with a rewarded referral has payments, so isn't deleted here).
+    db.query(RiderReferral).filter(
+        (RiderReferral.referred_rider_id == rider.id) | (RiderReferral.referrer_rider_id == rider.id)
+    ).delete(synchronize_session=False)
+    db.query(Rider).filter(Rider.referred_by_rider_id == rider.id).update({Rider.referred_by_rider_id: None}, synchronize_session=False)
     db.delete(rider)  # Cascades documents and support tickets
     db.flush()
     if user is not None:
@@ -284,7 +291,7 @@ def _delete_all(db: Session, *models) -> Dict[str, int]:
 
 def _reset_activity(db: Session) -> Dict[str, int]:
     """Photos, rider-days, corrections and snapshots; payouts back to zero and their payments removed."""
-    removed = _delete_all(db, ActivityChangeLog, CampaignActivityPhoto, FinancialAdjustment, CampaignFulfillmentSnapshot, CampaignDailyActivity)
+    removed = _delete_all(db, ActivityChangeLog, CampaignActivityPhoto, FinancialAdjustment, CampaignFulfillmentSnapshot, CampaignDailyActivity, RoutePoint)
     db.query(CampaignPayout).update(
         {
             CampaignPayout.eligible_days: 0,
@@ -297,15 +304,26 @@ def _reset_activity(db: Session) -> Dict[str, int]:
         },
         synchronize_session=False,
     )
-    removed["payments"] = db.query(Payment).filter(Payment.campaign_id.isnot(None)).delete(synchronize_session=False)
+    # Payout payments only; campaign credits like the T-shirt return incentive go with the campaign itself.
+    removed["payments"] = db.query(Payment).filter(Payment.campaign_id.isnot(None), Payment.category.is_(None)).delete(synchronize_session=False)
+    return removed
+
+
+def _delete_rider_kits(db: Session) -> Dict[str, int]:
+    """Rider kits, then the return-incentive credits they point to."""
+    removed = _delete_all(db, RiderBrandKit)
+    removed["payments"] = removed.get("payments", 0) + db.query(Payment).filter(Payment.campaign_id.isnot(None)).delete(synchronize_session=False)
     return removed
 
 
 def _reset_campaigns(db: Session) -> Dict[str, int]:
     removed = _reset_activity(db)
+    payout_payments = removed["payments"]
+    removed.update(_delete_rider_kits(db))
+    removed["payments"] += payout_payments
     removed.update(
         _delete_all(
-            db, RiderBrandKit, CampaignPayout, CampaignAssignment, CampaignApplication,
+            db, CampaignPayout, CampaignAssignment, CampaignApplication,
             BrandPaymentRecord, CampaignExtension, CampaignBrandKit, CampaignPickupLocation, Campaign,
         )
     )
@@ -315,9 +333,12 @@ def _reset_campaigns(db: Session) -> Dict[str, int]:
 def _reset_riders(db: Session) -> Dict[str, int]:
     """Every rider and their login, documents, payments, brand assignments and campaign participation."""
     removed = _reset_activity(db)
-    removed.update(_delete_all(db, RiderBrandKit, CampaignPayout, CampaignAssignment, CampaignApplication))
+    payout_payments = removed["payments"]
+    removed.update(_delete_rider_kits(db))
+    removed["payments"] += payout_payments
+    removed.update(_delete_all(db, CampaignPayout, CampaignAssignment, CampaignApplication))
     rider_user_ids = [uid for (uid,) in db.query(Rider.user_id).filter(Rider.user_id.isnot(None))]
-    removed.update(_delete_all(db, Payment, RiderBrandAssignment, RiderDocument, SupportTicket, Rider))
+    removed.update(_delete_all(db, RiderReferral, Payment, RiderBrandAssignment, RiderDocument, SupportTicket, Rider))
     removed["notifications"] = (
         db.query(Notification).filter(Notification.user_id.in_(rider_user_ids)).delete(synchronize_session=False) if rider_user_ids else 0
     )
@@ -381,6 +402,7 @@ def reset_preview(db: Session) -> List[Dict]:
         "rider_days": n(CampaignDailyActivity),
         "campaign_payments": n(Payment, Payment.campaign_id.isnot(None)),
         "corrections": n(ActivityChangeLog) + n(FinancialAdjustment),
+        "route_points": n(RoutePoint),
     }
     campaigns = {"campaigns": n(Campaign), "rider_assignments": n(CampaignAssignment), "join_requests": n(CampaignApplication), "brand_payment_records": n(BrandPaymentRecord), **activity}
     riders = {"riders": n(Rider), "payments": n(Payment), "brand_assignments": n(RiderBrandAssignment), "documents": n(RiderDocument), "rider_assignments": n(CampaignAssignment), **activity}
@@ -388,7 +410,7 @@ def reset_preview(db: Session) -> List[Dict]:
     everything = {**riders, **brands, "notifications": n(Notification)}
     return [
         {"scope": "campaign_activity", "label": RESET_SCOPES["campaign_activity"], "counts": activity,
-         "description": "Deletes every campaign photo, rider-day, correction and closing snapshot, and resets campaign payouts to ₹0 (removing their payment records). Campaigns, riders and brands stay."},
+         "description": "Deletes every campaign photo, rider-day, route, correction and closing snapshot, and resets campaign payouts to ₹0 (removing their payment records). Campaigns, riders and brands stay."},
         {"scope": "campaigns", "label": RESET_SCOPES["campaigns"], "counts": campaigns,
          "description": "Deletes every campaign with its riders, requests, extensions, brand kit, brand payment records, payouts and activity. Riders and brands stay."},
         {"scope": "brands", "label": RESET_SCOPES["brands"], "counts": brands,

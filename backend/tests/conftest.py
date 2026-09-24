@@ -1,4 +1,5 @@
 import pytest
+from contextlib import contextmanager
 import os
 import sys
 from fastapi.testclient import TestClient
@@ -10,6 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Tests must never touch the real (Supabase) database: point the app at the test SQLite file
 # before it is imported, since importing it creates and migrates tables.
 os.environ["DATABASE_URL"] = "sqlite:///./test_super_riders.db"
+os.environ["SLOT_NOTIFICATIONS_ENABLED"] = "false"  # Tests call the reminder service directly
 
 from app.main import app
 from app.core.database import Base, get_db
@@ -49,3 +51,32 @@ def client(db_session):
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
+
+
+@contextmanager
+def before_start(db, campaign_id):
+    """Time travel for tests: inside the block the campaign is upcoming (Open for Joining), so riders
+    can join and be approved; afterwards its real dates return and the next request makes it Live."""
+    from datetime import timedelta
+
+    from app.models.campaign_models import AssignmentStatus, Campaign, CampaignAssignment, CampaignStatus
+    from app.services.campaign_service import today_ist
+
+    campaign = db.get(Campaign, campaign_id)
+    db.refresh(campaign)
+    start, end = campaign.start_date, campaign.end_date
+    shift = today_ist() + timedelta(days=1) - start
+    campaign.start_date, campaign.end_date = start + shift, end + shift
+    campaign.live_at = None
+    if campaign.status in CampaignStatus.PUBLISHED:
+        campaign.status = CampaignStatus.OPEN
+    db.query(CampaignAssignment).filter(
+        CampaignAssignment.campaign_id == campaign_id, CampaignAssignment.status == AssignmentStatus.ACTIVE
+    ).update({CampaignAssignment.status: AssignmentStatus.ASSIGNED}, synchronize_session=False)
+    db.commit()
+    try:
+        yield campaign
+    finally:
+        db.refresh(campaign)
+        campaign.start_date, campaign.end_date = start, end
+        db.commit()

@@ -7,6 +7,7 @@ from app.core.security import UserRole, get_password_hash
 from app.models.all_models import Brand, Rider, RiderStatus, User
 from app.models.campaign_models import CampaignAssignment, CampaignDailyActivity
 from app.services.campaign_service import today_ist
+from tests.conftest import before_start
 
 API = "/api/v1"
 
@@ -72,11 +73,15 @@ def create_campaign(client, headers, brand_id, slots=2, start_offset=0, visibili
     return res.json()
 
 
-def join_and_approve(client, admin_headers, campaign_id, rider_headers):
-    assert client.post(f"{API}/riders/me/campaigns/{campaign_id}/join", headers=rider_headers).status_code == 200
-    apps = client.get(f"{API}/campaigns/{campaign_id}/applications?status=REQUESTED", headers=admin_headers).json()
-    res = client.post(f"{API}/campaigns/{campaign_id}/applications/{apps[0]['id']}/approve", headers=admin_headers)
-    assert res.status_code == 200, res.text
+def join_and_approve(client, admin_headers, campaign_id, rider_headers, db=None):
+    """Riders join before a campaign goes live; `db` time-travels a started campaign back to Open."""
+    from contextlib import nullcontext
+
+    with before_start(db, campaign_id) if db is not None else nullcontext():
+        assert client.post(f"{API}/riders/me/campaigns/{campaign_id}/join", headers=rider_headers).status_code == 200
+        apps = client.get(f"{API}/campaigns/{campaign_id}/applications?status=REQUESTED", headers=admin_headers).json()
+        res = client.post(f"{API}/campaigns/{campaign_id}/applications/{apps[0]['id']}/approve", headers=admin_headers)
+        assert res.status_code == 200, res.text
     return res.json()
 
 
@@ -98,27 +103,28 @@ def test_requests_do_not_consume_slots_and_full_blocks_joining(client, db_sessio
     _, first = make_rider(client, db_session, "9100000002")
     _, second = make_rider(client, db_session, "9100000003")
 
-    client.post(f"{API}/riders/me/campaigns/{campaign['id']}/join", headers=first)
-    client.post(f"{API}/riders/me/campaigns/{campaign['id']}/join", headers=second)
-    detail = client.get(f"{API}/campaigns/{campaign['id']}", headers=admin_headers).json()
-    assert detail["stats"]["requested_riders"] == 2
-    assert detail["stats"]["assigned_riders"] == 0
+    with before_start(db_session, campaign["id"]):
+        client.post(f"{API}/riders/me/campaigns/{campaign['id']}/join", headers=first)
+        client.post(f"{API}/riders/me/campaigns/{campaign['id']}/join", headers=second)
+        detail = client.get(f"{API}/campaigns/{campaign['id']}", headers=admin_headers).json()
+        assert detail["stats"]["requested_riders"] == 2
+        assert detail["stats"]["assigned_riders"] == 0
 
-    apps = client.get(f"{API}/campaigns/{campaign['id']}/applications?status=REQUESTED", headers=admin_headers).json()
-    detail = client.post(f"{API}/campaigns/{campaign['id']}/applications/{apps[0]['id']}/approve", headers=admin_headers).json()
-    assert detail["status"] == "FULL"
-    assert detail["stats"]["remaining_slots"] == 0
+        apps = client.get(f"{API}/campaigns/{campaign['id']}/applications?status=REQUESTED", headers=admin_headers).json()
+        detail = client.post(f"{API}/campaigns/{campaign['id']}/applications/{apps[0]['id']}/approve", headers=admin_headers).json()
+        assert detail["status"] == "FULL"
+        assert detail["stats"]["remaining_slots"] == 0
 
-    res = client.post(f"{API}/campaigns/{campaign['id']}/applications/{apps[1]['id']}/approve", headers=admin_headers)
-    assert res.status_code == 400
-    assert "slots" in res.json()["detail"]
+        res = client.post(f"{API}/campaigns/{campaign['id']}/applications/{apps[1]['id']}/approve", headers=admin_headers)
+        assert res.status_code == 400
+        assert "slots" in res.json()["detail"]
 
 
 def test_rider_can_only_be_in_one_active_campaign(client, db_session, admin_headers, brand_id):
     first = create_campaign(client, admin_headers, brand_id)
     second = create_campaign(client, admin_headers, brand_id)
     _, rider_headers = make_rider(client, db_session, "9100000004")
-    join_and_approve(client, admin_headers, first["id"], rider_headers)
+    join_and_approve(client, admin_headers, first["id"], rider_headers, db_session)
 
     data = client.get(f"{API}/riders/me/campaigns", headers=rider_headers).json()
     assert data["active"]["id"] == first["id"]
@@ -134,7 +140,11 @@ def test_rider_can_only_be_in_one_active_campaign(client, db_session, admin_head
     data = client.get(f"{API}/riders/me/campaigns", headers=rider_headers).json()
     assert data["active"] is None
     assert data["history"][0]["my_status"] == "REMOVED"
-    assert client.post(f"{API}/riders/me/campaigns/{second['id']}/join", headers=rider_headers).status_code == 200
+    # `second` started today, so it's live: joining is closed for new riders.
+    res = client.post(f"{API}/riders/me/campaigns/{second['id']}/join", headers=rider_headers)
+    assert res.status_code == 400 and "already started" in res.json()["detail"]
+    with before_start(db_session, second["id"]):
+        assert client.post(f"{API}/riders/me/campaigns/{second['id']}/join", headers=rider_headers).status_code == 200
 
 
 def test_unapproved_rider_cannot_join(client, db_session, admin_headers, brand_id):
@@ -148,7 +158,7 @@ def test_unapproved_rider_cannot_join(client, db_session, admin_headers, brand_i
 def test_payout_counts_only_approved_days(client, db_session, admin_headers, brand_id):
     campaign = create_campaign(client, admin_headers, brand_id, start_offset=-4, rate=10)
     rider, rider_headers = make_rider(client, db_session, "9100000006")
-    join_and_approve(client, admin_headers, campaign["id"], rider_headers)
+    join_and_approve(client, admin_headers, campaign["id"], rider_headers, db_session)
 
     # Backdate the assignment so the rider has 5 eligible days (4 past days + today).
     assignment = db_session.query(CampaignAssignment).filter(CampaignAssignment.rider_id == rider.id).first()
@@ -210,7 +220,7 @@ def test_payout_counts_only_approved_days(client, db_session, admin_headers, bra
 def test_completion_keeps_history_and_frees_rider(client, db_session, admin_headers, brand_id):
     campaign = create_campaign(client, admin_headers, brand_id)
     _, rider_headers = make_rider(client, db_session, "9100000007")
-    join_and_approve(client, admin_headers, campaign["id"], rider_headers)
+    join_and_approve(client, admin_headers, campaign["id"], rider_headers, db_session)
 
     done = client.post(f"{API}/campaigns/{campaign['id']}/complete", headers=admin_headers).json()
     assert done["status"] == "COMPLETED"
