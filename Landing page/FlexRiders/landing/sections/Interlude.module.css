@@ -1,0 +1,33 @@
+.interlude {
+  padding-block: var(--section-y) clamp(40px, 8vw, 120px);
+  overflow: hidden;
+}
+.frameWrap {
+  max-width: 1400px;
+  margin: clamp(40px, 6vw, 80px) auto 0;
+  padding-inline: var(--gutter);
+}
+.frame {
+  position: relative;
+  aspect-ratio: 3 / 2;
+  overflow: hidden;
+  background: #f4f4f4;
+  will-change: transform;
+}
+.img {
+  position: absolute;
+  inset: -4% 0;
+}
+
+@media (max-width: 767px) {
+  .frameWrap {
+    padding-inline: 0;
+  }
+  .frame {
+    aspect-ratio: 5 / 4;
+    border-radius: 0 !important;
+  }
+  .img :global(img) {
+    object-position: 50% 40%;
+  }
+}

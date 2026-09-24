@@ -51,7 +51,7 @@ uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 - Interactive API docs: http://127.0.0.1:8000/docs
 - Tables and new columns are created automatically at startup. On PostgreSQL, row-level security is enabled on every table so Supabase's public REST API can't read the data; the backend keeps full access.
 
-### 2. Admin dashboard (port 5173)
+### 2. Admin dashboard (port 5180)
 
 ```bash
 cd frontend
@@ -59,7 +59,7 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5173 and sign in. `reset_clean_db.py` creates these accounts:
+Open http://localhost:5180 and sign in. `reset_clean_db.py` creates these accounts:
 
 | Role | Phone | Password |
 |---|---|---|

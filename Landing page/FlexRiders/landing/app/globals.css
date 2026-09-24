@@ -1,0 +1,602 @@
+/* ==========================================================================
+   Flex Riders — design system
+   ========================================================================== */
+
+:root {
+  /* Neutrals */
+  --black: #0a0a0a;
+  --ink: #1d1d1f;
+  --white: #ffffff;
+  --paper: #f5f5f5;
+  --muted: #86868b;          /* large text / on dark only (AA on #0a0a0a) */
+  --muted-strong: #6e6e73;   /* body copy on light (AA on #fff and #f5f5f5) */
+  --hair-light: rgba(0, 0, 0, 0.08);
+  --hair-dark: rgba(255, 255, 255, 0.1);
+
+  /* Brand — sampled from the Flex Riders mark */
+  --accent: #0068d8;
+  --accent-bright: #2e9bfa;
+  --accent-soft: rgba(46, 155, 250, 0.14);
+  --metal: linear-gradient(180deg, #ffffff 0%, #d8dbe0 55%, #a9aeb6 100%);
+
+  /* Status */
+  --success: #1a8f4c;
+  --success-bright: #34c566;
+  --warn: #a15c00;
+  --warn-bright: #ffb547;
+
+  /* Type */
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+    var(--font-inter), "Segoe UI", system-ui, sans-serif;
+
+  /* Layout */
+  --gutter: clamp(20px, 5vw, 64px);
+  --max: 1240px;
+  --nav-h: 52px;
+  --section-y: clamp(104px, 14vw, 184px);
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  scroll-padding-top: var(--nav-h);
+}
+
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+.lenis.lenis-stopped {
+  overflow: hidden;
+}
+
+body {
+  margin: 0;
+  background: var(--black);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 17px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow-x: clip;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+h1,
+h2,
+h3,
+h4,
+p {
+  margin: 0;
+}
+
+ul,
+ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+::selection {
+  background: rgba(46, 155, 250, 0.3);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+[tabindex="-1"]:focus {
+  outline: none;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: fixed;
+  left: 16px;
+  top: 12px;
+  z-index: 200;
+  padding: 10px 16px;
+  border-radius: 999px;
+  background: var(--white);
+  color: var(--black);
+  font-weight: 600;
+  font-size: 14px;
+  transform: translateY(-160%);
+  transition: transform 0.2s var(--ease-out);
+}
+.skip-link:focus {
+  transform: none;
+}
+
+/* --------------------------------------------------------------------------
+   Sections & themes
+   -------------------------------------------------------------------------- */
+
+.section {
+  position: relative;
+  padding-block: var(--section-y);
+}
+
+.theme-dark {
+  background: var(--black);
+  color: #f5f5f7;
+  --fg: #f5f5f7;
+  --fg-2: var(--muted);
+  --hair: var(--hair-dark);
+  --surface: #161617;
+  --surface-2: #1d1d1f;
+  --accent-fg: var(--accent-bright);
+  --ok: var(--success-bright);
+  --wait: var(--warn-bright);
+}
+
+.theme-light {
+  background: var(--white);
+  color: var(--ink);
+  --fg: var(--ink);
+  --fg-2: var(--muted-strong);
+  --hair: var(--hair-light);
+  --surface: var(--white);
+  --surface-2: var(--paper);
+  --accent-fg: var(--accent);
+  --ok: var(--success);
+  --wait: var(--warn);
+}
+
+.theme-paper {
+  background: var(--paper);
+}
+
+.container {
+  width: 100%;
+  max-width: calc(var(--max) + var(--gutter) * 2);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+/* --------------------------------------------------------------------------
+   Typography
+   -------------------------------------------------------------------------- */
+
+.eyebrow {
+  display: inline-block;
+  font-size: clamp(15px, 1.3vw, 19px);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--accent-fg);
+  margin-bottom: 14px;
+}
+
+.display-xl {
+  font-size: clamp(52px, 7.6vw, 108px);
+  font-weight: 700;
+  line-height: 0.98;
+  letter-spacing: -0.048em;
+}
+
+.display {
+  font-size: clamp(38px, 5.4vw, 72px);
+  font-weight: 700;
+  line-height: 1.04;
+  letter-spacing: -0.038em;
+  text-wrap: balance;
+}
+
+.headline {
+  font-size: clamp(26px, 2.8vw, 40px);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+}
+
+.lead {
+  font-size: clamp(18px, 1.55vw, 22px);
+  line-height: 1.5;
+  letter-spacing: -0.012em;
+  color: var(--fg-2);
+  font-weight: 450;
+  text-wrap: pretty;
+}
+.lead strong {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.small {
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--fg-2);
+}
+
+.muted {
+  color: var(--fg-2);
+}
+
+.metal-text {
+  background: linear-gradient(180deg, #ffffff 10%, #b9c0ca 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.blue-text {
+  background: linear-gradient(100deg, #5fb4ff 0%, #2e9bfa 40%, #0a6fe0 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.section-head {
+  max-width: 880px;
+}
+.section-head.center {
+  margin-inline: auto;
+  text-align: center;
+}
+.section-head .lead {
+  margin-top: 22px;
+  max-width: 640px;
+}
+.section-head.center .lead {
+  margin-inline: auto;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.demo-note {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 22px;
+  font-size: 13px;
+  color: var(--fg-2);
+}
+.demo-note::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+}
+
+/* --------------------------------------------------------------------------
+   Buttons
+   -------------------------------------------------------------------------- */
+
+.btn {
+  --btn-h: 48px;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: var(--btn-h);
+  padding-inline: 24px;
+  border-radius: 999px;
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  transition: background-color 0.3s var(--ease-out), color 0.3s var(--ease-out),
+    box-shadow 0.3s var(--ease-out);
+  will-change: transform;
+}
+.btn .btn-arrow {
+  transition: transform 0.35s var(--ease-out);
+}
+.btn:hover .btn-arrow {
+  transform: translateX(3px);
+}
+.btn-sm {
+  --btn-h: 34px;
+  padding-inline: 16px;
+  font-size: 14px;
+}
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+.btn-primary:hover {
+  background: #0a74ec;
+  box-shadow: 0 10px 30px -10px rgba(0, 104, 216, 0.7);
+}
+.btn-ghost {
+  color: var(--accent-fg);
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+.theme-dark .btn-ghost {
+  color: #f5f5f7;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+}
+.btn-ghost:hover {
+  background: var(--accent-soft);
+}
+.theme-dark .btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55);
+}
+.btn-link {
+  padding-inline: 4px;
+  color: var(--accent-fg);
+}
+.btn-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+/* --------------------------------------------------------------------------
+   Status pills
+   -------------------------------------------------------------------------- */
+
+.pill {
+  --pill-fg: var(--fg-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  padding: 0.28em 0.7em;
+  border-radius: 999px;
+  font-size: 0.72em;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  color: var(--pill-fg);
+  background: color-mix(in srgb, var(--pill-fg) 13%, transparent);
+}
+.pill::before {
+  content: "";
+  width: 0.5em;
+  height: 0.5em;
+  border-radius: 50%;
+  background: currentColor;
+}
+.pill.is-ok {
+  --pill-fg: var(--ok);
+}
+.pill.is-wait {
+  --pill-fg: var(--wait);
+}
+.pill.is-info {
+  --pill-fg: var(--accent-fg);
+}
+.pill.is-neutral {
+  --pill-fg: var(--fg-2);
+}
+
+/* --------------------------------------------------------------------------
+   Device: phone
+   Screen UI is authored on a fixed 280×612 canvas and scaled by --ps,
+   so mockups stay proportional and crisp at any size.
+   -------------------------------------------------------------------------- */
+
+.phone {
+  /* scale via --ps (default 1); set it on the element's own class */
+  position: relative;
+  flex: none;
+  width: calc(300px * var(--ps, 1));
+  height: calc(632px * var(--ps, 1));
+  border-radius: calc(50px * var(--ps, 1));
+  padding: calc(10px * var(--ps, 1));
+  background: linear-gradient(145deg, #3a3b3f 0%, #111214 38%, #26272a 62%, #0b0b0c 100%);
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.16), inset 0 0 0 3px #050505,
+    0 50px 100px -30px rgba(0, 0, 0, 0.55), 0 30px 60px -40px rgba(0, 0, 0, 0.6);
+}
+.phone::before {
+  content: "";
+  position: absolute;
+  right: -2px;
+  top: 26%;
+  width: 3px;
+  height: 11%;
+  border-radius: 0 2px 2px 0;
+  background: #2a2b2e;
+}
+.phone-screen {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: calc(40px * var(--ps, 1));
+  background: #f5f5f7;
+  isolation: isolate;
+}
+.phone-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 280px;
+  height: 612px;
+  transform: scale(var(--ps, 1));
+  transform-origin: 0 0;
+  font-size: 13px;
+  line-height: 1.35;
+  color: var(--ink);
+  --fg: var(--ink);
+  --fg-2: var(--muted-strong);
+  --ok: var(--success);
+  --wait: var(--warn);
+  --accent-fg: var(--accent);
+}
+.phone-island {
+  position: absolute;
+  top: 9px;
+  left: 50%;
+  translate: -50% 0;
+  width: 84px;
+  height: 24px;
+  border-radius: 999px;
+  background: #000;
+  z-index: 10;
+}
+.phone-status {
+  position: relative;
+  z-index: 9;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 44px;
+  padding-inline: 26px 22px;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.phone-status-icons {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+.phone-status-icons svg {
+  height: 10px;
+  width: auto;
+}
+
+/* --------------------------------------------------------------------------
+   Device: browser window
+   UI sized in --bx units (1/1100 of window width; 1/420 on small screens).
+   -------------------------------------------------------------------------- */
+
+.browser {
+  --bx: calc(100cqw / 1100);
+  container-type: inline-size;
+  position: relative;
+  width: 100%;
+  border-radius: 14px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.08), 0 60px 120px -40px rgba(0, 0, 0, 0.35),
+    0 30px 60px -30px rgba(0, 0, 0, 0.18);
+  color: var(--ink);
+}
+@media (max-width: 767px) {
+  .browser {
+    --bx: calc(100cqw / 420);
+    border-radius: 12px;
+  }
+}
+.browser-bar {
+  display: flex;
+  align-items: center;
+  gap: calc(var(--bx) * 14);
+  height: calc(var(--bx) * 42);
+  padding-inline: calc(var(--bx) * 16);
+  background: #f3f3f5;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+  font-size: calc(var(--bx) * 12);
+  color: #6e6e73;
+}
+.browser-dots {
+  display: flex;
+  gap: calc(var(--bx) * 7);
+}
+.browser-dots span {
+  width: calc(var(--bx) * 11);
+  height: calc(var(--bx) * 11);
+  border-radius: 50%;
+  background: #d9d9de;
+}
+.browser-url {
+  flex: 1;
+  max-width: calc(var(--bx) * 340);
+  margin-inline: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--bx) * 6);
+  height: calc(var(--bx) * 26);
+  border-radius: calc(var(--bx) * 7);
+  background: #e8e8ec;
+  font-weight: 500;
+}
+
+/* --------------------------------------------------------------------------
+   Rider avatar / brand monogram
+   -------------------------------------------------------------------------- */
+
+.avatar {
+  position: relative;
+  flex: none;
+  border-radius: 50%;
+  overflow: hidden;
+  background: #e8ecf2;
+}
+.avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.brand-mono {
+  display: grid;
+  place-items: center;
+  flex: none;
+  border-radius: 28%;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: #fff;
+  background: linear-gradient(145deg, #2b2d33, #0d0e11);
+}
+
+/* --------------------------------------------------------------------------
+   Reveal helper (for no-JS / reduced-motion safety)
+   -------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

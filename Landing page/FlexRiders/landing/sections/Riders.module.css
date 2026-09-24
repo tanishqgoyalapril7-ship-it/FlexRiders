@@ -1,0 +1,231 @@
+.riders {
+  position: relative;
+  padding-top: var(--section-y);
+}
+.head {
+  margin-bottom: clamp(8px, 2vw, 24px);
+}
+.track {
+  position: relative;
+}
+.sticky {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  display: flex;
+  align-items: center;
+  padding-top: var(--nav-h);
+  overflow: hidden;
+}
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  gap: clamp(32px, 6vw, 96px);
+}
+
+/* ---- Chapter list ---- */
+.list {
+  display: grid;
+  gap: 6px;
+  max-width: 460px;
+  justify-self: end;
+}
+.list button {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  width: 100%;
+  padding: 14px 0 14px 26px;
+  text-align: left;
+  border-radius: 8px;
+}
+.bar {
+  position: absolute;
+  left: 0;
+  top: 16px;
+  bottom: 16px;
+  width: 2px;
+  border-radius: 2px;
+  background: var(--hair-light);
+  overflow: hidden;
+}
+.bar i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transform-origin: top;
+}
+.itemTitle {
+  font-size: clamp(22px, 2.2vw, 30px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.15;
+  color: var(--muted);
+  transition: color 0.5s var(--ease-out);
+}
+.itemText {
+  display: block;
+  font-size: 17px;
+  line-height: 1.45;
+  color: var(--muted-strong);
+  opacity: 0;
+  transition: max-height 0.5s var(--ease-out), opacity 0.4s var(--ease-out);
+  overflow: hidden;
+  max-height: 0;
+}
+.list li[data-on="true"] .itemTitle {
+  color: var(--ink);
+}
+.list li[data-on="true"] .itemText {
+  opacity: 1;
+  max-height: 120px;
+  transition: max-height 0.7s var(--ease-out), opacity 0.6s var(--ease-out) 0.1s;
+}
+.list button:hover .itemTitle {
+  color: var(--ink);
+}
+.extras {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+  padding-left: 26px;
+}
+.extras span {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted-strong);
+  background: var(--paper);
+}
+
+/* ---- Device ---- */
+.device {
+  position: relative;
+  display: grid;
+  place-items: center;
+  justify-self: start;
+}
+.halo {
+  position: absolute;
+  width: 140%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(46, 155, 250, 0.16), transparent);
+}
+.phone {
+  --ps: 1;
+}
+.screenLayer {
+  position: absolute;
+  inset: 0;
+}
+
+.mobileCaption {
+  display: none;
+}
+
+/* ---- Reduced-motion grid ---- */
+.staticGrid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 48px 32px;
+  padding-block: 56px var(--section-y);
+}
+.staticItem {
+  display: grid;
+  justify-items: center;
+  gap: 18px;
+  width: 240px;
+  margin: 0;
+  text-align: center;
+  font-size: 15px;
+  color: var(--muted-strong);
+}
+.staticItem b {
+  color: var(--ink);
+}
+.staticPhone {
+  --ps: 0.78;
+}
+
+@media (max-height: 820px) {
+  .phone {
+    --ps: 0.88;
+  }
+}
+@media (max-height: 700px) {
+  .phone {
+    --ps: 0.78;
+  }
+}
+
+@media (max-width: 1023px) {
+  .grid {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    gap: 20px;
+  }
+  .list {
+    display: none;
+  }
+  .device {
+    justify-self: center;
+  }
+  .phone {
+    --ps: 0.95;
+  }
+  .mobileCaption {
+    display: grid;
+    justify-items: center;
+    gap: 14px;
+    text-align: center;
+    min-height: 104px;
+    max-width: 420px;
+  }
+  .mobileCaption b {
+    display: block;
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+  }
+  .mobileCaption p {
+    margin-top: 4px;
+    font-size: 16px;
+    color: var(--muted-strong);
+  }
+  .dots {
+    display: flex;
+    gap: 6px;
+  }
+  .dots i {
+    width: 6px;
+    height: 6px;
+    border-radius: 3px;
+    background: #d2d2d7;
+    transition: width 0.4s var(--ease-out), background 0.4s;
+  }
+  .dots i[data-on="true"] {
+    width: 20px;
+    background: var(--accent);
+  }
+}
+
+@media (max-width: 1023px) and (max-height: 960px) {
+  .phone {
+    --ps: 0.8;
+  }
+}
+@media (max-width: 767px) {
+  .phone {
+    --ps: 0.66;
+  }
+}
+@media (max-width: 767px) and (max-height: 700px) {
+  .phone {
+    --ps: 0.56;
+  }
+}

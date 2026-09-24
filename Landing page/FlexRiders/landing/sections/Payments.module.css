@@ -1,0 +1,344 @@
+.payments {
+  overflow: hidden;
+  background: radial-gradient(70% 40% at 50% 38%, rgba(0, 104, 216, 0.14), transparent 70%), var(--black);
+}
+
+.stage {
+  display: grid;
+  grid-template-columns: 1fr 1.25fr 1fr;
+  align-items: center;
+  gap: clamp(16px, 2vw, 28px);
+  margin-top: clamp(56px, 8vw, 104px);
+}
+
+.card {
+  padding: 24px;
+  border-radius: 26px;
+  background: linear-gradient(180deg, #1b1b1d, #121214);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08), 0 50px 100px -40px rgba(0, 0, 0, 0.9);
+  font-size: 14px;
+  will-change: transform;
+}
+.cardHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-weight: 600;
+  font-size: 15px;
+}
+.cardHead :global(.pill) {
+  font-size: 11px;
+}
+.label {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+/* Earnings (hero card) */
+.earn {
+  padding: 32px;
+  border-radius: 32px;
+  background: radial-gradient(120% 90% at 100% 0%, rgba(0, 104, 216, 0.4), transparent 60%),
+    linear-gradient(180deg, #1c1c1f, #111113);
+  z-index: 1;
+}
+.earnHead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 36px;
+}
+.earnHead b {
+  display: block;
+  font-weight: 600;
+}
+.earnHead em {
+  font-style: normal;
+  font-size: 13px;
+  color: var(--muted);
+}
+.amountXl {
+  display: block;
+  margin-top: 4px;
+  font-size: clamp(64px, 7vw, 96px);
+  font-weight: 700;
+  letter-spacing: -0.05em;
+  line-height: 1;
+}
+.amountLg {
+  display: block;
+  margin-top: 4px;
+  font-size: clamp(28px, 2.6vw, 36px);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+}
+.amountMd {
+  margin: 14px 0 6px;
+  font-size: 40px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+.divider {
+  height: 1px;
+  margin: 28px 0 20px;
+  background: rgba(255, 255, 255, 0.1);
+}
+.earnRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+}
+.earnRight {
+  text-align: right;
+}
+.earnRight .pillLg {
+  margin-top: 8px;
+  font-size: 14px;
+}
+
+.kv {
+  display: grid;
+  margin: 8px 0 0;
+}
+.kv div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+.kv dt {
+  color: var(--muted);
+}
+.kv dd {
+  margin: 0;
+  font-weight: 550;
+}
+.notified {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  color: var(--success-bright);
+  background: rgba(52, 197, 102, 0.1);
+}
+
+.month {
+  font-style: normal;
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--muted);
+}
+.hList {
+  display: grid;
+  margin-top: 12px;
+}
+.hList li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 11px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+.hList b {
+  display: block;
+  font-weight: 600;
+}
+.hList em {
+  font-style: normal;
+  font-size: 12px;
+  color: var(--muted);
+}
+.hRight {
+  display: grid;
+  justify-items: end;
+  gap: 4px;
+}
+.hRight :global(.pill) {
+  font-size: 10px;
+}
+
+/* ---- Flow ---- */
+.flowWrap {
+  margin-top: clamp(96px, 12vw, 160px);
+}
+.flowHead {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: 32px;
+  align-items: end;
+}
+.flowLead {
+  font-size: 17px;
+  color: var(--muted);
+  max-width: 560px;
+  justify-self: end;
+}
+
+.flow {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 16px;
+  margin-top: 56px;
+}
+.flowTrack {
+  position: absolute;
+  left: 18px;
+  right: calc(100% / 6 - 18px);
+  top: 17px;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.flowFillX {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #0068d8, #2e9bfa 80%, #34c566);
+  transform-origin: left;
+}
+.flowFillY {
+  display: none;
+}
+.flow li {
+  position: relative;
+  display: grid;
+  gap: 16px;
+  align-content: start;
+}
+.fNode {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: #fff;
+  background: #141416;
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.16);
+  transition: background 0.5s var(--ease-out), box-shadow 0.5s var(--ease-out);
+}
+.fNode i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+}
+.flow li[data-modular="true"] .fNode {
+  border-radius: 10px;
+  box-shadow: none;
+  outline: 1.5px dashed rgba(255, 255, 255, 0.35);
+  outline-offset: -1.5px;
+}
+.flow li[data-state="on"] .fNode {
+  background: var(--accent);
+  box-shadow: 0 0 0 5px rgba(46, 155, 250, 0.15);
+}
+.flow li[data-state="on"][data-success="true"] .fNode {
+  background: #1f9d55;
+  box-shadow: 0 0 0 5px rgba(52, 197, 102, 0.15);
+}
+.fTitle {
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  color: var(--muted);
+  transition: color 0.5s var(--ease-out);
+}
+.flow li[data-state="on"] .fTitle {
+  color: #f5f5f7;
+}
+.flow li[data-state="on"][data-success="true"] .fTitle {
+  color: var(--success-bright);
+}
+.fText {
+  margin-top: 4px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.modTag {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent-bright);
+  box-shadow: inset 0 0 0 1px rgba(46, 155, 250, 0.4);
+}
+
+@media (max-width: 1100px) {
+  .stage {
+    grid-template-columns: 1fr 1fr;
+  }
+  .earn {
+    grid-column: 1 / -1;
+    order: -1;
+    max-width: 640px;
+    width: 100%;
+    justify-self: center;
+  }
+}
+
+@media (max-width: 900px) {
+  .flowHead {
+    grid-template-columns: 1fr;
+  }
+  .flowLead {
+    justify-self: start;
+  }
+  .flow {
+    grid-template-columns: 1fr;
+    gap: 28px;
+    padding-left: 0;
+  }
+  .flowTrack {
+    left: 17px;
+    right: auto;
+    top: 18px;
+    bottom: 18px;
+    width: 2px;
+    height: auto;
+  }
+  .flowFillX {
+    display: none;
+  }
+  .flowFillY {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(180deg, #0068d8, #2e9bfa 80%, #34c566);
+    transform-origin: top;
+  }
+  .flow li {
+    grid-template-columns: 36px 1fr;
+    gap: 18px;
+  }
+}
+
+@media (max-width: 767px) {
+  .stage {
+    grid-template-columns: 1fr;
+  }
+  .earn {
+    padding: 24px;
+    border-radius: 26px;
+  }
+  .earnHead {
+    margin-bottom: 24px;
+  }
+  .amountXl {
+    font-size: 64px;
+  }
+  .card {
+    padding: 20px;
+  }
+}

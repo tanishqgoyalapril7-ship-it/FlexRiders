@@ -1,0 +1,196 @@
+.scale {
+  overflow: hidden;
+  background: radial-gradient(50% 40% at 50% 58%, rgba(0, 104, 216, 0.16), transparent 70%), var(--black);
+}
+
+/* Desktop: concentric orbit. Items are placed on rings via --a (angle). */
+.orbit {
+  --size: min(860px, 100%);
+  container-type: inline-size;
+  position: relative;
+  width: var(--size);
+  aspect-ratio: 1;
+  margin: clamp(32px, 5vw, 64px) auto 0;
+}
+.ringInner,
+.ringOuter {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border-radius: 50%;
+  translate: -50% -50%;
+}
+.ringInner {
+  width: 58cqw;
+  height: 58cqw;
+  border: 1px solid rgba(46, 155, 250, 0.35);
+  background: radial-gradient(closest-side, rgba(0, 104, 216, 0.08), transparent);
+}
+.ringOuter {
+  width: 92cqw;
+  height: 92cqw;
+  border: 1px dashed rgba(255, 255, 255, 0.16);
+}
+
+.core {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  place-content: center;
+  width: 22cqw;
+  height: 22cqw;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 30%, #1d2533, #0e0f12 70%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1), 0 0 80px rgba(0, 104, 216, 0.35);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  z-index: 1;
+}
+
+.group {
+  position: absolute;
+  inset: 0;
+}
+.groupTitle {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+}
+.listNow li,
+.listNext li {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: rotate(var(--a)) translateX(var(--r)) rotate(calc(-1 * var(--a)));
+}
+.listNow li {
+  --r: 29cqw;
+}
+.listNext li {
+  --r: 46cqw;
+}
+.listNow span,
+.listNext span {
+  display: block;
+  translate: -50% -50%;
+  padding: 9px 16px;
+  border-radius: 999px;
+  font-size: 14px;
+  font-weight: 550;
+  white-space: nowrap;
+  letter-spacing: -0.01em;
+}
+.listNow span {
+  color: #fff;
+  background: #10284a;
+  box-shadow: inset 0 0 0 1px rgba(46, 155, 250, 0.55);
+}
+.listNext span {
+  color: #c7c7cc;
+  background: #0f0f11;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.2);
+  outline: 1px dashed transparent;
+}
+
+.dotNow,
+.dotNext {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  vertical-align: -1px;
+}
+.dotNow {
+  background: var(--accent-bright);
+}
+.dotNext {
+  border: 1.5px dashed rgba(255, 255, 255, 0.55);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px 32px;
+  margin-top: 40px;
+  font-size: 14px;
+  color: var(--muted);
+}
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+@media (max-width: 1023px) {
+  .listNow span,
+  .listNext span {
+    font-size: 12.5px;
+    padding: 7px 12px;
+  }
+}
+
+/* Mobile: two clear lists instead of an orbit */
+@media (max-width: 767px) {
+  .orbit {
+    aspect-ratio: auto;
+    width: 100%;
+    display: grid;
+    gap: 36px;
+  }
+  .ringInner,
+  .ringOuter {
+    display: none;
+  }
+  .core {
+    position: static;
+    translate: none;
+    width: 120px;
+    height: 120px;
+    justify-self: center;
+    font-size: 11px;
+  }
+  .group {
+    position: static;
+  }
+  .groupTitle {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip: auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 14px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #f5f5f7;
+  }
+  .listNow,
+  .listNext {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .listNow li,
+  .listNext li {
+    position: static;
+    transform: none;
+  }
+  .listNow span,
+  .listNext span {
+    translate: none;
+    font-size: 14px;
+  }
+  .legend {
+    display: none;
+  }
+}

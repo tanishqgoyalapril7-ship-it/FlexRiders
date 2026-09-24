@@ -1,0 +1,465 @@
+.eco {
+  position: relative;
+  padding-top: var(--section-y);
+  background: radial-gradient(80% 50% at 50% 0%, rgba(0, 104, 216, 0.12), transparent 70%), var(--black);
+}
+.head {
+  margin-bottom: clamp(24px, 4vw, 48px);
+}
+
+.track {
+  position: relative;
+}
+.sticky {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  display: flex;
+  align-items: center;
+  padding-top: var(--nav-h);
+  overflow: hidden;
+}
+.stickyInner {
+  display: grid;
+  gap: clamp(28px, 5vh, 56px);
+}
+
+/* ---- Rail ---- */
+.rail {
+  position: relative;
+  max-width: 880px;
+  width: 100%;
+  margin-inline: auto;
+}
+.railLine {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  top: 19px;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+.railLine i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #0068d8, #2e9bfa);
+  transform-origin: left;
+}
+.rail ol {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+}
+.node {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 0 4px 4px;
+  border-radius: 12px;
+}
+.dot {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  background: #141416;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  transition: background 0.5s var(--ease-out), color 0.5s var(--ease-out), box-shadow 0.5s var(--ease-out),
+    transform 0.5s var(--ease-out);
+}
+.nodeLabel {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  transition: color 0.4s var(--ease-out);
+}
+.node[data-state="done"] .dot {
+  color: #fff;
+  background: #0b3f7e;
+  box-shadow: inset 0 0 0 1px rgba(46, 155, 250, 0.5);
+}
+.node[data-state="on"] .dot {
+  color: #fff;
+  background: var(--accent);
+  box-shadow: 0 0 0 6px rgba(46, 155, 250, 0.16), 0 0 30px rgba(46, 155, 250, 0.5);
+  transform: scale(1.08);
+}
+.node[data-state="on"] .nodeLabel,
+.node[data-state="done"] .nodeLabel {
+  color: #f5f5f7;
+}
+.node:hover .nodeLabel {
+  color: #f5f5f7;
+}
+
+/* ---- Stage ---- */
+.stage {
+  position: relative;
+  min-height: 380px;
+}
+.stageGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  align-items: center;
+  gap: clamp(32px, 6vw, 96px);
+  width: 100%;
+}
+.text {
+  max-width: 460px;
+}
+.bigNo {
+  display: block;
+  font-size: clamp(64px, 9vw, 128px);
+  font-weight: 700;
+  line-height: 0.9;
+  letter-spacing: -0.06em;
+  font-variant-numeric: tabular-nums;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.04));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.stepTitle {
+  margin-top: 12px;
+  font-size: clamp(30px, 3.4vw, 48px);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+}
+.stepText {
+  margin-top: 14px;
+  font-size: clamp(17px, 1.4vw, 20px);
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.visualBox {
+  display: grid;
+  justify-items: center;
+}
+
+/* ---- Cards ---- */
+.card {
+  width: min(460px, 100%);
+  padding: 22px;
+  border-radius: 24px;
+  background: linear-gradient(180deg, #1a1a1c, #131315);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08), 0 40px 80px -40px rgba(0, 0, 0, 0.8);
+  font-size: 14px;
+  color: #f5f5f7;
+}
+.cardHead,
+.cardFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 600;
+  font-size: 15px;
+}
+.cardHead :global(.pill),
+.cardFoot :global(.pill),
+.workInfo :global(.pill) {
+  font-size: 11px;
+}
+.cardFoot {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--muted);
+}
+.kv {
+  display: grid;
+  margin: 16px 0 0;
+}
+.kv div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+.kv dt {
+  color: var(--muted);
+}
+.kv dd {
+  margin: 0;
+  font-weight: 550;
+  text-align: right;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+.chips span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 11px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #d2d2d7;
+}
+
+.checks {
+  display: grid;
+  margin-top: 14px;
+}
+.checks li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+.checks em {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-bright);
+}
+.actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+.btnPrimary,
+.btnGhost {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  height: 40px;
+  border-radius: 12px;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+.btnPrimary {
+  background: var(--accent);
+}
+.btnGhost {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+  color: #d2d2d7;
+}
+
+.assignRow {
+  display: grid;
+  grid-template-columns: 1fr minmax(60px, 1.2fr) 1fr;
+  align-items: center;
+  gap: 8px;
+  padding-block: 12px;
+}
+.entity {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  text-align: center;
+}
+.entity b {
+  margin-top: 6px;
+  font-weight: 600;
+}
+.entity em {
+  font-style: normal;
+  font-size: 12px;
+  color: var(--muted);
+}
+.link {
+  width: 100%;
+  height: 20px;
+  overflow: visible;
+}
+.link path {
+  fill: none;
+  stroke: var(--accent-bright);
+  stroke-width: 2;
+  stroke-dasharray: 0;
+}
+.link circle {
+  fill: #fff;
+}
+
+.workCard {
+  padding: 0;
+  overflow: hidden;
+}
+.map {
+  position: relative;
+  height: 190px;
+  background: #0f1012;
+}
+.map svg {
+  width: 100%;
+  height: 100%;
+}
+.pin {
+  position: absolute;
+  left: 58%;
+  top: 44%;
+  translate: -50% -50%;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--accent);
+  box-shadow: 0 0 0 4px rgba(0, 104, 216, 0.3);
+  z-index: 1;
+}
+.pulse {
+  position: absolute;
+  left: 58%;
+  top: 44%;
+  width: 38px;
+  height: 38px;
+  translate: -50% -50%;
+  border-radius: 50%;
+  border: 1px solid var(--accent-bright);
+  animation: pulse 2.6s var(--ease-out) infinite;
+}
+@keyframes pulse {
+  from {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  to {
+    transform: scale(3.4);
+    opacity: 0;
+  }
+}
+.workInfo {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 18px 22px;
+}
+.workInfo em {
+  display: block;
+  font-style: normal;
+  font-size: 12px;
+  color: var(--muted);
+}
+.workInfo b {
+  font-weight: 600;
+}
+.workInfo :global(.pill) {
+  margin-left: auto;
+}
+
+.amount {
+  margin-top: 10px;
+  font-size: 52px;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+}
+
+/* ---- Reduced-motion static list ---- */
+.staticList {
+  display: grid;
+  gap: 80px;
+  padding-bottom: var(--section-y);
+}
+.staticItem {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  align-items: center;
+}
+
+@media (max-height: 760px) and (min-width: 1024px) {
+  .bigNo {
+    font-size: 72px;
+  }
+  .stage {
+    min-height: 340px;
+  }
+}
+
+@media (max-width: 1023px) {
+  .stageGrid,
+  .staticItem {
+    grid-template-columns: 1fr;
+    gap: 22px;
+    text-align: center;
+  }
+  .text {
+    margin-inline: auto;
+    order: 2;
+  }
+  .visualBox {
+    order: 1;
+  }
+  .bigNo {
+    display: none;
+  }
+  .stepTitle {
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 767px) {
+  .stickyInner {
+    gap: 24px;
+  }
+  .dot {
+    width: 32px;
+    height: 32px;
+    font-size: 10.5px;
+  }
+  .railLine {
+    top: 15px;
+  }
+  .nodeLabel {
+    font-size: 10px;
+    letter-spacing: 0.03em;
+  }
+  .stage {
+    min-height: 0;
+  }
+  .card {
+    padding: 16px;
+    border-radius: 20px;
+    font-size: 13px;
+  }
+  .kv div {
+    padding: 8px 0;
+  }
+  .map {
+    height: 120px;
+  }
+  .workInfo {
+    padding: 14px 16px;
+    gap: 14px;
+    flex-wrap: wrap;
+    text-align: left;
+  }
+  .amount {
+    font-size: 40px;
+  }
+  .stepText {
+    font-size: 16px;
+    margin-top: 8px;
+  }
+  .stepTitle {
+    font-size: 28px;
+  }
+}

@@ -1,0 +1,348 @@
+.problem {
+  position: relative;
+  height: 280vh;
+}
+.sticky {
+  position: sticky;
+  top: 0;
+  height: 100svh;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  padding-top: var(--nav-h);
+}
+.inner {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  align-items: center;
+  gap: clamp(24px, 4vw, 72px);
+}
+
+.head :global(.display) {
+  font-size: clamp(36px, 4.6vw, 64px);
+}
+.captions {
+  display: grid;
+  margin-top: 24px;
+  max-width: 480px;
+}
+.captions > * {
+  grid-area: 1 / 1;
+}
+
+.stage {
+  position: relative;
+  height: min(620px, 68svh);
+}
+.tangle {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.tangle path {
+  fill: none;
+  stroke: #c7c7cc;
+  stroke-width: 0.25;
+}
+
+.frag {
+  position: absolute;
+  margin: 0;
+  width: clamp(168px, 16vw, 210px);
+  padding: 12px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06), 0 18px 40px -20px rgba(0, 0, 0, 0.25);
+  font-size: 12px;
+  translate: -50% -50%;
+  will-change: transform, left, top;
+  transform-origin: center;
+}
+.frag figcaption {
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted-strong);
+  margin-bottom: 8px;
+}
+
+.paper {
+  display: grid;
+  gap: 7px;
+  padding: 10px;
+  border-radius: 6px;
+  background: #fbfaf6;
+  border: 1px solid #ecebe4;
+}
+.paper i {
+  display: block;
+  height: 5px;
+  border-radius: 3px;
+  background: #e2e0d8;
+}
+.scribble {
+  font-family: "Segoe Print", "Bradley Hand", cursive;
+  font-size: 12px;
+  color: #8a6d3b;
+  transform: rotate(-3deg);
+}
+
+.chat {
+  display: grid;
+  gap: 5px;
+}
+.chat p {
+  max-width: 88%;
+  padding: 6px 9px;
+  border-radius: 12px;
+  font-size: 11.5px;
+  line-height: 1.3;
+}
+.bubbleIn {
+  background: #f0f0f3;
+  border-bottom-left-radius: 4px;
+}
+.bubbleOut {
+  justify-self: end;
+  background: #e2f2e6;
+  border-bottom-right-radius: 4px;
+}
+
+.sheet {
+  display: grid;
+  grid-template-columns: 1.3fr 0.8fr 1fr;
+  border: 1px solid #e5e5ea;
+  border-radius: 4px;
+  overflow: hidden;
+  font-size: 10.5px;
+}
+.sheet span {
+  padding: 4px 6px;
+  border-right: 1px solid #efeff2;
+  border-bottom: 1px solid #efeff2;
+  min-height: 22px;
+}
+.sheet span:nth-child(-n + 3) {
+  background: #f5f5f7;
+  font-weight: 600;
+}
+.cellWarn {
+  background: #fff4e0;
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.note {
+  padding: 12px;
+  border-radius: 4px;
+  background: #fff6c9;
+  font-family: "Segoe Print", "Bradley Hand", cursive;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #5c4b00;
+}
+.note span {
+  font-size: 11.5px;
+  opacity: 0.8;
+}
+
+.ledger p {
+  display: flex;
+  justify-content: space-between;
+  padding: 5px 0;
+  border-bottom: 1px dashed #e0e0e5;
+}
+.ledger b {
+  color: var(--warn);
+}
+
+.follow {
+  display: grid;
+  gap: 3px;
+}
+.follow b {
+  color: #c4291c;
+  font-weight: 600;
+}
+.follow span {
+  color: var(--muted-strong);
+  font-style: italic;
+}
+
+/* ---- Connected system ---- */
+.system {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: min(400px, 92%);
+  translate: -50% -50%;
+  padding: 24px;
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.05), 0 40px 80px -30px rgba(0, 40, 100, 0.3);
+}
+.systemHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--hair-light);
+}
+.systemTag {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+}
+.systemList {
+  display: grid;
+  margin-top: 6px;
+}
+.systemList li {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 11px 0;
+  font-size: 16px;
+  font-weight: 550;
+  letter-spacing: -0.01em;
+}
+.systemList li + li {
+  border-top: 1px solid var(--hair-light);
+}
+.stepNo {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted-strong);
+  font-variant-numeric: tabular-nums;
+}
+.stepOk {
+  display: grid;
+  place-items: center;
+  margin-left: auto;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  color: #fff;
+  background: var(--accent);
+}
+
+/* ---- Static (reduced motion) ---- */
+.staticGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  align-items: center;
+  margin-top: 64px;
+}
+.staticMess {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.staticMess li {
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px dashed #c7c7cc;
+  color: var(--muted-strong);
+}
+.systemStatic {
+  position: static;
+  translate: none;
+  width: 100%;
+}
+
+@media (max-width: 1023px) {
+  .problem {
+    height: 300vh;
+  }
+  .inner {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .head {
+    text-align: center;
+  }
+  .captions {
+    margin-inline: auto;
+  }
+  .stage {
+    height: min(560px, 58svh);
+    max-width: 640px;
+    width: 100%;
+    margin-inline: auto;
+  }
+}
+
+@media (max-width: 767px) {
+  .head :global(.display) {
+    font-size: clamp(32px, 9vw, 44px);
+  }
+  .captions {
+    margin-top: 14px;
+  }
+  .captions :global(.lead) {
+    font-size: 16px;
+  }
+  .frag {
+    width: 146px;
+    padding: 9px;
+    font-size: 11px;
+  }
+  .frag figcaption {
+    font-size: 9.5px;
+    margin-bottom: 5px;
+  }
+  .stage {
+    height: 50svh;
+    min-height: 360px;
+    margin-top: 48px;
+  }
+  .frag {
+    scale: 0.9;
+  }
+  .system {
+    padding: 18px;
+  }
+  .systemList li {
+    padding: 8px 0;
+    font-size: 15px;
+  }
+  .staticGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 767px) and (max-height: 720px) {
+  .head :global(.display) {
+    font-size: 30px;
+  }
+  .captions :global(.lead) {
+    font-size: 15px;
+  }
+  .stage {
+    height: 330px;
+    min-height: 0;
+    margin-top: 20px;
+  }
+  .frag {
+    scale: 0.78;
+  }
+  .system {
+    padding: 14px;
+  }
+  .systemList li {
+    padding: 6px 0;
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 400px) {
+  .systemTag {
+    display: none;
+  }
+}
