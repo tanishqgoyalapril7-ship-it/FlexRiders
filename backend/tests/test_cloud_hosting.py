@@ -121,3 +121,11 @@ def test_cron_endpoint_requires_secret_and_is_idempotent(client, db_session, mon
     db_session.expire_all()
     mine = db_session.query(Notification).filter(Notification.title == "Morning selfie slot is open", Notification.reference_id == str(cid))
     assert mine.count() == 1
+
+
+def test_otp_login_is_refused_when_disabled(client, monkeypatch):
+    """With ENABLE_OTP_LOGIN=false (production), the fixed development code must never log anyone in."""
+    monkeypatch.setattr(settings, "ENABLE_OTP_LOGIN", False)
+    assert client.post(f"{API}/auth/otp/send", json={"phone": "+919811009999"}).status_code == 403
+    for code in (settings.MOCK_OTP_CODE, "000000"):
+        assert client.post(f"{API}/auth/otp/verify", json={"phone": "+919811009999", "otp": code}).status_code == 403

@@ -55,9 +55,17 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
     )
 
 
+def _require_otp_enabled() -> None:
+    # There is no SMS provider yet: the "OTP" is a fixed development code. It must be switched off
+    # (ENABLE_OTP_LOGIN=false) wherever real riders use the system, or anyone could log in as them.
+    if not settings.ENABLE_OTP_LOGIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="OTP login is not available. Please log in with your password.")
+
+
 @router.post("/otp/send")
 def send_otp(request: OTPRequest, db: Session = Depends(get_db)):
     """Sends OTP for login/verification (in dev, fixed OTP 123456 is accepted)"""
+    _require_otp_enabled()
     return {
         "success": True,
         "message": f"OTP successfully sent to {request.phone}. For testing, use code: {settings.MOCK_OTP_CODE}",
@@ -68,7 +76,8 @@ def send_otp(request: OTPRequest, db: Session = Depends(get_db)):
 @router.post("/otp/verify", response_model=Token)
 def verify_otp(request: OTPVerifyRequest, db: Session = Depends(get_db)):
     """Verify OTP and authenticate user"""
-    if request.otp != settings.MOCK_OTP_CODE and request.otp != "000000":
+    _require_otp_enabled()
+    if request.otp != settings.MOCK_OTP_CODE:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid OTP code. Please enter the 6-digit code received.",
