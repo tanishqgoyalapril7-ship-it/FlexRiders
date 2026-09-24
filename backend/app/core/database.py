@@ -7,6 +7,9 @@ database_url = settings.DATABASE_URL
 # Supabase/Heroku hand out "postgres://" URLs, which SQLAlchemy 2 no longer accepts.
 if database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
+# Name the driver we install (psycopg2): newer SQLAlchemy versions default "postgresql://" to psycopg 3.
+if database_url.startswith("postgresql://"):
+    database_url = database_url.replace("postgresql://", "postgresql+psycopg2://", 1)
 
 connect_args = {}
 if database_url.startswith("sqlite"):
