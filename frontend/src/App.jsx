@@ -7,6 +7,8 @@ import BrandsView from './views/BrandsView';
 import PaymentsView from './views/PaymentsView';
 import AuditLogsView from './views/AuditLogsView';
 import ReportsView from './views/ReportsView';
+import CampaignsView from './views/CampaignsView';
+import CampaignDetailView from './views/CampaignDetailView';
 import { RiderDetailModal, CreateBrandModal, CreatePaymentModal } from './components/Modals';
 import MobileSimulator from './components/MobileSimulator';
 import { api, setAuthToken } from './services/api';
@@ -24,6 +26,8 @@ export default function App() {
   const [payments, setPayments] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
+  const [campaignSummary, setCampaignSummary] = useState(null);
+  const [selectedCampaignId, setSelectedCampaignId] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // Modals
@@ -43,13 +47,14 @@ export default function App() {
       }
 
       // 2. Fetch all collections in parallel
-      const [dash, rList, bList, pList, nList, aList] = await Promise.all([
+      const [dash, rList, bList, pList, nList, aList, cSummary] = await Promise.all([
         api.getDashboard().catch(() => null),
         api.getRiders().catch(() => []),
         api.getBrands().catch(() => []),
         api.getPayments().catch(() => []),
         api.getNotifications().catch(() => []),
         api.getAuditLogs().catch(() => []),
+        api.getCampaignSummary().catch(() => null),
       ]);
 
       if (dash) setDashboardData(dash);
@@ -58,6 +63,7 @@ export default function App() {
       if (pList) setPayments(pList);
       if (nList) setNotifications(nList);
       if (aList) setAuditLogs(aList);
+      if (cSummary) setCampaignSummary(cSummary);
     } catch (e) {
       console.error('Error loading data:', e);
     } finally {
@@ -187,6 +193,8 @@ export default function App() {
       setActiveView('reports');
     } else if (action === 'notifications') {
       setActiveView('notifications');
+    } else if (action === 'campaigns') {
+      setActiveView('campaigns');
     }
   };
 
@@ -212,6 +220,7 @@ export default function App() {
         paymentFilter={paymentFilter}
         setPaymentFilter={setPaymentFilter}
         pendingCount={pendingApprovalsCount}
+        campaignRequestCount={campaignSummary?.pending_requests || 0}
       />
 
       {/* Main Wrapper */}
@@ -220,7 +229,6 @@ export default function App() {
           searchValue={globalSearch}
           onSearch={setGlobalSearch}
           notifications={notifications}
-          onOpenMobilePreview={() => setShowMobileSimulator(true)}
           adminUser={{ name: 'Admin', role: 'Super Admin' }}
         />
 
@@ -234,6 +242,7 @@ export default function App() {
             onRejectRider={(id) => handleRejectRider(id, 'Documents not verified')}
             onQuickAction={handleQuickAction}
             onDownloadReport={() => window.open(api.getPaymentsExportUrl(), '_blank')}
+            campaignSummary={campaignSummary}
           />
         )}
 
@@ -330,6 +339,28 @@ export default function App() {
           </div>
         )}
 
+        {activeView === 'campaigns' && (
+          <CampaignsView
+            brands={brands}
+            summary={campaignSummary}
+            initialSearch={globalSearch}
+            onChanged={refreshAllData}
+            onOpenCampaign={(id) => {
+              setSelectedCampaignId(id);
+              setActiveView('campaign-detail');
+            }}
+          />
+        )}
+        {activeView === 'campaign-detail' && selectedCampaignId && (
+          <CampaignDetailView
+            key={selectedCampaignId}
+            campaignId={selectedCampaignId}
+            brands={brands}
+            onBack={() => setActiveView('campaigns')}
+            onViewRider={handleViewRiderFull}
+            onChanged={refreshAllData}
+          />
+        )}
         {activeView === 'reports' && <ReportsView dashboardData={dashboardData} />}
 
         {activeView === 'audit' && <AuditLogsView auditLogs={auditLogs} />}

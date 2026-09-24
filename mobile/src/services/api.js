@@ -1,4 +1,5 @@
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // In development:
 // - Android Emulator: 10.0.2.2 routes to the host computer's localhost
@@ -18,8 +19,48 @@ export const API_BASE_URL = getDefaultBaseUrl();
 
 let authToken = '';
 
+// FastAPI returns validation errors (422) as an array of {loc, msg} objects.
+const formatError = (err, fallback) => {
+  if (Array.isArray(err.detail)) {
+    return err.detail.map((d) => `${(d.loc || []).slice(1).join('.')}: ${d.msg}`).join('\n');
+  }
+  return err.detail || fallback;
+};
+
+const TOKEN_KEY = 'sr_rider_token';
+
+// Keeps the rider logged in across app restarts.
 export const setAuthToken = (token) => {
-  authToken = token;
+  authToken = token || '';
+  (token ? AsyncStorage.setItem(TOKEN_KEY, token) : AsyncStorage.removeItem(TOKEN_KEY)).catch(() => {});
+};
+
+export const loadStoredToken = async () => {
+  authToken = (await AsyncStorage.getItem(TOKEN_KEY).catch(() => null)) || '';
+  return authToken;
+};
+
+// Uploaded files are served by the backend under /uploads.
+export const assetUrl = (path) => (path && path.startsWith('/') ? API_BASE_URL.replace(/\/api\/v1$/, '') + path : path);
+
+const authedPost = async (path) => {
+  const res = await fetch(`${API_BASE_URL}${path}`, { method: 'POST', headers: { Authorization: `Bearer ${authToken}` } });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(formatError(err, 'Something went wrong'));
+  }
+  return res.json();
+};
+
+// Rider data is only ever fetched for the logged-in rider.
+const authedGet = async (path) => {
+  const res = await fetch(`${API_BASE_URL}${path}`, { headers: { Authorization: `Bearer ${authToken}` } });
+  if (!res.ok) {
+    const err = new Error(`Request failed (${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
+  return res.json();
 };
 
 export const getAuthToken = () => authToken;
@@ -34,7 +75,7 @@ export const mobileApi = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || 'Invalid mobile number or password');
+      throw new Error(formatError(err, 'Invalid mobile number or password'));
     }
     const data = await res.json();
     setAuthToken(data.access_token);
@@ -60,7 +101,7 @@ export const mobileApi = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || 'Invalid OTP code');
+      throw new Error(formatError(err, 'Invalid OTP code'));
     }
     const data = await res.json();
     setAuthToken(data.access_token);
@@ -68,28 +109,15 @@ export const mobileApi = {
   },
 
   register: async (regData) => {
-    const payload = {
-      full_name: regData.full_name,
-      mobile_number: regData.mobile_number.replace(/\s+/g, ''),
-      email: regData.email || null,
-      dob: regData.dob || null,
-      password: regData.password || 'Rider@123',
-      current_company: regData.current_company || 'Independent',
-      current_role: regData.current_role || 'Rider',
-      experience_years: Number(regData.experience_years) || 1,
-      experience_months: Number(regData.experience_months) || 0,
-      vehicle_type: regData.vehicle_type || 'Bike',
-      primary_city: regData.primary_city || 'Gurugram',
-      primary_area: regData.primary_area || '',
-      preferred_radius: regData.preferred_radius || '10 km',
-      upi_id: regData.upi_id || null,
-      gpay_number: regData.gpay_number || null,
-      documents: [
-        { doc_type: 'DRIVING_LICENSE', document_name: 'Driving License', file_url: 'https://images.unsplash.com/photo-1589829545856-d10d557cf95f?w=600' },
-        { doc_type: 'GOVT_ID', document_name: 'Aadhaar Card', file_url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600' },
-        { doc_type: 'VEHICLE_RC', document_name: 'Vehicle RC', file_url: 'https://images.unsplash.com/photo-1558981403-c5f9899a28bc?w=600' }
-      ]
-    };
+    // Send only what the rider actually entered; the backend fills defaults for the rest.
+    const payload = Object.fromEntries(
+      Object.entries({
+        ...regData,
+        mobile_number: regData.mobile_number.replace(/\s+/g, ''),
+        experience_years: regData.experience_years ? Number(regData.experience_years) : null,
+        experience_months: regData.experience_months ? Number(regData.experience_months) : null,
+      }).filter(([, v]) => v !== null && v !== undefined && v !== '')
+    );
 
     const res = await fetch(`${API_BASE_URL}/auth/register`, {
       method: 'POST',
@@ -98,7 +126,7 @@ export const mobileApi = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || 'Registration failed');
+      throw new Error(formatError(err, 'Registration failed'));
     }
     const data = await res.json();
     if (data.access_token) {
@@ -107,35 +135,39 @@ export const mobileApi = {
     return data;
   },
 
-  getProfile: async () => {
-    const url = authToken ? `${API_BASE_URL}/riders/me` : `${API_BASE_URL}/riders/live-current/profile`;
-    const headers = authToken ? { Authorization: `Bearer ${authToken}` } : {};
-    const res = await fetch(url, { headers });
+  getProfile: () => authedGet('/riders/me'),
+
+  getPaymentHistory: () => authedGet('/riders/me/payments'),
+
+  getNotifications: () => authedGet('/notifications'),
+
+  // Campaigns
+  getCampaigns: () => authedGet('/riders/me/campaigns'),
+
+  getCampaign: (campaignId) => authedGet(`/riders/me/campaigns/${campaignId}`),
+
+  joinCampaign: (campaignId) => authedPost(`/riders/me/campaigns/${campaignId}/join`),
+
+  withdrawCampaignRequest: (campaignId) => authedPost(`/riders/me/campaigns/${campaignId}/withdraw`),
+
+  uploadCampaignProof: async (campaignId, photo) => {
+    const form = new FormData();
+    form.append('photo', { uri: photo.uri, name: photo.fileName || 'proof.jpg', type: photo.mimeType || 'image/jpeg' });
+    const res = await fetch(`${API_BASE_URL}/riders/me/campaigns/${campaignId}/activity`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${authToken}` },
+      body: form,
+    });
     if (!res.ok) {
-      throw new Error('Failed to fetch profile');
+      const err = await res.json().catch(() => ({}));
+      throw new Error(formatError(err, 'Could not upload your photo'));
     }
     return res.json();
   },
 
-  getPaymentHistory: async (month = 'September 2026') => {
-    const url = authToken
-      ? `${API_BASE_URL}/riders/me/payments?month=${encodeURIComponent(month)}`
-      : `${API_BASE_URL}/riders/live-current/payments?month=${encodeURIComponent(month)}`;
-    const headers = authToken ? { Authorization: `Bearer ${authToken}` } : {};
-    const res = await fetch(url, { headers });
-    if (!res.ok) {
-      return { month, total_earnings: 0, paid_amount: 0, pending_amount: 0, payments: [] };
-    }
-    return res.json();
-  },
-
-  getNotifications: async () => {
-    const url = authToken
-      ? `${API_BASE_URL}/notifications`
-      : `${API_BASE_URL}/riders/live-current/notifications`;
-    const headers = authToken ? { Authorization: `Bearer ${authToken}` } : {};
-    const res = await fetch(url, { headers });
-    if (!res.ok) return [];
-    return res.json();
-  },
+  markAllNotificationsRead: () =>
+    fetch(`${API_BASE_URL}/notifications/read-all`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${authToken}` },
+    }),
 };

@@ -149,26 +149,6 @@ export default function MobileSimulator({ onClose }) {
     return () => clearInterval(interval);
   }, []);
 
-  const handleQuickDemoFill = () => {
-    const rnd = Math.floor(1000 + Math.random() * 9000);
-    setRegData({
-      full_name: 'Tanishq Sharma',
-      mobile_number: `981234${rnd}`,
-      email: `tanishq.${rnd}@example.com`,
-      dob: '15-08-1998',
-      current_company: 'Express Couriers',
-      current_role: 'Rider',
-      experience_years: 2,
-      experience_months: 0,
-      vehicle_type: 'Electric Bike',
-      primary_city: 'Gurugram',
-      primary_area: 'Cyber City Sector 24',
-      preferred_radius: '10 km',
-      upi_id: `tanishq.${rnd}@okaxis`,
-      gpay_number: `981234${rnd}`,
-    });
-  };
-
   // Submit registration directly to live backend
   const handleRegisterSubmit = async () => {
     try {
@@ -507,12 +487,6 @@ export default function MobileSimulator({ onClose }) {
                     </button>
                     <span style={{ fontWeight: 800, fontSize: '1rem', color: '#0F172A' }}>Registration</span>
                   </div>
-                  <button
-                    onClick={handleQuickDemoFill}
-                    style={{ fontSize: '0.75rem', color: '#2563EB', fontWeight: 700, background: '#EFF6FF', padding: '4px 8px', borderRadius: '6px', border: '1px solid #BFDBFE' }}
-                  >
-                    ⚡ Demo Fill
-                  </button>
                 </div>
 
                 {/* 6 Step Progress Bar */}

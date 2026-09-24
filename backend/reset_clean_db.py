@@ -4,7 +4,7 @@ import sys
 # Ensure backend root is on python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from app.core.database import SessionLocal, Base, engine
+from app.core.database import SessionLocal, Base, engine, lock_down_public_api
 from app.core.security import get_password_hash, UserRole
 from app.models.all_models import (
     User,
@@ -17,6 +17,7 @@ def reset_clean_db():
     Base.metadata.drop_all(bind=engine)
     print("Creating clean database tables...")
     Base.metadata.create_all(bind=engine)
+    lock_down_public_api()
 
     db = SessionLocal()
     try:
@@ -45,21 +46,17 @@ def reset_clean_db():
         db.add_all([super_admin, ops_admin, fin_admin])
         db.flush()
 
-        print("Seeding Brand Partners (Zepto, Zomato, Swiggy, Blinkit, Brand A)...")
+        print("Seeding Brand Partners (Zepto, Zomato, Swiggy, Blinkit)...")
         brands_data = [
-            {"name": "Zepto", "code": "zepto", "desc": "10-Minute Instant Grocery Delivery Partner", "contact": "Aadit Palicha", "phone": "+919811223344"},
-            {"name": "Zomato", "code": "zomato", "desc": "Leading Food Ordering & Delivery Network", "contact": "Deepinder Goyal", "phone": "+919822334455"},
-            {"name": "Swiggy", "code": "swiggy", "desc": "Hyperlocal On-Demand Food & Grocery Fleet", "contact": "Sriharsha Majety", "phone": "+919833445566"},
-            {"name": "Blinkit", "code": "blinkit", "desc": "Quick-Commerce Last-Mile Logistics", "contact": "Albinder Dhindsa", "phone": "+919844556677"},
-            {"name": "Brand A", "code": "brand_a", "desc": "Enterprise Quick-Commerce Dedicated Fleet", "contact": "Rajesh Malhotra", "phone": "+919855667788"},
+            {"name": "Zepto", "code": "zepto"},
+            {"name": "Zomato", "code": "zomato"},
+            {"name": "Swiggy", "code": "swiggy"},
+            {"name": "Blinkit", "code": "blinkit"},
         ]
         for b in brands_data:
             brand = Brand(
                 name=b["name"],
                 code=b["code"],
-                description=b["desc"],
-                contact_person=b["contact"],
-                contact_number=b["phone"],
                 is_active=True,
             )
             db.add(brand)
@@ -69,7 +66,7 @@ def reset_clean_db():
         print("  - 0 Riders (ready for real registrations)")
         print("  - 0 Payments (ready for real payouts)")
         print("  - 3 Admins (admin@superriders.com / admin123)")
-        print("  - 5 Brand Partners (Brand A to E)")
+        print("  - 4 Brand Partners (Zepto, Zomato, Swiggy, Blinkit)")
     except Exception as e:
         db.rollback()
         print(f"❌ Error resetting database: {e}")

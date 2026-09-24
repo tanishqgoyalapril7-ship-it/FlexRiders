@@ -15,6 +15,7 @@ import {
   Download,
   CheckCircle2,
   AlertTriangle,
+  Megaphone,
 } from 'lucide-react';
 import { RegistrationsBarChart, PaymentsOverviewChart, BrandDonutChart } from '../components/Charts';
 
@@ -26,6 +27,7 @@ export function DashboardView({
   onRejectRider,
   onQuickAction,
   onDownloadReport,
+  campaignSummary,
 }) {
   const stats = dashboardData?.stats || {
     total_riders: 0,
@@ -240,6 +242,41 @@ export function DashboardView({
                   </div>
                 ))
               )}
+            </div>
+          </div>
+
+          {/* Campaign Overview */}
+          <div className="card">
+            <div className="card-header-bar">
+              <span className="card-title-text" style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                <Megaphone size={16} color="#2563EB" />
+                Campaign Overview
+              </span>
+              <span className="card-action-link" onClick={() => onQuickAction('campaigns')}>
+                View Campaigns
+              </span>
+            </div>
+            <div className="mini-stat-list">
+              {[
+                ['Active Campaigns', campaignSummary?.active_campaigns ?? 0],
+                ['Open Campaigns', campaignSummary?.open_campaigns ?? 0],
+                ['Full Campaigns', campaignSummary?.full_campaigns ?? 0],
+                ['Assigned Riders', campaignSummary?.total_assigned_riders ?? 0],
+              ].map(([label, value]) => (
+                <div key={label} className="mini-stat">
+                  <div className="mini-stat-label">{label}</div>
+                  <div className="mini-stat-value">{value}</div>
+                </div>
+              ))}
+            </div>
+            <div className="mini-stat" style={{ marginTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div className="mini-stat-label">Total Campaign Payout</div>
+                <div className="mini-stat-value">₹{Number(campaignSummary?.total_campaign_payout || 0).toLocaleString('en-IN')}</div>
+              </div>
+              {campaignSummary?.pending_requests ? (
+                <span className="badge-counter badge-orange">{campaignSummary.pending_requests} requests</span>
+              ) : null}
             </div>
           </div>
 

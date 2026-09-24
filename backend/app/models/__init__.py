@@ -12,6 +12,13 @@ from app.models.all_models import (
     PaymentStatus,
     DocumentType,
 )
+from app.models.campaign_models import (
+    Campaign,
+    CampaignApplication,
+    CampaignAssignment,
+    CampaignDailyActivity,
+    CampaignPayout,
+)
 
 __all__ = [
     "User",
@@ -26,4 +33,9 @@ __all__ = [
     "RiderStatus",
     "PaymentStatus",
     "DocumentType",
+    "Campaign",
+    "CampaignApplication",
+    "CampaignAssignment",
+    "CampaignDailyActivity",
+    "CampaignPayout",
 ]

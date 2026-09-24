@@ -13,9 +13,10 @@ import {
   Settings,
   ChevronDown,
   ChevronRight,
+  Megaphone,
 } from 'lucide-react';
 
-export default function Sidebar({ activeView, setActiveView, riderFilter, setRiderFilter, paymentFilter, setPaymentFilter, pendingCount = 0 }) {
+export default function Sidebar({ activeView, setActiveView, riderFilter, setRiderFilter, paymentFilter, setPaymentFilter, pendingCount = 0, campaignRequestCount = 0 }) {
   const [ridersOpen, setRidersOpen] = useState(true);
   const [paymentsOpen, setPaymentsOpen] = useState(false);
 
@@ -110,6 +111,18 @@ export default function Sidebar({ activeView, setActiveView, riderFilter, setRid
             <Briefcase size={18} />
             <span>Brands</span>
           </div>
+        </div>
+
+        {/* Campaigns */}
+        <div
+          className={`nav-item ${activeView === 'campaigns' || activeView === 'campaign-detail' ? 'active' : ''}`}
+          onClick={() => setActiveView('campaigns')}
+        >
+          <div className="nav-item-left">
+            <Megaphone size={18} />
+            <span>Campaigns</span>
+          </div>
+          {campaignRequestCount > 0 && <span className="badge-counter badge-orange">{campaignRequestCount}</span>}
         </div>
 
         {/* Assignments */}

@@ -143,6 +143,63 @@ export const api = {
     return fetchWithAuth(`/audit-logs${query ? `?${query}` : ''}`);
   },
 
+  // Campaigns
+  getCampaigns: (params = {}) => {
+    const query = new URLSearchParams(Object.entries(params).filter(([, v]) => v)).toString();
+    return fetchWithAuth(`/campaigns${query ? `?${query}` : ''}`);
+  },
+  getCampaignSummary: () => fetchWithAuth('/campaigns/summary'),
+  getCampaign: (id) => fetchWithAuth(`/campaigns/${id}`),
+  createCampaign: (data) => fetchWithAuth('/campaigns', { method: 'POST', body: JSON.stringify(data) }),
+  updateCampaign: (id, data) => fetchWithAuth(`/campaigns/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  // action: publish | pause | resume | complete | cancel
+  changeCampaignStatus: (id, action) => fetchWithAuth(`/campaigns/${id}/${action}`, { method: 'POST' }),
+  uploadCampaignImage: async (id, file) => {
+    const form = new FormData();
+    form.append('image', file);
+    const response = await fetch(`${API_BASE}/campaigns/${id}/image`, {
+      method: 'POST',
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      body: form,
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || 'Image upload failed');
+    }
+    return response.json();
+  },
+  getCampaignApplications: (id, status = 'ALL') => fetchWithAuth(`/campaigns/${id}/applications?status=${status}`),
+  approveCampaignApplication: (id, applicationId) =>
+    fetchWithAuth(`/campaigns/${id}/applications/${applicationId}/approve`, { method: 'POST' }),
+  rejectCampaignApplication: (id, applicationId, reason) =>
+    fetchWithAuth(`/campaigns/${id}/applications/${applicationId}/reject`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  getCampaignRiders: (id) => fetchWithAuth(`/campaigns/${id}/riders`),
+  getCampaignRiderActivity: (id, assignmentId) => fetchWithAuth(`/campaigns/${id}/riders/${assignmentId}/activity`),
+  removeCampaignRider: (id, assignmentId, reason) =>
+    fetchWithAuth(`/campaigns/${id}/riders/${assignmentId}/remove`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  getCampaignPhotos: (id, status = 'ALL') => fetchWithAuth(`/campaigns/${id}/photos?status=${status}`),
+  approveCampaignActivity: (id, activityId) => fetchWithAuth(`/campaigns/${id}/activities/${activityId}/approve`, { method: 'POST' }),
+  rejectCampaignActivity: (id, activityId, reason) =>
+    fetchWithAuth(`/campaigns/${id}/activities/${activityId}/reject`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  getCampaignPayouts: (id) => fetchWithAuth(`/campaigns/${id}/payouts`),
+  approveCampaignPayout: (id, payoutId) => fetchWithAuth(`/campaigns/${id}/payouts/${payoutId}/approve`, { method: 'POST' }),
+  payCampaignPayout: (id, payoutId) => fetchWithAuth(`/campaigns/${id}/payouts/${payoutId}/pay`, { method: 'POST' }),
+  // Export endpoints require the admin token, so download through fetch instead of opening the URL.
+  downloadCampaignReport: async (id) => {
+    const response = await fetch(`${API_BASE}/campaigns/${id}/export`, {
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+    });
+    if (!response.ok) throw new Error('Could not export the campaign report');
+    const disposition = response.headers.get('Content-Disposition') || '';
+    const filename = (disposition.match(/filename=([^;]+)/) || [])[1] || `campaign_${id}.csv`;
+    const url = URL.createObjectURL(await response.blob());
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  },
+
   // Export URLs
   getRidersExportUrl: () => `${API_BASE}/reports/export/riders`,
   getPaymentsExportUrl: () => `${API_BASE}/reports/export/payments`,

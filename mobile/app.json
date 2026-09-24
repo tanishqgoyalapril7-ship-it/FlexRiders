@@ -4,7 +4,7 @@
     "slug": "super-riders",
     "version": "1.0.0",
     "orientation": "portrait",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "splash": {
       "resizeMode": "contain",
       "backgroundColor": "#0B1528"
@@ -35,6 +35,9 @@
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION"
       ]
-    }
+    },
+    "plugins": [
+      "expo-font"
+    ]
   }
 }

@@ -1,11 +1,10 @@
 import React, { useState } from 'react';
-import { Search, Bell, Smartphone, LogOut, CheckCheck } from 'lucide-react';
+import { Search, Bell, LogOut, CheckCheck } from 'lucide-react';
 
 export default function Topbar({
   onSearch,
   searchValue,
   notifications = [],
-  onOpenMobilePreview,
   adminUser = { name: 'Admin', role: 'Super Admin' },
 }) {
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
@@ -19,7 +18,7 @@ export default function Topbar({
         <input
           type="text"
           className="search-input"
-          placeholder="Search riders, brands, etc..."
+          placeholder="Search riders, brands, campaigns..."
           value={searchValue}
           onChange={(e) => onSearch(e.target.value)}
         />
@@ -27,36 +26,6 @@ export default function Topbar({
 
       {/* Topbar Actions */}
       <div className="topbar-actions">
-        {/* iOS Simulator Connected Badge */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '6px 12px',
-            backgroundColor: '#ECFDF5',
-            border: '1px solid #A7F3D0',
-            borderRadius: '20px',
-            fontSize: '0.76rem',
-            color: '#065F46',
-            fontWeight: 600,
-          }}
-          title="Direct bidirectional link with React Native App in iOS Simulator"
-        >
-          <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10B981', display: 'inline-block' }} />
-          <span>iOS Simulator Linked</span>
-        </div>
-
-        {/* Quick Launch Mobile Simulator Button */}
-        <button
-          className="btn-primary"
-          style={{ padding: '6px 14px', fontSize: '0.8rem', background: '#2563EB' }}
-          onClick={onOpenMobilePreview}
-          title="Open interactive Rider Mobile Simulator"
-        >
-          <Smartphone size={16} />
-          <span>Rider Web View</span>
-        </button>
 
         {/* Notifications Icon with Dropdown */}
         <div style={{ position: 'relative' }}>

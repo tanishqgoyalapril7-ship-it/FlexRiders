@@ -138,13 +138,7 @@ export function PaymentsOverviewChart({ data = [] }) {
 }
 
 export function BrandDonutChart({ data = [] }) {
-  const brands = data.length > 0 ? data : [
-    { brand_name: 'Brand A', rider_count: 0, color: '#3B82F6' },
-    { brand_name: 'Brand B', rider_count: 0, color: '#10B981' },
-    { brand_name: 'Brand C', rider_count: 0, color: '#F59E0B' },
-    { brand_name: 'Brand D', rider_count: 0, color: '#8B5CF6' },
-    { brand_name: 'Brand E', rider_count: 0, color: '#EC4899' },
-  ];
+  const brands = data;
 
   const totalRiders = brands.reduce((acc, curr) => acc + (curr.rider_count || 0), 0);
   const colors = ['#2563EB', '#10B981', '#F59E0B', '#8B5CF6', '#EC4899'];
@@ -196,6 +190,9 @@ export function BrandDonutChart({ data = [] }) {
 
         {/* Legend */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {brands.length === 0 && (
+            <span style={{ fontSize: '0.78rem', color: '#64748B' }}>No brands yet</span>
+          )}
           {brands.map((b, idx) => (
             <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem' }}>
               <span style={{ width: '10px', height: '10px', borderRadius: '3px', background: colors[idx % colors.length] }} />

@@ -105,7 +105,7 @@ export default function PaymentsView({
                       <div style={{ fontSize: '0.72rem', color: '#2563EB', fontWeight: 600 }}>{p.rider_sr_id}</div>
                     </div>
                   </td>
-                  <td>{p.brand_name || 'Brand A'}</td>
+                  <td>{p.brand_name || '—'}</td>
                   <td>
                     <strong style={{ fontSize: '0.95rem' }}>₹{p.amount?.toLocaleString('en-IN')}</strong>
                   </td>
@@ -143,7 +143,10 @@ export default function PaymentsView({
                       </div>
                     )}
                     {p.status === 'PAID' && (
-                      <span style={{ fontSize: '0.72rem', color: '#10B981', fontWeight: 600 }}>✓ Settled</span>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', color: '#10B981', fontWeight: 600 }}>
+                        <CheckCircle size={13} />
+                        Settled
+                      </span>
                     )}
                     {p.status === 'FAILED' && (
                       <button
