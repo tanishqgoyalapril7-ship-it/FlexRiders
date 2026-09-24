@@ -14,16 +14,23 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = f"sqlite:///{os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'super_riders.db')}"
 
-    # CORS
+    # CORS: browser origins allowed to call the API directly. The rider app (native) doesn't need CORS,
+    # and the hosted dashboard reaches the API through the same domain (flexriders.in/api/v1), so this
+    # only matters for local development and any extra origin listed in CORS_ORIGINS (comma separated).
     BACKEND_CORS_ORIGINS: List[str] = [
         "http://localhost:3000",
         "http://localhost:5173",
+        "http://localhost:5180",
         "http://localhost:8081",
         "http://localhost:19006",
         "http://127.0.0.1:5173",
+        "http://127.0.0.1:5180",
         "http://127.0.0.1:8000",
-        "*",
     ]
+    CORS_ORIGINS: str = ""  # e.g. "https://flexriders.in,https://admin.flexriders.in"
+    # Run schema checks/migrations when the app starts. Default: yes locally, no on Vercel (the database
+    # is migrated once, not on every cold start). "true"/"false" overrides.
+    RUN_STARTUP_MIGRATIONS: str = ""
 
     # Cloud Storage / Documents
     AWS_ACCESS_KEY_ID: str = ""
@@ -64,6 +71,14 @@ class Settings(BaseSettings):
 
     # Uploads directory for local dev
     UPLOAD_DIR: str = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads")
+    # Hosted: photos and banners go to Supabase Storage instead of the local disk (see storage_service).
+    SUPABASE_URL: str = ""  # e.g. https://<project-ref>.supabase.co
+    SUPABASE_SECRET_KEY: str = ""  # sb_secret_... (server only, never in an app)
+    STORAGE_BUCKET: str = "uploads"
+    # Shared secret for POST /api/v1/internal/cron/slot-reminders (called every minute by Supabase pg_cron).
+    CRON_SECRET: str = ""
+    # Vercel sets VERCEL=1: serverless mode (no startup migrations, no background thread, no local disk).
+    VERCEL: str = ""
 
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -74,4 +89,8 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
-os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
+if not (settings.SUPABASE_URL and settings.SUPABASE_SECRET_KEY):
+    try:
+        os.makedirs(settings.UPLOAD_DIR, exist_ok=True)  # Local storage only
+    except OSError:
+        pass  # Read-only disk (serverless) without Supabase Storage configured: uploads will fail, the API still runs

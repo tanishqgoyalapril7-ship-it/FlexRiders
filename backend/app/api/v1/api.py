@@ -10,6 +10,7 @@ from app.api.v1.endpoints import (
     reports,
     campaigns,
     admin_system,
+    internal,
 )
 
 api_router = APIRouter()
@@ -27,3 +28,4 @@ api_router.include_router(campaigns.rider_router, prefix="/riders/me/campaigns",
 api_router.include_router(campaigns.public_router, prefix="/public/campaigns", tags=["Public Campaign Page"])
 api_router.include_router(admin_system.users_router, prefix="/admin/users", tags=["Admin Accounts"])
 api_router.include_router(admin_system.system_router, prefix="/admin/system", tags=["System"])
+api_router.include_router(internal.router, prefix="/internal", tags=["Scheduled jobs"])

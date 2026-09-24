@@ -1,4 +1,5 @@
 from sqlalchemy import create_engine, inspect
+from sqlalchemy.pool import NullPool
 from sqlalchemy.orm import declarative_base, sessionmaker
 from app.core.config import settings
 
@@ -12,7 +13,12 @@ if database_url.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
 
 pool_args = {}
-if not database_url.startswith("sqlite"):
+if settings.VERCEL and not database_url.startswith("sqlite"):
+    # Serverless: many short-lived instances. Don't hold idle connections; use Supabase's transaction
+    # pooler (port 6543) in DATABASE_URL so each request borrows a pooled connection.
+    pool_args = {"poolclass": NullPool}
+    connect_args = {"connect_timeout": 15}
+elif not database_url.startswith("sqlite"):
     # Supabase's session pooler allows 15 clients per project; stay well under it so the
     # dev server, tests and scripts can run side by side.
     # A request waits at most 10s for a free connection, so slow periods fail fast instead of piling up.

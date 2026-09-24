@@ -70,6 +70,7 @@ from app.services import fulfillment_service as fs
 from app.services import data_admin_service as das
 from app.services import kit_service as ks
 from app.services import route_service as routes
+from app.services import storage_service as storage
 from app.services import campaign_service as svc
 from app.services.audit_service import log_admin_action
 
@@ -120,12 +121,11 @@ async def _save_image(upload: UploadFile, folder: str) -> str:
 
 
 def _store_image(content: bytes, extension: str, folder: str) -> str:
-    directory = os.path.join(settings.UPLOAD_DIR, folder)
-    os.makedirs(directory, exist_ok=True)
-    filename = f"{uuid.uuid4().hex}{extension}"
-    with open(os.path.join(directory, filename), "wb") as f:
-        f.write(content)
-    return f"/uploads/{folder}/{filename}"
+    content_type = next((t for t, ext in ALLOWED_IMAGE_TYPES.items() if ext == extension), "application/octet-stream")
+    try:
+        return storage.save(content, extension, folder, content_type)
+    except storage.StorageError as e:
+        raise HTTPException(status_code=503, detail=str(e))
 
 
 def _require_active_brand(db: Session, brand_id: int) -> Brand:
@@ -1292,7 +1292,9 @@ async def submit_daily_proof(
     content, extension = await _read_image(photo)
     content_hash = hashlib.sha256(content).hexdigest()
     slot = _run(lambda: svc.check_photo_upload(db, assignment, content_hash, slot))  # Before storing the file
-    photo_url = _store_image(content, extension, "campaign-proofs")
+    # campaign-proofs/<campaign>/<rider>/<random>.jpg: grouped for browsing; the random name means a retake
+    # never overwrites a rejected photo (its history stays), and duplicates are caught by content hash.
+    photo_url = _store_image(content, extension, f"campaign-proofs/{campaign_id}/{rider.id}")
     activity = _run(lambda: svc.submit_activity(db, assignment, photo_url, content_hash, slot))
     counts = svc.photo_counts(activity)
     return {

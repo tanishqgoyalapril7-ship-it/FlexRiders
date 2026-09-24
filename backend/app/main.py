@@ -1,19 +1,23 @@
-from fastapi import FastAPI
+import os
+
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from app.core.config import settings
 from app.core.database import Base, SessionLocal, engine, lock_down_public_api, add_missing_columns, ensure_indexes
 from app.api.v1.api import api_router
-from app.services import slot_reminder_service
+from app.services import slot_reminder_service, storage_service
 from app.services.campaign_service import backfill_live_dates
 
-# Initialize database tables
-Base.metadata.create_all(bind=engine)
-add_missing_columns()
-ensure_indexes()
-lock_down_public_api()
-backfill_live_dates()
+_migrate = settings.RUN_STARTUP_MIGRATIONS.lower()
+if _migrate == "true" or (_migrate != "false" and not settings.VERCEL):
+    # Create new tables/columns/indexes and keep the public REST API locked (see core/database.py).
+    Base.metadata.create_all(bind=engine)
+    add_missing_columns()
+    ensure_indexes()
+    lock_down_public_api()
+    backfill_live_dates()
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -27,7 +31,7 @@ app = FastAPI(
 # CORS Middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins in development and preview
+    allow_origins=settings.BACKEND_CORS_ORIGINS + [o.strip() for o in settings.CORS_ORIGINS.split(",") if o.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -36,8 +40,19 @@ app.add_middleware(
 # Include API v1 Router
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
-# Uploaded campaign banners and daily proof photos
-app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
+# Uploaded campaign banners and daily proof photos: local folder, or the private Supabase bucket via a
+# short-lived signed link (the stored "/uploads/..." paths are the same either way).
+if storage_service.remote():
+
+    @app.get("/uploads/{path:path}", include_in_schema=False)
+    def uploaded_file(path: str):
+        url = storage_service.signed_url(path)
+        if not url:
+            raise HTTPException(status_code=404, detail="File not found")
+        return RedirectResponse(url, status_code=302)
+
+elif os.path.isdir(settings.UPLOAD_DIR):
+    app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
 
 @app.on_event("startup")

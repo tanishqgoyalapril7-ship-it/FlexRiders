@@ -1,6 +1,7 @@
 """Photo slot notifications: "slot is open" when a slot starts and "closes soon" before it ends.
 
-Runs every minute inside the API process (see start_background_loop). Each notification has a dedupe
+Runs every minute: locally in a background thread (start_background_loop); hosted, Supabase pg_cron
+calls POST /api/v1/internal/cron/slot-reminders, which runs tick(). Each notification has a dedupe
 key (assignment + date + slot + kind), so restarts, overlapping runs or several server processes never
 send the same reminder twice. Only riders actively assigned to a live campaign that is running today
 are notified, and never for a slot that already has a pending or approved photo.
@@ -113,13 +114,24 @@ def run_once(db: Session, now_utc: Optional[datetime] = None) -> int:
     return sent
 
 
+def tick(db: Session) -> dict:
+    """One scheduled run: campaigns whose start date arrived go live (their riders get the notice), then
+    whatever slot reminders are due are sent. Safe to run any number of times (de-duplicated)."""
+    went_live = 0
+    for campaign in db.query(Campaign).filter(Campaign.status.in_(CampaignStatus.PUBLISHED), Campaign.live_at.is_(None)).all():
+        svc.sync_campaign_status(db, campaign)
+        went_live += bool(campaign.live_at)
+    return {"campaigns_went_live": went_live, "reminders_sent": run_once(db)}
+
+
 _started = False
 
 
 def start_background_loop(session_factory) -> None:
     """Starts the once-a-minute loop in a daemon thread (once per process)."""
     global _started
-    if _started or not settings.SLOT_NOTIFICATIONS_ENABLED:
+    # Serverless hosts (Vercel) freeze idle processes, so there the cron endpoint runs tick() instead.
+    if _started or not settings.SLOT_NOTIFICATIONS_ENABLED or settings.VERCEL:
         return
     _started = True
 
@@ -127,12 +139,9 @@ def start_background_loop(session_factory) -> None:
         while True:
             db = session_factory()
             try:
-                # Campaigns whose start date arrived go live here too, so their riders get the notice.
-                for campaign in db.query(Campaign).filter(Campaign.status.in_(CampaignStatus.PUBLISHED), Campaign.live_at.is_(None)).all():
-                    svc.sync_campaign_status(db, campaign)
-                count = run_once(db)
-                if count:
-                    log.info("sent %s photo slot notifications", count)
+                result = tick(db)
+                if result["reminders_sent"]:
+                    log.info("sent %s photo slot notifications", result["reminders_sent"])
             except Exception:  # Never let one bad run stop the reminders
                 log.exception("photo slot notification run failed")
                 db.rollback()

@@ -272,16 +272,15 @@ RESET_CONFIRMATION = "RESET"
 
 
 def _remove_upload(url: Optional[str]) -> None:
-    if url and url.startswith("/uploads/"):
-        path = os.path.join(settings.UPLOAD_DIR, url[len("/uploads/"):])
-        if os.path.isfile(path):
-            os.remove(path)
+    from app.services import storage_service  # Local import: storage is only needed for deletes
+
+    storage_service.delete(url)
 
 
 def _clear_upload_folder(folder: str) -> None:
-    path = os.path.join(settings.UPLOAD_DIR, folder)
-    if os.path.isdir(path):
-        shutil.rmtree(path)
+    from app.services import storage_service
+
+    storage_service.delete_folder(folder)
 
 
 def _delete_all(db: Session, *models) -> Dict[str, int]:
