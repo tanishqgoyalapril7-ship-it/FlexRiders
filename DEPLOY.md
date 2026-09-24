@@ -1,45 +1,53 @@
-# Going live on flexriders.in
+# FlexRiders in the cloud
+
+Everything below runs without your laptop.
 
 ```
-flexriders.in               → landing page            (Vercel project 1, root: landing)            
-flexriders.in/admin         → admin dashboard         (Vercel project 2, root: frontend)  ─┐ forwarded by
-flexriders.in/campaign/...  → public campaign pages   (Vercel project 2)                  ─┤ the landing
-flexriders.in/api/v1, /uploads → backend (FastAPI)    (not hosted yet)                    ─┘ project
+flexriders.in (GoDaddy domain, once connected)
+        │
+        ▼
+Vercel: flexriders-landing  (root: landing/)          https://flexriders-landing.vercel.app
+   /                → landing page
+   /admin, /campaign/… ─► Vercel: flexriders-admin (root: frontend/)   https://flexriders-admin.vercel.app/admin
+   /api/v1, /uploads   ─► Vercel: flexriders-api   (root: backend/, Mumbai bom1)   https://flexriders-api.vercel.app
+                                   │
+                                   ▼
+                        Supabase Mumbai (ap-south-1): database, private photo bucket, pg_cron
+
+Rider app (Android build) ──► https://flexriders-api.vercel.app/api/v1   (mobile/eas.json)
+Supabase pg_cron, every minute ──► POST /api/v1/internal/cron/slot-reminders (secret header)
 ```
 
-Visitors only ever see `flexriders.in`. The landing project forwards `/admin`, `/campaign`, `/api/v1` and `/uploads` to the other deployments (see `rewrites` in `landing/next.config.ts`), so the dashboard and API share one address and need no CORS setup.
+The admin dashboard is used at **`<site>/admin`**: the landing project forwards it, and forwards `/api/v1` + `/uploads` to the backend, so the dashboard and API share one address (no CORS needed). Pushing to `main` on GitHub redeploys all three projects.
 
-## 0. Before anything: the domain
-GoDaddy shows **"pending WHOIS verification"** and **"Registrar Hold"**. Until you click **Validate** and confirm the email GoDaddy sends, the domain won't resolve anywhere. Check the email linked to the GoDaddy account (and spam).
+## Vercel projects and settings
 
-## 1. Admin dashboard (Vercel project 2)
-1. vercel.com → sign up with GitHub (the `tanishqgoyalapril7-ship-it` account) → **Add New → Project** → import `FlexRiders`.
-2. **Root Directory:** `frontend`. Framework: Vite. Build settings come from `frontend/vercel.json` (`npm run build:admin`, output `dist`).
-3. Deploy. Note its address, e.g. `https://flexriders-admin.vercel.app`. (Opening it directly shows a blank root; the app lives at `/admin`.)
+| Project | Root | Settings (Vercel → Project → Settings → Environment Variables) |
+|---|---|---|
+| `flexriders-landing` | `landing` | `ADMIN_APP_URL=https://flexriders-admin.vercel.app`, `BACKEND_URL=https://flexriders-api.vercel.app`, `NEXT_PUBLIC_SITE_URL=https://flexriders.in` (all public) |
+| `flexriders-admin` | `frontend` | none (build settings in `frontend/vercel.json`) |
+| `flexriders-api` | `backend` | **server-only secrets:** `DATABASE_URL` (Supabase *transaction pooler*, port 6543), `SECRET_KEY`, `CRON_SECRET`, `SUPABASE_SECRET_KEY`. Other: `SUPABASE_URL`, `STORAGE_BUCKET=uploads`, `ENABLE_OTP_LOGIN=false`, `PROJECT_NAME`. Optional: `CORS_ORIGINS` (only for a dashboard on another domain). Vercel sets `VERCEL=1`, which switches off startup migrations and the local reminder thread. |
 
-## 2. Landing page (Vercel project 1)
-1. **Add New → Project** → import `FlexRiders` again.
-2. **Root Directory:** `landing`. Framework: Next.js.
-3. **Environment variables:**
-   | Name | Value |
-   |---|---|
-   | `ADMIN_APP_URL` | the dashboard address from step 1, e.g. `https://flexriders-admin.vercel.app` |
-   | `NEXT_PUBLIC_SITE_URL` | `https://flexriders.in` |
-   | `BACKEND_URL` | the backend address, once it is hosted (leave unset until then) |
-   | `CONTACT_WEBHOOK_URL` | optional, see the landing README |
-4. Deploy.
+Secrets never go into the landing page, the dashboard or the app. Local copies live in `backend/.env` / `backend/.env.mumbai` (git-ignored).
 
-## 3. Connect the domain (landing project only)
-Vercel → landing project → **Settings → Domains** → add `flexriders.in` and `www.flexriders.in`. Vercel shows the DNS records to add. In GoDaddy → **DNS** → add exactly those (typically an **A** record `@` → Vercel's IP and a **CNAME** `www` → `cname.vercel-dns.com`), removing GoDaddy's default "Parked" A record. HTTPS is issued automatically once DNS resolves (minutes to a few hours).
+## Supabase (Mumbai project)
+- **Database:** the backend is the only client; every table has RLS on with no policies, so the public REST API can't read anything.
+- **Photos:** private bucket `uploads`. The database keeps `/uploads/<path>`; the backend answers `/uploads/<path>` with a 1-hour signed link. Proof photos are stored under `campaign-proofs/<campaign>/<rider>/<random>.jpg` (random names so a retake never overwrites the rejected photo's history; duplicates are caught by content hash).
+- **Reminders:** `pg_cron` job `flexriders-slot-reminders` runs every minute and calls the backend with the `CRON_SECRET` header via `pg_net`. Check runs in `cron.job_run_details` and responses in `net._http_response`. Reminders are de-duplicated in the database, so extra runs never send twice.
 
-## 4. Backend (not done yet)
-Until the backend is hosted and `BACKEND_URL` is set, **flexriders.in works fully, and flexriders.in/admin shows the login screen but can't sign in** (there's no API to reach). Hosting it (a Mumbai server, persistent photo storage, the production `.env`) is the next step. Before it is public:
-- set a long random `SECRET_KEY`;
-- set `ENABLE_OTP_LOGIN=false` (the development OTP `123456` would let anyone sign in as a rider);
-- change the Super Admin's default password (Admin Users → Edit);
-- reset the Supabase database password (it was shared in chat).
+## Rider app
+`mobile/eas.json` points preview and production builds at `https://flexriders-api.vercel.app/api/v1`. Build with `eas build --profile preview` (APK) or `--profile production` (Play Store bundle). Once flexriders.in is connected you can switch it to `https://flexriders.in/api/v1`.
 
-After it's hosted: set `BACKEND_URL` on the landing project and redeploy it, and build the rider app with `EXPO_PUBLIC_API_URL=https://flexriders.in/api/v1`.
+## Connecting flexriders.in (GoDaddy)
+1. GoDaddy → flexriders.in → **Validate** the WHOIS banner and confirm the email. Until then the domain is on *clientHold* and can't be used.
+2. Vercel → `flexriders-landing` → **Settings → Domains** → add `flexriders.in` and `www.flexriders.in`.
+3. GoDaddy → **DNS**: remove the "Parked" `A` record and add exactly the records Vercel shows.
+4. Optional: add `admin.flexriders.in` to the same project as a redirect to `https://flexriders.in/admin`.
+
+## Before real riders use it
+- Change the Super Admin's default password (Admin Users → Edit).
+- Reset the Supabase database password (it was shared in chat), then update `DATABASE_URL` in `backend/.env`, `backend/.env.mumbai` and the `flexriders-api` project.
+- Vercel's Hobby plan is for non-commercial use; move to Pro once FlexRiders is a paying business.
 
 ## Test locally in production mode
 ```bash
@@ -47,5 +55,4 @@ cd frontend && npm run build:admin && npm run preview:admin            # dashboa
 cd landing
 ADMIN_APP_URL=http://localhost:5181 BACKEND_URL=http://127.0.0.1:8000 npx next build
 ADMIN_APP_URL=http://localhost:5181 BACKEND_URL=http://127.0.0.1:8000 npx next start -p 3006
-# open http://localhost:3006 → footer "Admin Login" → /admin
 ```
