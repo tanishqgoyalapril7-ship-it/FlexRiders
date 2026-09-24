@@ -27,7 +27,7 @@ components/     Navbar, Footer, Logo, MagneticButton, Reveal, SmoothScroll, Cont
 sections/       Hero, Problem, Ecosystem, Riders, Interlude, Operations, Approvals, Brands,
                 Payments, Profile, Scale, Security, HowItWorks, FinalCTA
 lib/            site config and nav, demo data, scroll helpers, motion hooks
-public/images/  optimised brand assets derived from ../Photos
+public/images/  optimised brand assets derived from ../brand (original logo and photos)
 ```
 
 ## Notes

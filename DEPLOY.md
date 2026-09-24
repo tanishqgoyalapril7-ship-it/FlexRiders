@@ -1,13 +1,13 @@
 # Going live on flexriders.in
 
 ```
-flexriders.in               → landing page            (Vercel project 1, root: Landing page/FlexRiders/landing)
+flexriders.in               → landing page            (Vercel project 1, root: landing)            
 flexriders.in/admin         → admin dashboard         (Vercel project 2, root: frontend)  ─┐ forwarded by
 flexriders.in/campaign/...  → public campaign pages   (Vercel project 2)                  ─┤ the landing
 flexriders.in/api/v1, /uploads → backend (FastAPI)    (not hosted yet)                    ─┘ project
 ```
 
-Visitors only ever see `flexriders.in`. The landing project forwards `/admin`, `/campaign`, `/api/v1` and `/uploads` to the other deployments (see `rewrites` in `Landing page/FlexRiders/landing/next.config.ts`), so the dashboard and API share one address and need no CORS setup.
+Visitors only ever see `flexriders.in`. The landing project forwards `/admin`, `/campaign`, `/api/v1` and `/uploads` to the other deployments (see `rewrites` in `landing/next.config.ts`), so the dashboard and API share one address and need no CORS setup.
 
 ## 0. Before anything: the domain
 GoDaddy shows **"pending WHOIS verification"** and **"Registrar Hold"**. Until you click **Validate** and confirm the email GoDaddy sends, the domain won't resolve anywhere. Check the email linked to the GoDaddy account (and spam).
@@ -19,7 +19,7 @@ GoDaddy shows **"pending WHOIS verification"** and **"Registrar Hold"**. Until y
 
 ## 2. Landing page (Vercel project 1)
 1. **Add New → Project** → import `FlexRiders` again.
-2. **Root Directory:** `Landing page/FlexRiders/landing`. Framework: Next.js.
+2. **Root Directory:** `landing`. Framework: Next.js.
 3. **Environment variables:**
    | Name | Value |
    |---|---|
@@ -44,7 +44,7 @@ After it's hosted: set `BACKEND_URL` on the landing project and redeploy it, and
 ## Test locally in production mode
 ```bash
 cd frontend && npm run build:admin && npm run preview:admin            # dashboard at :5181/admin
-cd "Landing page/FlexRiders/landing"
+cd landing
 ADMIN_APP_URL=http://localhost:5181 BACKEND_URL=http://127.0.0.1:8000 npx next build
 ADMIN_APP_URL=http://localhost:5181 BACKEND_URL=http://127.0.0.1:8000 npx next start -p 3006
 # open http://localhost:3006 → footer "Admin Login" → /admin

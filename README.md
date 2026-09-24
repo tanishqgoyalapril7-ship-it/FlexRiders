@@ -351,6 +351,18 @@ Base path `/api/v1`. Full, interactive reference at `/docs`.
 ## Project structure
 
 ```
+FlexRiders/
+├── landing/     Public website (Next.js)            → flexriders.in
+├── frontend/    Admin dashboard (React + Vite)      → flexriders.in/admin
+├── backend/     API server (FastAPI + Postgres)     → flexriders.in/api/v1
+├── mobile/      Rider app (Expo / React Native)     → Android (Google Play)
+├── brand/       Original logo and brand photos
+├── docs/        Older guides (architecture, store listings)
+├── DEPLOY.md    How to put the site, dashboard and API online
+└── README.md    This file
+```
+
+```
 backend/
   app/
     api/v1/endpoints/   auth, riders, admin_riders, brands, campaigns, payments,
@@ -378,6 +390,11 @@ mobile/
   src/data/             city, area and vehicle suggestions
   src/services/api.js   API client (timeouts)
 docs/                   earlier architecture, deployment and store guides (this README is the current reference)
+landing/
+  app/                  layout, page, /privacy, /terms, /api/contact
+  sections/             landing page sections (Hero, Riders, Operations, Payments, …)
+  components/           Navbar, Footer (with Admin Login), Contact dialog, device mockups
+  next.config.ts        forwards /admin, /campaign, /api/v1, /uploads to the dashboard and API
 ```
 
 ---
