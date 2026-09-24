@@ -15,6 +15,8 @@ import {
   Download,
   Pencil,
   Send,
+  Eye,
+  EyeOff,
   PauseCircle,
   XCircle,
   Flag,
@@ -22,16 +24,90 @@ import {
   Inbox,
 } from 'lucide-react';
 import { api } from '../services/api';
+import { CampaignAddRiderModal } from '../components/AdminCrud';
+import { DangerDialog, toast } from '../components/Feedback';
+import { JoinRequestsTable } from '../components/JoinRequests';
 import { ConfirmDialog, CampaignFormModal, PhotoLightbox, PhotoReviewCard, RiderActivityModal } from '../components/CampaignModals';
 import { EmptyState, SlotProgress, StatCard, StatusPill, formatDate, formatDateRange, formatINR } from '../components/CampaignShared';
+import {
+  BrandKitPanel,
+  DeliveryPanel,
+  ExtensionDialog,
+  ExtensionsPanel,
+  FinancialsPanel,
+  HistoryPanel,
+  ReplacementSlotsDialog,
+} from '../components/CampaignFulfillment';
 
 const TABS = [
-  ['overview', 'Overview'],
+  ['overview', 'Delivery'],
   ['riders', 'Riders'],
   ['requests', 'Requests'],
   ['photos', 'Photos'],
   ['payouts', 'Payouts'],
+  ['extensions', 'Extensions'],
+  ['kit', 'Brand Kit'],
+  ['financials', 'Financials'],
+  ['history', 'History'],
 ];
+
+// Rider performance from Photo Streaks (thresholds live in the backend config).
+const RIDER_PERFORMANCE = {
+  ACTIVE: { label: 'Active', pill: 'pill-on_track' },
+  AT_RISK: { label: 'At Risk', pill: 'pill-at_risk' },
+  INACTIVE: { label: 'Inactive', pill: 'pill-behind_target' },
+};
+
+// Whether riders can see this campaign in the app, and who can join it (same rule as the rider API).
+function RiderVisibility({ campaign, onPublish }) {
+  const [data, setData] = useState(null);
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    api.getCampaignRiderVisibility(campaign.id).then(setData).catch(() => setData(null));
+  }, [campaign.id, campaign.status, campaign.visibility, campaign.stats.assigned_riders]);
+  if (!data) return null;
+
+  if (!data.visible_to_riders) {
+    return (
+      <div className="visibility-banner visibility-hidden" role="status">
+        <EyeOff size={18} />
+        <div style={{ flex: 1 }}>
+          <strong>Riders can't see this campaign.</strong> {data.hidden_reason}.
+          {campaign.status === 'DRAFT' ? ' Publish it to show it in the rider app.' : ''}
+        </div>
+        {campaign.status === 'DRAFT' ? (
+          <button className="btn-primary" onClick={onPublish}>
+            <Send size={15} /> Publish
+          </button>
+        ) : null}
+      </div>
+    );
+  }
+  const blocked = data.riders.filter((r) => !r.can_join);
+  return (
+    <div className="visibility-banner visibility-shown" role="status">
+      <Eye size={18} />
+      <div style={{ flex: 1 }}>
+        <strong>Visible in the rider app.</strong> {data.remaining_slots} slot{data.remaining_slots === 1 ? '' : 's'} left ·{' '}
+        {data.riders_who_can_join} rider{data.riders_who_can_join === 1 ? '' : 's'} can join now.
+        {blocked.length ? (
+          <button className="card-action-link" style={{ marginLeft: 8 }} onClick={() => setOpen(!open)}>
+            {open ? 'Hide' : `Why can't ${blocked.length} join?`}
+          </button>
+        ) : null}
+        {open ? (
+          <ul className="visibility-list">
+            {blocked.map((r) => (
+              <li key={r.rider.id}>
+                <strong>{r.rider.full_name}</strong> ({r.rider.rider_id}): {r.reason}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
 export default function CampaignDetailView({ campaignId, brands = [], onBack, onViewRider, onChanged }) {
   const [campaign, setCampaign] = useState(null);
@@ -47,16 +123,24 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
   const [editing, setEditing] = useState(false);
   const [activityFor, setActivityFor] = useState(null);
   const [preview, setPreview] = useState(null);
+  const [danger, setDanger] = useState(null);
+  const [addingRider, setAddingRider] = useState(false);
+  const [fulfillment, setFulfillment] = useState(null);
+  const [ridersAvailable, setRidersAvailable] = useState('');
+  const [showSlots, setShowSlots] = useState(false);
+  const [showExtension, setShowExtension] = useState(false);
 
   const load = async () => {
     try {
-      const [c, r, a, p, pay] = await Promise.all([
+      const [c, r, a, p, pay, f] = await Promise.all([
         api.getCampaign(campaignId),
         api.getCampaignRiders(campaignId),
         api.getCampaignApplications(campaignId),
         api.getCampaignPhotos(campaignId),
         api.getCampaignPayouts(campaignId),
+        api.getCampaignFulfillment(campaignId, ridersAvailable),
       ]);
+      setFulfillment(f);
       setCampaign(c);
       setRiders(r);
       setApplications(a);
@@ -71,7 +155,7 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
     load();
     const interval = setInterval(load, 8000);
     return () => clearInterval(interval);
-  }, [campaignId]);
+  }, [campaignId, ridersAvailable]);
 
   const reload = () => {
     load();
@@ -108,7 +192,7 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
   const statusAction = (action, label, message, danger) =>
     ask({ title: label, message, confirmLabel: label, danger }, () => api.changeCampaignStatus(campaign.id, action));
 
-  const exportReport = () => api.downloadCampaignReport(campaign.id).catch((err) => alert(err.message));
+  const exportReport = () => api.downloadCampaignReport(campaign.id).catch((err) => toast.error(err.message));
 
   return (
     <div className="page-container">
@@ -132,6 +216,11 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
                 <span>
                   <CalendarDays size={15} />
                   {formatDate(campaign.start_date)} — {formatDate(campaign.end_date)}
+                  {campaign.effective_end_date !== campaign.end_date ? ` (extended to ${formatDate(campaign.effective_end_date)})` : ''}
+                </span>
+                <span>
+                  <Flag size={15} />
+                  {campaign.contracted_rider_days} contracted rider-days
                 </span>
                 <span>
                   <Users size={15} />
@@ -161,6 +250,20 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
                 >
                   <Send size={15} />
                   Publish Campaign
+                </button>
+              )}
+              {(published || status === 'PAUSED') && applications.length === 0 && (
+                <button
+                  className="btn-secondary"
+                  onClick={() =>
+                    statusAction(
+                      'unpublish',
+                      'Unpublish Campaign',
+                      'The campaign goes back to draft and disappears from the rider app. Dates, slots and payout can be edited again. Only possible while no rider has requested to join.'
+                    )
+                  }
+                >
+                  Unpublish
                 </button>
               )}
               {published && (
@@ -212,10 +315,52 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
                   Cancel
                 </button>
               )}
+              {(status === 'DRAFT' || status === 'CANCELLED') && (
+                <button
+                  className="btn-danger-outline"
+                  onClick={() =>
+                    setDanger({
+                      title: 'Delete campaign',
+                      message: `Permanently delete ${campaign.name}?`,
+                      loadImpact: () => api.getCampaignDeleteImpact(campaign.id),
+                      getAction: (impact) =>
+                        impact.can_hard_delete
+                          ? {
+                              label: 'Delete Permanently',
+                              tone: 'danger',
+                              typeToConfirm: 'DELETE',
+                              note: 'The campaign, its join requests, extensions and brand kit settings are removed. This cannot be undone.',
+                              run: async () => {
+                                await api.deleteCampaign(campaign.id);
+                                return `${campaign.name} was deleted.`;
+                              },
+                            }
+                          : null,
+                      renderDetails: (impact) =>
+                        impact.can_hard_delete ? null : (
+                          <div className="impact-note impact-note-danger">
+                            This campaign has riders, activity or money records, so it can't be deleted. It stays as a cancelled campaign to keep that history.
+                          </div>
+                        ),
+                      onDone: () => {
+                        onChanged && onChanged();
+                        onBack();
+                      },
+                    })
+                  }
+                >
+                  Delete
+                </button>
+              )}
             </div>
           </div>
         </div>
       </div>
+
+      <RiderVisibility
+        campaign={campaign}
+        onPublish={() => statusAction('publish', 'Publish Campaign', 'Eligible riders will be able to see this campaign and request to join.')}
+      />
 
       <div className="tabs-header-bar">
         {TABS.map(([key, label]) => (
@@ -229,8 +374,21 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
 
       {tab === 'overview' && (
         <>
+          <DeliveryPanel
+            campaign={campaign}
+            fulfillment={fulfillment}
+            ridersAvailable={ridersAvailable}
+            setRidersAvailable={setRidersAvailable}
+            onOpenSlots={() => setShowSlots(true)}
+            onExtend={() => setShowExtension(true)}
+          />
           <div className="stats-grid-5">
-            <StatCard title="Total Slots" value={s.total_slots} icon={Layers} />
+            <StatCard
+              title="Total Slots"
+              value={s.slot_capacity > s.total_slots ? `${s.total_slots} + ${s.slot_capacity - s.total_slots}` : s.total_slots}
+              icon={Layers}
+              hint={s.slot_capacity > s.total_slots ? 'Includes replacement slots' : null}
+            />
             <StatCard title="Requested Riders" value={s.requested_riders} icon={UserPlus} color="#F59E0B" background="#FFFBEB" />
             <StatCard title="Approved Riders" value={s.approved_riders} icon={UserCheck} color="#1D4ED8" background="#DBEAFE" />
             <StatCard title="Active Riders" value={s.active_riders} icon={PlayCircle} color="#10B981" background="#ECFDF5" />
@@ -264,7 +422,7 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
               <div className="card-header-bar">
                 <span className="card-title-text">Slots</span>
               </div>
-              <SlotProgress used={s.assigned_riders} total={campaign.total_slots} />
+              <SlotProgress used={s.assigned_riders} total={s.slot_capacity} />
               <div className="mini-stat-list" style={{ marginTop: 16 }}>
                 <div className="mini-stat">
                   <div className="mini-stat-label">Join requests</div>
@@ -289,21 +447,27 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
         <div className="card">
           <div className="card-header-bar">
             <span className="card-title-text">Assigned Riders</span>
+            {published ? (
+              <button className="btn-primary" onClick={() => setAddingRider(true)}>
+                <Users size={15} /> <span>Add Rider</span>
+              </button>
+            ) : null}
           </div>
           <div className="table-responsive">
             <table className="data-table">
               <thead>
                 <tr>
                   <th>Rider</th>
-                  <th>Phone</th>
                   <th>Status</th>
-                  <th>Joined</th>
-                  <th>Days Completed</th>
+                  <th>Today's Photos</th>
                   <th>Current Streak</th>
-                  <th>Photos</th>
-                  <th>Daily Rate</th>
+                  <th>Longest Streak</th>
+                  <th>Photo-Days</th>
+                  <th>Target</th>
+                  <th>Remaining</th>
+                  <th>Completion</th>
+                  <th>Excused</th>
                   <th>Earned</th>
-                  <th>Pending</th>
                   <th>Actions</th>
                 </tr>
               </thead>
@@ -313,22 +477,51 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
                     <td>
                       <strong>{r.rider.full_name}</strong>
                       <div style={{ fontSize: '0.72rem', color: '#2563EB', fontWeight: 600 }}>{r.rider.rider_id}</div>
+                      <div style={{ fontSize: '0.72rem', color: '#64748B' }}>
+                        {r.rider.mobile_number} · Joined {formatDate(r.joined_at)}
+                      </div>
                     </td>
-                    <td style={{ fontSize: '0.8rem' }}>{r.rider.mobile_number}</td>
                     <td>
                       <StatusPill status={r.status} />
+                      {r.rider_status !== 'ENDED' ? (
+                        <div className={`status-pill ${RIDER_PERFORMANCE[r.rider_status].pill}`} style={{ marginTop: 4 }}>
+                          {RIDER_PERFORMANCE[r.rider_status].label}
+                        </div>
+                      ) : null}
+                      {r.replacement_for ? <div style={{ fontSize: '0.7rem', color: '#64748B', marginTop: 4 }}>Replaces {r.replacement_for}</div> : null}
                     </td>
-                    <td style={{ fontSize: '0.8rem', color: '#64748B' }}>{formatDate(r.joined_at)}</td>
-                    <td>{r.completed_days} days</td>
-                    <td>{r.current_streak} day streak</td>
-                    <td style={{ fontSize: '0.8rem' }}>
-                      {r.photos_approved} approved / {r.photos_submitted} submitted
+                    <td>
+                      {r.today_photos.in_window ? (
+                        <>
+                          <strong style={{ color: r.today_photos.completed ? '#047857' : '#0F172A' }}>
+                            {Math.min(r.today_photos.valid, r.photos_required)}/{r.photos_required}
+                          </strong>
+                          {r.today_photos.pending ? (
+                            <div style={{ fontSize: '0.7rem', color: '#B45309' }}>{r.today_photos.pending} in review</div>
+                          ) : null}
+                        </>
+                      ) : (
+                        <span style={{ color: '#94A3B8' }}>—</span>
+                      )}
                     </td>
-                    <td>{formatINR(r.daily_rate)}/day</td>
+                    <td>
+                      {r.current_streak} days
+                      {r.streak_broken ? (
+                        <div style={{ fontSize: '0.7rem', color: '#B91C1C' }}>Broken {formatDate(r.streak_broken_on, false)}</div>
+                      ) : null}
+                    </td>
+                    <td>{r.longest_streak} days</td>
+                    <td>
+                      <strong>{r.completed_days}</strong>
+                    </td>
+                    <td>{r.target_days} days</td>
+                    <td>{r.remaining_target_days} days</td>
+                    <td>{r.completion_pct == null ? '—' : `${r.completion_pct}%`}</td>
+                    <td>{r.excused_days}</td>
                     <td>
                       <strong>{formatINR(r.earned)}</strong>
+                      <div style={{ fontSize: '0.7rem', color: '#64748B' }}>{formatINR(r.daily_rate)}/day</div>
                     </td>
-                    <td>{formatINR(r.pending)}</td>
                     <td>
                       <div className="row-actions">
                         <button className="btn-sm-view" onClick={() => onViewRider(r.rider)}>
@@ -381,7 +574,7 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
                 ))}
                 {riders.length === 0 && (
                   <tr>
-                    <td colSpan={11}>
+                    <td colSpan={12}>
                       <EmptyState icon={Users}>No riders assigned yet. Approved join requests appear here.</EmptyState>
                     </td>
                   </tr>
@@ -398,95 +591,7 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
             <span className="card-title-text">Join Requests</span>
             <span style={{ fontSize: '0.8rem', color: '#64748B' }}>{s.remaining_slots} slots available</span>
           </div>
-          <div className="table-responsive">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Rider</th>
-                  <th>Phone</th>
-                  <th>Rider Status</th>
-                  <th>Requested</th>
-                  <th>Request Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {applications.map((a) => (
-                  <tr key={a.id}>
-                    <td>
-                      <strong>{a.rider.full_name}</strong>
-                      <div style={{ fontSize: '0.72rem', color: '#2563EB', fontWeight: 600 }}>{a.rider.rider_id}</div>
-                    </td>
-                    <td style={{ fontSize: '0.8rem' }}>{a.rider.mobile_number}</td>
-                    <td>
-                      <StatusPill status={a.rider.status} />
-                    </td>
-                    <td style={{ fontSize: '0.8rem', color: '#64748B' }}>{formatDate(a.requested_at)}</td>
-                    <td>
-                      <StatusPill status={a.status} />
-                      {a.rejection_reason ? <div style={{ fontSize: '0.72rem', color: '#94A3B8', marginTop: 4 }}>{a.rejection_reason}</div> : null}
-                    </td>
-                    <td>
-                      {a.status === 'REQUESTED' ? (
-                        <div className="row-actions">
-                          <button
-                            className="btn-sm-approve"
-                            disabled={s.remaining_slots === 0 || Boolean(a.rider_busy_in_campaign) || !published}
-                            title={
-                              a.rider_busy_in_campaign
-                                ? `Already active in ${a.rider_busy_in_campaign}`
-                                : s.remaining_slots === 0
-                                ? 'No slots available'
-                                : !published
-                                ? 'Campaign is not accepting riders'
-                                : ''
-                            }
-                            onClick={() =>
-                              api
-                                .approveCampaignApplication(campaign.id, a.id)
-                                .then(reload)
-                                .catch((err) => alert(err.message))
-                            }
-                          >
-                            Approve
-                          </button>
-                          <button
-                            className="btn-sm-reject"
-                            onClick={() =>
-                              ask(
-                                {
-                                  title: 'Reject request',
-                                  message: `Reject ${a.rider.full_name}'s request to join this campaign?`,
-                                  confirmLabel: 'Reject Request',
-                                  danger: true,
-                                  reasonLabel: 'Reason (shown to the rider)',
-                                },
-                                (reason) => api.rejectCampaignApplication(campaign.id, a.id, reason)
-                              )
-                            }
-                          >
-                            Reject
-                          </button>
-                          {a.rider_busy_in_campaign ? (
-                            <span style={{ fontSize: '0.72rem', color: '#B45309' }}>Active in {a.rider_busy_in_campaign}</span>
-                          ) : null}
-                        </div>
-                      ) : (
-                        <span style={{ fontSize: '0.78rem', color: '#94A3B8' }}>{formatDate(a.approved_at || a.rejected_at)}</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-                {applications.length === 0 && (
-                  <tr>
-                    <td colSpan={6}>
-                      <EmptyState icon={Inbox}>No join requests yet.</EmptyState>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          <JoinRequestsTable requests={applications} campaignRiders={riders} onChanged={reload} />
         </div>
       )}
 
@@ -515,7 +620,7 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
             <div className="photo-grid">
               {visiblePhotos.map((p) => (
                 <PhotoReviewCard
-                  key={p.id}
+                  key={p.id ? `p${p.id}` : `a${p.activity_id}`}
                   campaignId={campaign.id}
                   photo={p}
                   riderName={`${p.rider.full_name} · ${p.rider.rider_id}`}
@@ -524,13 +629,16 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
                   onReject={(photo) =>
                     ask(
                       {
-                        title: 'Reject proof',
-                        message: `Reject ${photo.rider.full_name}'s proof for ${formatDate(photo.date)}? This day will earn ₹0 unless it's approved later.`,
-                        confirmLabel: 'Reject Proof',
+                        title: photo.id ? 'Reject photo' : 'Reject proof',
+                        message: `Reject this ${photo.id ? 'photo' : 'proof'} from ${photo.rider.full_name} for ${formatDate(photo.date)}? The day only counts with ${
+                          photo.photos_required || 3
+                        } valid photos; otherwise it earns ₹0.${photo.photo_status === 'APPROVED' ? ' It was already approved, so a reason is required and the change is logged.' : ''}`,
+                        confirmLabel: photo.id ? 'Reject Photo' : 'Reject Proof',
                         danger: true,
                         reasonLabel: 'Rejection reason',
                       },
-                      (reason) => api.rejectCampaignActivity(campaign.id, photo.id, reason)
+                      (reason) =>
+                        photo.id ? api.rejectCampaignPhoto(campaign.id, photo.id, reason) : api.rejectCampaignActivity(campaign.id, photo.activity_id, reason)
                     )
                   }
                 />
@@ -596,7 +704,7 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
                               api
                                 .approveCampaignPayout(campaign.id, p.id)
                                 .then(reload)
-                                .catch((err) => alert(err.message))
+                                .catch((err) => toast.error(err.message))
                             }
                           >
                             Approve
@@ -642,6 +750,33 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
         </div>
       )}
 
+      {tab === 'extensions' && <ExtensionsPanel campaign={campaign} onExtend={() => setShowExtension(true)} />}
+      {tab === 'kit' && <BrandKitPanel campaignId={campaign.id} />}
+      {tab === 'financials' && <FinancialsPanel campaignId={campaign.id} fulfillment={fulfillment} onChanged={reload} />}
+      {tab === 'history' && <HistoryPanel campaign={campaign} />}
+
+      {showSlots ? (
+        <ReplacementSlotsDialog
+          campaign={campaign}
+          recommended={fulfillment?.recovery?.replacement_riders_needed}
+          onClose={() => setShowSlots(false)}
+          onSaved={() => {
+            setShowSlots(false);
+            reload();
+          }}
+        />
+      ) : null}
+      {showExtension ? (
+        <ExtensionDialog
+          campaign={campaign}
+          fulfillment={fulfillment}
+          onClose={() => setShowExtension(false)}
+          onSaved={() => {
+            setShowExtension(false);
+            reload();
+          }}
+        />
+      ) : null}
       {editing ? (
         <CampaignFormModal
           brands={brands}
@@ -658,6 +793,18 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
         <RiderActivityModal campaignId={campaign.id} assignmentId={activityFor} onClose={() => setActivityFor(null)} onChanged={reload} />
       ) : null}
       <PhotoLightbox url={preview} onClose={() => setPreview(null)} />
+      {danger ? <DangerDialog {...danger} onClose={() => setDanger(null)} /> : null}
+      {addingRider ? (
+        <CampaignAddRiderModal
+          campaign={campaign}
+          currentRiderIds={riders.filter((r) => ['ACTIVE', 'ASSIGNED'].includes(r.status)).map((r) => r.rider.id)}
+          onClose={() => setAddingRider(false)}
+          onSaved={() => {
+            setAddingRider(false);
+            reload();
+          }}
+        />
+      ) : null}
     </div>
   );
 }

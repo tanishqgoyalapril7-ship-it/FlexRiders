@@ -6,7 +6,7 @@ import { CAMPAIGN_STATUSES, EmptyState, SlotProgress, StatCard, StatusPill, form
 
 const EMPTY_FILTERS = { search: '', status: 'ALL', brand_id: '', start_from: '', end_to: '' };
 
-export default function CampaignsView({ brands = [], summary, initialSearch = '', onOpenCampaign, onChanged }) {
+export default function CampaignsView({ brands = [], summary, initialSearch = '', onOpenCampaign, onChanged, onCreateBrand }) {
   const [filters, setFilters] = useState({ ...EMPTY_FILTERS, search: initialSearch });
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -150,6 +150,7 @@ export default function CampaignsView({ brands = [], summary, initialSearch = ''
                   </td>
                   <td>
                     <StatusPill status={c.status} />
+                    {c.status === 'DRAFT' ? <div style={{ fontSize: '0.7rem', color: '#B45309', marginTop: 4 }}>Hidden from riders</div> : null}
                   </td>
                   <td style={{ whiteSpace: 'nowrap' }}>
                     <strong>{formatINR(c.daily_rate)}</strong>
@@ -186,6 +187,10 @@ export default function CampaignsView({ brands = [], summary, initialSearch = ''
       {showCreate ? (
         <CampaignFormModal
           brands={brands}
+          onCreateBrand={() => {
+            setShowCreate(false);
+            onCreateBrand();
+          }}
           onClose={() => setShowCreate(false)}
           onSaved={(campaign) => {
             setShowCreate(false);

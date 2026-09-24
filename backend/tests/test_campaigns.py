@@ -165,17 +165,19 @@ def test_payout_counts_only_approved_days(client, db_session, admin_headers, bra
         )
     db_session.commit()
 
-    # Today's proof through the real upload endpoint.
-    res = client.post(
-        f"{API}/riders/me/campaigns/{campaign['id']}/activity",
-        files={"photo": ("proof.jpg", b"fake-jpeg-bytes", "image/jpeg")},
-        headers=rider_headers,
-    )
-    assert res.status_code == 200, res.text
+    # Today's 3 proof photos through the real upload endpoint.
+    for n in range(3):
+        res = client.post(
+            f"{API}/riders/me/campaigns/{campaign['id']}/activity",
+            files={"photo": ("proof.jpg", f"fake-jpeg-bytes-{n}".encode(), "image/jpeg")},
+            headers=rider_headers,
+        )
+        assert res.status_code == 200, res.text
+    assert res.json()["photos_pending"] == 3
 
     photos = client.get(f"{API}/campaigns/{campaign['id']}/photos?status=PENDING", headers=admin_headers).json()
-    assert len(photos) == 4
-    by_date = {p["date"]: p["id"] for p in photos}
+    assert len(photos) == 6  # 3 older single-photo days + today's 3 photos
+    by_date = {p["date"]: p["activity_id"] for p in photos}
     day = lambda offset: (today_ist() - timedelta(days=offset)).isoformat()
     for offset in (4, 3, 0):
         client.post(f"{API}/campaigns/{campaign['id']}/activities/{by_date[day(offset)]}/approve", headers=admin_headers)

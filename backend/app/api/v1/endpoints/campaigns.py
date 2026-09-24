@@ -1,8 +1,11 @@
 import csv
+import hashlib
 import io
+import logging
+import json
 import os
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
@@ -14,9 +17,21 @@ from app.core.config import settings
 from app.core.database import get_db
 from app.models.all_models import Brand, Rider, User
 from app.models.campaign_models import (
+    ActivityChangeLog,
+    AdjustmentStatus,
     ApplicationStatus,
+    BrandPaymentKind,
+    BrandPaymentRecord,
+    CampaignBrandKit,
+    CampaignExtension,
+    CampaignFulfillmentSnapshot,
+    FinancialAdjustment,
+    KitStatus,
+    RiderBrandKit,
     AssignmentStatus,
     Campaign,
+    CampaignActivityPhoto,
+    CampaignPickupLocation,
     CampaignApplication,
     CampaignAssignment,
     CampaignDailyActivity,
@@ -24,10 +39,39 @@ from app.models.campaign_models import (
     CampaignStatus,
     CampaignVisibility,
     PhotoStatus,
+    RequestLabels,
 )
-from app.schemas.campaign_schemas import CampaignCreate, CampaignUpdate, ReasonRequest
+from app.schemas.campaign_schemas import (
+    AdjustmentResolve,
+    AdminAddRiderRequest,
+    ApproveApplicationRequest,
+    BrandKitUpdate,
+    PickupLocationCreate,
+    RequestKitUpdate,
+    PickupLocationUpdate,
+    BrandPaymentCreate,
+    CampaignCreate,
+    CampaignUpdate,
+    ExcuseRequest,
+    ExtensionCreate,
+    JoinCampaignRequest,
+    ReasonRequest,
+    ReplacementSlotsRequest,
+    RiderKitUpdate,
+)
+from app.services import fulfillment_service as fs
+from app.services import data_admin_service as das
+from app.services import kit_service as ks
 from app.services import campaign_service as svc
 from app.services.audit_service import log_admin_action
+
+visibility_log = logging.getLogger("app.campaigns.visibility")
+if not visibility_log.handlers:  # Uvicorn doesn't configure app loggers; print these to the server console
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter("%(levelname)s:     [visibility] %(message)s"))
+    visibility_log.addHandler(_handler)
+    visibility_log.setLevel(logging.INFO)
+    visibility_log.propagate = False
 
 # Admin routes, mounted at /campaigns
 router = APIRouter()
@@ -50,19 +94,37 @@ def _run(action):
         raise HTTPException(status_code=400, detail=str(e))
 
 
-async def _save_image(upload: UploadFile, folder: str) -> str:
+async def _read_image(upload: UploadFile) -> (bytes, str):
     extension = ALLOWED_IMAGE_TYPES.get(upload.content_type or "")
     if not extension:
         raise HTTPException(status_code=400, detail="Please upload a JPG, PNG, WEBP or HEIC image.")
     content = await upload.read()
     if len(content) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=400, detail="Image must be 8 MB or smaller.")
+    return content, extension
+
+
+async def _save_image(upload: UploadFile, folder: str) -> str:
+    content, extension = await _read_image(upload)
+    return _store_image(content, extension, folder)
+
+
+def _store_image(content: bytes, extension: str, folder: str) -> str:
     directory = os.path.join(settings.UPLOAD_DIR, folder)
     os.makedirs(directory, exist_ok=True)
     filename = f"{uuid.uuid4().hex}{extension}"
     with open(os.path.join(directory, filename), "wb") as f:
         f.write(content)
     return f"/uploads/{folder}/{filename}"
+
+
+def _require_active_brand(db: Session, brand_id: int) -> Brand:
+    brand = db.query(Brand).filter(Brand.id == brand_id).first()
+    if not brand:
+        raise HTTPException(status_code=400, detail="Selected brand does not exist. Create the brand first.")
+    if not brand.is_active:
+        raise HTTPException(status_code=400, detail=f"{brand.name} is inactive. Activate it before creating campaigns for it.")
+    return brand
 
 
 def _get_campaign(db: Session, campaign_id: int) -> Campaign:
@@ -97,6 +159,16 @@ def _campaign_dict(db: Session, campaign: Campaign, with_stats: bool = True) -> 
         "end_date": campaign.end_date.isoformat(),
         "total_slots": campaign.total_slots,
         "daily_rate": campaign.daily_rate,
+        "contract_days": fs.contract_days(campaign),
+        "contracted_rider_days": fs.contracted_rider_days(campaign),
+        "commitment_locked": campaign.contracted_rider_days is not None,
+        "brand_contract_value": campaign.brand_contract_value or 0.0,
+        "allow_payout_beyond_contract": bool(campaign.allow_payout_beyond_contract),
+        "continue_after_fulfillment": bool(campaign.continue_after_fulfillment),
+        "extra_replacement_slots": campaign.extra_replacement_slots or 0,
+        "effective_end_date": fs.effective_end_date(campaign).isoformat(),
+        "extensions": [_extension_dict(e) for e in campaign.extensions],
+        "brand_kit": _kit_dict(db, campaign),
         "status": campaign.status,
         "visibility": campaign.visibility,
         "published_at": campaign.published_at,
@@ -110,9 +182,98 @@ def _campaign_dict(db: Session, campaign: Campaign, with_stats: bool = True) -> 
     return data
 
 
-def _assignment_row(assignment: CampaignAssignment) -> dict:
-    progress = svc.rider_progress(assignment)
+def _extension_dict(e: CampaignExtension) -> dict:
     return {
+        "id": e.id,
+        "start_date": e.start_date.isoformat(),
+        "end_date": e.end_date.isoformat(),
+        "days": fs.days_between(e.start_date, e.end_date),
+        "reason": e.reason,
+        "rider_day_target": e.rider_day_target,
+        "approved_by": e.approved_by.email if e.approved_by else None,
+        "approved_at": e.approved_at,
+    }
+
+
+def _location_dict(location: Optional[CampaignPickupLocation]) -> Optional[dict]:
+    if not location:
+        return None
+    return {
+        "id": location.id,
+        "name": location.name,
+        "address": location.address,
+        "map_url": location.map_url,
+        "available_from": location.available_from.isoformat() if location.available_from else None,
+        "available_to": location.available_to.isoformat() if location.available_to else None,
+        "available_days": location.available_days,
+        "start_time": location.start_time,
+        "end_time": location.end_time,
+        "contact_name": location.contact_name,
+        "contact_phone": location.contact_phone,
+        "instructions": location.instructions,
+        "is_active": location.is_active,
+    }
+
+
+def _kit_dict(db: Session, campaign: Campaign, active_only: bool = False) -> Optional[dict]:
+    kit = campaign.brand_kit
+    if not kit:
+        return None
+    return {
+        "tshirt_required": kit.tshirt_required,
+        "size_options": ks.sizes_of(kit),
+        "instructions": kit.instructions,
+        "locations": [_location_dict(l) for l in ks.locations(db, campaign, active_only=active_only)],
+    }
+
+
+def _rider_kit_dict(kit: Optional[RiderBrandKit]) -> Optional[dict]:
+    if not kit:
+        return None
+    status = KitStatus.READY_FOR_PICKUP if kit.status == KitStatus.PICKUP_SCHEDULED else KitStatus.PENDING if kit.status == KitStatus.NOT_COLLECTED else kit.status
+    return {
+        "id": kit.id,
+        "assignment_id": kit.assignment_id,
+        "rider": _rider_brief(kit.rider),
+        "tshirt_size": kit.tshirt_size,
+        "status": status,
+        "status_label": KitStatus.LABELS.get(status, status),
+        "pickup_location": _location_dict(kit.pickup_location),
+        "pickup_date": kit.pickup_date.isoformat() if kit.pickup_date else None,
+        "collected_date": kit.collected_date.isoformat() if kit.collected_date else None,
+        "issued_by": kit.issued_by.email if kit.issued_by else None,
+    }
+
+
+def _rider_request_dict(a: Optional[CampaignApplication]) -> Optional[dict]:
+    if not a:
+        return None
+    kit_status = ks.request_kit_status(a)
+    return {
+        "id": a.id,
+        "status": a.status,
+        "status_label": {"REQUESTED": "Waiting for Admin Approval"}.get(a.status, RequestLabels.CAMPAIGN.get(a.status, a.status)),
+        "requested_at": a.requested_at,
+        "rejection_reason": a.rejection_reason,
+        "tshirt_size": a.tshirt_size,
+        "kit_status": kit_status,
+        "kit_status_label": KitStatus.LABELS.get(kit_status, kit_status),
+        "pickup_location": _location_dict(a.pickup_location) if a.pickup_location_id else None,
+    }
+
+
+def _accepting(db: Session, campaign: Campaign) -> bool:
+    return not svc.target_reached(db, campaign)
+
+
+def _assignment_row(assignment: CampaignAssignment, accepting: bool = True) -> dict:
+    progress = svc.rider_progress(assignment, accepting=accepting)
+    replaced = None
+    if assignment.replacement_for_assignment_id:
+        original = next((a for a in assignment.campaign.assignments if a.id == assignment.replacement_for_assignment_id), None)
+        replaced = original.rider.full_name if original else None
+    return {
+        "replacement_for": replaced,
         "assignment_id": assignment.id,
         "rider": _rider_brief(assignment.rider),
         "status": assignment.status,
@@ -124,8 +285,36 @@ def _assignment_row(assignment: CampaignAssignment) -> dict:
     }
 
 
-def _activity_dict(activity: CampaignDailyActivity) -> dict:
+def _photo_dict(photo: CampaignActivityPhoto) -> dict:
+    activity = photo.activity
+    counts = svc.photo_counts(activity)
     return {
+        "id": photo.id,
+        "activity_id": activity.id,
+        "assignment_id": activity.assignment_id,
+        "rider": _rider_brief(activity.rider),
+        "date": activity.activity_date.isoformat(),
+        "photo_url": photo.photo_url,
+        "status": photo.status,
+        "photo_status": photo.status,
+        "rejection_reason": photo.rejection_reason,
+        "uploaded_at": photo.uploaded_at,
+        "reviewed_at": photo.reviewed_at,
+        "day_status": activity.status,
+        "day_valid": counts["valid"],
+        "day_pending": counts["pending"],
+        "photos_required": counts["required"],
+    }
+
+
+def _activity_dict(activity: CampaignDailyActivity) -> dict:
+    counts = svc.photo_counts(activity)
+    return {
+        "photos_required": counts["required"],
+        "photos_valid": counts["valid"],
+        "photos_pending": counts["pending"],
+        "photos_rejected": counts["rejected"],
+        "photos": [_photo_dict(p) for p in activity.photos],
         "id": activity.id,
         "assignment_id": activity.assignment_id,
         "rider": _rider_brief(activity.rider),
@@ -188,6 +377,22 @@ def list_campaigns(
     return [_campaign_dict(db, c) for c in campaigns]
 
 
+@router.get("/join-requests")
+def all_join_requests(
+    status: Optional[str] = "REQUESTED",
+    campaign_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
+    """Join requests across all campaigns (default: pending admin approval)."""
+    query = db.query(CampaignApplication)
+    if status and status != "ALL":
+        query = query.filter(CampaignApplication.status == status)
+    if campaign_id:
+        query = query.filter(CampaignApplication.campaign_id == campaign_id)
+    return [_application_dict(db, a) for a in query.order_by(CampaignApplication.requested_at.desc()).limit(500).all()]
+
+
 @router.get("/summary")
 def campaign_summary(db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
     """Campaign figures for the admin dashboard overview card."""
@@ -228,8 +433,7 @@ def create_campaign(
     db: Session = Depends(get_db),
     admin: User = Depends(get_current_admin),
 ):
-    if not db.query(Brand).filter(Brand.id == payload.brand_id).first():
-        raise HTTPException(status_code=400, detail="Selected brand does not exist")
+    _require_active_brand(db, payload.brand_id)
     campaign = Campaign(
         **payload.model_dump(exclude={"visibility"}),
         status=CampaignStatus.DRAFT,
@@ -260,13 +464,24 @@ def update_campaign(
     campaign = _get_campaign(db, campaign_id)
     if campaign.status in CampaignStatus.CLOSED:
         raise HTTPException(status_code=400, detail="Completed or cancelled campaigns cannot be edited.")
+    if campaign.contracted_rider_days is not None and (
+        payload.total_slots != campaign.total_slots
+        or payload.start_date != campaign.start_date
+        or payload.end_date != campaign.end_date
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="Required riders and contract dates are locked once a campaign is published. "
+            "Use replacement slots or an extension instead.",
+        )
     if payload.total_slots < svc.slots_used(db, campaign.id):
         raise HTTPException(status_code=400, detail="Total slots cannot be lower than the number of approved riders.")
-    if not db.query(Brand).filter(Brand.id == payload.brand_id).first():
-        raise HTTPException(status_code=400, detail="Selected brand does not exist")
+    if payload.brand_id != campaign.brand_id:
+        _require_active_brand(db, payload.brand_id)
     for field, value in payload.model_dump().items():
         setattr(campaign, field, value)
     db.commit()
+    fs.recalculate_campaign_payouts(db, campaign)  # payout-beyond-contract may have changed
     svc.sync_campaign_status(db, campaign)
     log_admin_action(db=db, admin_user=admin, action="CAMPAIGN_UPDATED", target_type="CAMPAIGN", target_id=str(campaign.id), details=f"{campaign.name} updated")
     return _campaign_dict(db, campaign)
@@ -285,30 +500,136 @@ async def upload_campaign_image(
     return _campaign_dict(db, campaign)
 
 
-@router.post("/{campaign_id}/{action}")
-def change_campaign_status(
-    campaign_id: int,
-    action: str,
-    db: Session = Depends(get_db),
-    admin: User = Depends(get_current_admin),
-):
-    actions = {
-        "publish": svc.publish_campaign,
-        "pause": svc.pause_campaign,
-        "resume": svc.resume_campaign,
-        "complete": svc.complete_campaign,
-        "cancel": svc.cancel_campaign,
-    }
-    if action not in actions:
-        raise HTTPException(status_code=404, detail="Unknown campaign action")
+_STATUS_ACTIONS = {
+    "publish": svc.publish_campaign,
+    "unpublish": svc.unpublish_campaign,
+    "pause": svc.pause_campaign,
+    "resume": svc.resume_campaign,
+    "complete": svc.complete_campaign,
+    "cancel": svc.cancel_campaign,
+}
+
+
+def _status_action_route(action: str):
+    def change_campaign_status(campaign_id: int, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
+        campaign = _get_campaign(db, campaign_id)
+        _run(lambda: _STATUS_ACTIONS[action](db, campaign, admin))
+        return _campaign_dict(db, campaign)
+
+    change_campaign_status.__name__ = f"{action}_campaign"
+    return change_campaign_status
+
+
+# Explicit routes (not /{campaign_id}/{action}) so they never shadow other POST routes.
+for _action in _STATUS_ACTIONS:
+    router.add_api_route(f"/{{campaign_id}}/{_action}", _status_action_route(_action), methods=["POST"])
+
+
+@router.get("/{campaign_id}/rider-visibility")
+def campaign_rider_visibility(campaign_id: int, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
+    """Can riders see this campaign, and which riders can join it (with the reason for those who can't)."""
     campaign = _get_campaign(db, campaign_id)
-    _run(lambda: actions[action](db, campaign, admin))
-    return _campaign_dict(db, campaign)
+    hidden_reason = svc.rider_visibility(campaign)
+    riders = db.query(Rider).filter(Rider.archived_at.is_(None)).order_by(Rider.id).all()
+    rows = []
+    for rider in riders:
+        can_join, reason = svc.join_eligibility(db, campaign, rider)
+        rows.append({"rider": _rider_brief(rider), "can_join": can_join and not hidden_reason, "reason": hidden_reason or reason})
+    return {
+        "visible_to_riders": hidden_reason is None,
+        "hidden_reason": hidden_reason,
+        "status": campaign.status,
+        "visibility": campaign.visibility,
+        "remaining_slots": max(svc.slot_capacity(campaign) - svc.slots_used(db, campaign.id), 0),
+        "riders_who_can_join": sum(1 for r in rows if r["can_join"]),
+        "riders": rows,
+    }
+
+
+@router.get("/{campaign_id}/delete-impact")
+def campaign_delete_impact(campaign_id: int, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
+    return das.campaign_impact(db, _get_campaign(db, campaign_id))
+
+
+@router.delete("/{campaign_id}")
+def delete_campaign(campaign_id: int, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
+    """Permanent delete, only for draft/cancelled campaigns without riders, activity or money records."""
+    campaign = _get_campaign(db, campaign_id)
+    try:
+        das.hard_delete_campaign(db, campaign, admin)
+    except das.DataAdminError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    return {"success": True, "message": "Campaign permanently deleted"}
+
+
+@router.post("/{campaign_id}/riders")
+def add_rider_to_campaign(
+    campaign_id: int, payload: AdminAddRiderRequest, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)
+):
+    campaign = _get_campaign(db, campaign_id)
+    rider = db.query(Rider).filter(Rider.id == payload.rider_id).first()
+    if not rider:
+        raise HTTPException(status_code=404, detail="Rider not found")
+    assignment = _run(
+        lambda: svc.admin_add_rider(
+            db, campaign, rider, admin, payload.tshirt_size, payload.replacement_for_assignment_id, payload.pickup_location_id,
+            payload.kit_collected,
+        )
+    )
+    return _assignment_row(assignment, _accepting(db, campaign))
 
 
 # ---------------------------------------------------------------------------
 # Admin: join requests
 # ---------------------------------------------------------------------------
+
+def _approve_blocker(db: Session, a: CampaignApplication) -> Optional[str]:
+    """Why an admin can't approve this request yet (None when they can). Mirrors approve_application."""
+    if a.status != ApplicationStatus.REQUESTED:
+        return None
+    campaign, rider = a.campaign, a.rider
+    if ks.kit_required(campaign) and ks.request_kit_status(a) != KitStatus.COLLECTED:
+        return "Waiting for T-shirt collection"
+    if campaign.status not in CampaignStatus.PUBLISHED:
+        return f"Campaign is {campaign.status.lower()}"
+    busy = svc.current_assignment(db, a.rider_id)
+    if busy:
+        return f"Rider is already in {busy.campaign.name}"
+    if rider.archived_at or rider.status not in svc.ELIGIBLE_RIDER_STATUSES:
+        return f"Rider is {rider.status.lower()}"
+    if svc.slots_used(db, campaign.id) >= svc.slot_capacity(campaign):
+        return "Campaign is full"
+    return None
+
+
+def _application_dict(db: Session, a: CampaignApplication) -> dict:
+    kit_status = ks.request_kit_status(a)
+    blocker = _approve_blocker(db, a)
+    return {
+        "id": a.id,
+        "rider": _rider_brief(a.rider),
+        "campaign": {"id": a.campaign.id, "name": a.campaign.name, "status": a.campaign.status},
+        "status": a.status,
+        "status_label": RequestLabels.CAMPAIGN.get(a.status, a.status),
+        "requested_at": a.requested_at,
+        "approved_at": a.approved_at,
+        "rejected_at": a.rejected_at,
+        "rejection_reason": a.rejection_reason,
+        "reviewed_by": a.reviewed_by.email if a.reviewed_by_id and a.reviewed_by else None,
+        "tshirt_required": ks.kit_required(a.campaign),
+        "tshirt_size": a.tshirt_size,
+        "size_options": ks.sizes_of(a.campaign.brand_kit),
+        "pickup_location": a.pickup_location.name if a.pickup_location_id and a.pickup_location else None,
+        "kit_status": kit_status,
+        "kit_status_label": KitStatus.LABELS.get(kit_status, kit_status),
+        "kit_collected_at": a.kit_collected_at,
+        "kit_collected_by": a.kit_collected_by.email if a.kit_collected_by_id and a.kit_collected_by else None,
+        "can_approve": a.status == ApplicationStatus.REQUESTED and blocker is None,
+        "approve_blocked_reason": blocker,
+        # Kept for older screens
+        "rider_busy_in_campaign": (lambda busy: busy.campaign.name if busy and busy.campaign_id != a.campaign_id else None)(svc.current_assignment(db, a.rider_id)),
+    }
+
 
 @router.get("/{campaign_id}/applications")
 def list_applications(
@@ -321,22 +642,7 @@ def list_applications(
     query = db.query(CampaignApplication).filter(CampaignApplication.campaign_id == campaign_id)
     if status and status != "ALL":
         query = query.filter(CampaignApplication.status == status)
-    result = []
-    for a in query.order_by(CampaignApplication.requested_at.desc()).all():
-        busy = svc.current_assignment(db, a.rider_id)
-        result.append(
-            {
-                "id": a.id,
-                "rider": _rider_brief(a.rider),
-                "status": a.status,
-                "requested_at": a.requested_at,
-                "approved_at": a.approved_at,
-                "rejected_at": a.rejected_at,
-                "rejection_reason": a.rejection_reason,
-                "rider_busy_in_campaign": busy.campaign.name if busy and busy.campaign_id != campaign_id else None,
-            }
-        )
-    return result
+    return [_application_dict(db, a) for a in query.order_by(CampaignApplication.requested_at.desc()).all()]
 
 
 def _get_application(db: Session, campaign_id: int, application_id: int) -> CampaignApplication:
@@ -351,10 +657,31 @@ def _get_application(db: Session, campaign_id: int, application_id: int) -> Camp
 
 
 @router.post("/{campaign_id}/applications/{application_id}/approve")
-def approve_application(campaign_id: int, application_id: int, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
+def approve_application(
+    campaign_id: int,
+    application_id: int,
+    payload: Optional[ApproveApplicationRequest] = None,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
     application = _get_application(db, campaign_id, application_id)
-    _run(lambda: svc.approve_application(db, application, admin))
+    replacement_for = payload.replacement_for_assignment_id if payload else None
+    _run(lambda: svc.approve_application(db, application, admin, replacement_for))
     return _campaign_dict(db, _get_campaign(db, campaign_id))
+
+
+@router.post("/{campaign_id}/applications/{application_id}/kit")
+def set_application_kit(
+    campaign_id: int,
+    application_id: int,
+    payload: RequestKitUpdate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
+    """Mark the requester's T-shirt as collected (or back to pending collection)."""
+    application = _get_application(db, campaign_id, application_id)
+    _run(lambda: svc.mark_request_kit(db, application, admin, payload.collected, payload.tshirt_size))
+    return _application_dict(db, application)
 
 
 @router.post("/{campaign_id}/applications/{application_id}/reject")
@@ -387,20 +714,22 @@ def _get_assignment(db: Session, campaign_id: int, assignment_id: int) -> Campai
 
 @router.get("/{campaign_id}/riders")
 def list_campaign_riders(campaign_id: int, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
-    _get_campaign(db, campaign_id)
+    campaign = _get_campaign(db, campaign_id)
+    accepting = _accepting(db, campaign)
     assignments = (
         db.query(CampaignAssignment)
         .filter(CampaignAssignment.campaign_id == campaign_id)
         .order_by(CampaignAssignment.assigned_at.desc())
         .all()
     )
-    return [_assignment_row(a) for a in assignments]
+    return [_assignment_row(a, accepting) for a in assignments]
 
 
 @router.get("/{campaign_id}/riders/{assignment_id}/activity")
 def rider_activity(campaign_id: int, assignment_id: int, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
     assignment = _get_assignment(db, campaign_id, assignment_id)
-    return {**_assignment_row(assignment), "days": svc.rider_progress(assignment)["days"]}
+    accepting = _accepting(db, assignment.campaign)
+    return {**_assignment_row(assignment, accepting), "days": svc.rider_progress(assignment, accepting=accepting)["days"]}
 
 
 @router.post("/{campaign_id}/riders/{assignment_id}/remove")
@@ -423,12 +752,53 @@ def list_photos(
     db: Session = Depends(get_db),
     admin: User = Depends(get_current_admin),
 ):
+    """Every proof photo (3 per completed rider-day). Legacy single-photo days are listed as one row each."""
     _get_campaign(db, campaign_id)
-    query = db.query(CampaignDailyActivity).filter(CampaignDailyActivity.campaign_id == campaign_id)
+    query = db.query(CampaignActivityPhoto).filter(CampaignActivityPhoto.campaign_id == campaign_id)
     if status and status != "ALL":
-        query = query.filter(CampaignDailyActivity.photo_status == status)
-    activities = query.order_by(CampaignDailyActivity.activity_date.desc(), CampaignDailyActivity.id.desc()).all()
-    return [_activity_dict(a) for a in activities]
+        query = query.filter(CampaignActivityPhoto.status == status)
+    rows = [_photo_dict(p) for p in query.all()]
+
+    legacy = db.query(CampaignDailyActivity).filter(
+        CampaignDailyActivity.campaign_id == campaign_id,
+        CampaignDailyActivity.photo_url.isnot(None),
+        ~CampaignDailyActivity.photos.any(),
+    )
+    if status and status != "ALL":
+        legacy = legacy.filter(CampaignDailyActivity.photo_status == status)
+    for a in legacy.all():
+        rows.append({**_activity_dict(a), "id": None, "activity_id": a.id, "legacy": True, "day_status": a.status})
+    rows.sort(key=lambda r: (r["date"], r["activity_id"], r["id"] or 0), reverse=True)
+    return rows
+
+
+def _get_photo(db: Session, campaign_id: int, photo_id: int) -> CampaignActivityPhoto:
+    photo = (
+        db.query(CampaignActivityPhoto)
+        .filter(CampaignActivityPhoto.id == photo_id, CampaignActivityPhoto.campaign_id == campaign_id)
+        .first()
+    )
+    if not photo:
+        raise HTTPException(status_code=404, detail="Photo not found")
+    return photo
+
+
+@router.post("/{campaign_id}/photos/{photo_id}/approve")
+def approve_photo(campaign_id: int, photo_id: int, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
+    photo = _get_photo(db, campaign_id, photo_id)
+    return _photo_dict(_run(lambda: svc.review_photo(db, photo, admin, approve=True)))
+
+
+@router.post("/{campaign_id}/photos/{photo_id}/reject")
+def reject_photo(
+    campaign_id: int,
+    photo_id: int,
+    payload: ReasonRequest,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
+    photo = _get_photo(db, campaign_id, photo_id)
+    return _photo_dict(_run(lambda: svc.review_photo(db, photo, admin, approve=False, reason=payload.reason)))
 
 
 def _get_activity(db: Session, campaign_id: int, activity_id: int) -> CampaignDailyActivity:
@@ -496,17 +866,25 @@ def export_campaign_report(campaign_id: int, db: Session = Depends(get_db), admi
     writer.writerow(["Dates", f"{campaign.start_date} to {campaign.end_date}"])
     writer.writerow(["Status", campaign.status])
     writer.writerow(["Daily Rate (INR)", campaign.daily_rate])
+    f = fs.campaign_fulfillment(db, campaign)
+    writer.writerow(["Contracted Rider-Days", f["contracted_rider_days"]])
+    writer.writerow(["Delivered Rider-Days", f["delivered_rider_days"]])
+    writer.writerow(["Remaining Rider-Days", f["remaining_rider_days"]])
+    writer.writerow(["Surplus Rider-Days", f["surplus_rider_days"]])
+    writer.writerow(["Fulfilment %", f["fulfillment_pct"]])
+    writer.writerow(["Delivery Status", f["delivery_status"]])
     writer.writerow([])
     writer.writerow([
-        "Rider ID", "Rider Name", "Phone", "Status", "Joined", "Days Completed", "Missed Days",
-        "Current Streak", "Longest Streak", "Photos Submitted", "Photos Approved",
+        "Rider ID", "Rider Name", "Phone", "Status", "Performance", "Joined", "Target Days", "Completed Photo-Days", "Remaining Target Days",
+        "Completion %", "Missed Days", "Excused Days", "Current Streak", "Longest Streak", "Photos Submitted", "Valid Photos",
         "Daily Rate (INR)", "Earned (INR)", "Paid (INR)", "Pending (INR)", "Payout Status",
     ])
     for assignment in db.query(CampaignAssignment).filter(CampaignAssignment.campaign_id == campaign.id).all():
         row = _assignment_row(assignment)
         writer.writerow([
-            row["rider"]["rider_id"], row["rider"]["full_name"], row["rider"]["mobile_number"], row["status"],
-            assignment.assigned_at.strftime("%Y-%m-%d"), row["completed_days"], row["missed_days"],
+            row["rider"]["rider_id"], row["rider"]["full_name"], row["rider"]["mobile_number"], row["status"], row["rider_status"],
+            assignment.assigned_at.strftime("%Y-%m-%d"), row["target_days"], row["completed_days"], row["remaining_target_days"],
+            row["completion_pct"], row["missed_days"], row["excused_days"],
             row["current_streak"], row["longest_streak"], row["photos_submitted"], row["photos_approved"],
             row["daily_rate"], row["earned"], row["paid"], row["pending"], row["payout_status"],
         ])
@@ -547,10 +925,14 @@ def _rider_campaign_card(db: Session, campaign: Campaign, rider: Rider) -> dict:
     data.update(
         {
             "filled_slots": used,
-            "remaining_slots": max(campaign.total_slots - used, 0),
+            "slot_capacity": svc.slot_capacity(campaign),
+            "remaining_slots": max(svc.slot_capacity(campaign) - used, 0),
+            "target_reached": svc.target_reached(db, campaign),
             "my_status": _participation_status(db, campaign, rider),
             "can_join": can_join,
             "join_blocked_reason": reason,
+            # Riders only see (and can choose) active pickup locations.
+            "brand_kit": _kit_dict(db, campaign, active_only=True),
         }
     )
     return data
@@ -559,23 +941,34 @@ def _rider_campaign_card(db: Session, campaign: Campaign, rider: Rider) -> dict:
 @rider_router.get("")
 def rider_campaigns(rider: Rider = Depends(get_current_rider), db: Session = Depends(get_db)):
     today = svc.today_ist()
-    public = (
+    # Every non-closed campaign is checked with the same rule the admin page uses (svc.rider_visibility),
+    # so the logged reasons match exactly why a campaign is hidden.
+    candidates = (
         db.query(Campaign)
-        .filter(
-            Campaign.visibility == CampaignVisibility.PUBLIC,
-            Campaign.status.in_(CampaignStatus.PUBLISHED + (CampaignStatus.PAUSED,)),
-            Campaign.end_date >= today,
-        )
-        .order_by(Campaign.start_date)
+        .filter(~Campaign.status.in_((CampaignStatus.COMPLETED, CampaignStatus.CANCELLED)))
+        .order_by(Campaign.start_date, Campaign.id)
         .all()
     )
-    public = [svc.sync_campaign_status(db, c, today) for c in public]
+    public, hidden = [], {}
+    for c in candidates:
+        svc.sync_campaign_status(db, c, today)
+        reason = svc.rider_visibility(c, today)
+        if reason:
+            hidden[c.id] = reason
+        else:
+            public.append(c)
+    if settings.CAMPAIGN_VISIBILITY_LOG:
+        visibility_log.info(
+            "rider campaigns: rider=%s (%s, status=%s) today=%s returned=%s hidden=%s",
+            rider.rider_id, rider.id, rider.status, today,
+            [(c.id, c.status) for c in public], hidden,
+        )
 
     active = svc.current_assignment(db, rider.id)
     active_data = None
     if active:
         svc.sync_campaign_status(db, active.campaign, today)
-        progress = svc.rider_progress(active, today)
+        progress = svc.rider_progress(active, today, accepting=_accepting(db, active.campaign))
         active_data = {**_rider_campaign_card(db, active.campaign, rider), "progress": {k: v for k, v in progress.items() if k != "days"}}
 
     pending = svc.pending_application(db, rider.id)
@@ -608,7 +1001,7 @@ def rider_campaigns(rider: Rider = Depends(get_current_rider), db: Session = Dep
     return {
         "available": [_rider_campaign_card(db, c, rider) for c in public if not active or c.id != active.campaign_id],
         "active": active_data,
-        "pending_request": _rider_campaign_card(db, pending.campaign, rider) if pending else None,
+        "pending_request": {**_rider_campaign_card(db, pending.campaign, rider), "my_request": _rider_request_dict(pending)} if pending else None,
         "history": history,
     }
 
@@ -635,14 +1028,34 @@ def rider_campaign_detail(campaign_id: int, rider: Rider = Depends(get_current_r
         .order_by(CampaignAssignment.id.desc())
         .first()
     )
-    data["progress"] = svc.rider_progress(assignment) if assignment else None
+    data["progress"] = svc.rider_progress(assignment, accepting=_accepting(db, campaign)) if assignment else None
+    kit = db.query(RiderBrandKit).filter(RiderBrandKit.assignment_id == assignment.id).first() if assignment else None
+    data["my_kit"] = _rider_kit_dict(kit)
+    # The rider's latest request for this campaign, so the app can show its status and pickup details.
+    request = (
+        db.query(CampaignApplication)
+        .filter(CampaignApplication.campaign_id == campaign.id, CampaignApplication.rider_id == rider.id)
+        .order_by(CampaignApplication.id.desc())
+        .first()
+    )
+    data["my_request"] = _rider_request_dict(request)
+    if assignment and not kit:
+        # Joined a campaign that needs no T-shirt (or the rider's kit record isn't created yet).
+        data["my_kit"] = {"status": KitStatus.NOT_REQUIRED, "status_label": KitStatus.LABELS[KitStatus.NOT_REQUIRED]} if not ks.kit_required(campaign) else None
     return data
 
 
 @rider_router.post("/{campaign_id}/join")
-def join_campaign(campaign_id: int, rider: Rider = Depends(get_current_rider), db: Session = Depends(get_db)):
+def join_campaign(
+    campaign_id: int,
+    payload: Optional[JoinCampaignRequest] = None,
+    rider: Rider = Depends(get_current_rider),
+    db: Session = Depends(get_db),
+):
     campaign = _rider_visible_campaign(db, campaign_id, rider)
-    _run(lambda: svc.request_to_join(db, campaign, rider))
+    size = payload.tshirt_size if payload else None
+    location_id = payload.pickup_location_id if payload else None
+    _run(lambda: svc.request_to_join(db, campaign, rider, size, location_id))
     return _rider_campaign_card(db, campaign, rider)
 
 
@@ -667,6 +1080,309 @@ async def submit_daily_proof(
     _run(lambda: svc.sync_campaign_status(db, assignment.campaign))
     if assignment.status != AssignmentStatus.ACTIVE or not svc.is_running(assignment.campaign):
         raise HTTPException(status_code=400, detail="This campaign is not accepting proof today.")
-    photo_url = await _save_image(photo, "campaign-proofs")
-    activity = _run(lambda: svc.submit_activity(db, assignment, photo_url))
-    return {"id": activity.id, "date": activity.activity_date.isoformat(), "photo_url": activity.photo_url, "photo_status": activity.photo_status}
+    if svc.target_reached(db, assignment.campaign):
+        raise HTTPException(status_code=400, detail="Campaign target reached. No more proof is needed for this campaign.")
+    content, extension = await _read_image(photo)
+    content_hash = hashlib.sha256(content).hexdigest()
+    _run(lambda: svc.check_photo_upload(db, assignment, content_hash))  # Before storing the file
+    photo_url = _store_image(content, extension, "campaign-proofs")
+    activity = _run(lambda: svc.submit_activity(db, assignment, photo_url, content_hash))
+    counts = svc.photo_counts(activity)
+    return {
+        "id": activity.id,
+        "date": activity.activity_date.isoformat(),
+        "photo_url": photo_url,
+        "photo_status": activity.photo_status,
+        "status": activity.status,
+        "photos_required": counts["required"],
+        "photos_valid": counts["valid"],
+        "photos_pending": counts["pending"],
+        "photos_uploaded": counts["uploaded"],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Admin: fulfilment, recovery, extensions, brand money, brand kit, corrections
+# ---------------------------------------------------------------------------
+
+@router.get("/{campaign_id}/fulfillment")
+def campaign_fulfillment(
+    campaign_id: int,
+    riders_available: Optional[int] = Query(None, ge=0),
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
+    campaign = _get_campaign(db, campaign_id)
+    result = fs.campaign_fulfillment(db, campaign, riders_available=riders_available)
+    result.pop("rider_performance", None)
+    result.pop("contract_activity_ids", None)
+    return result
+
+
+@router.post("/{campaign_id}/replacement-slots")
+def set_replacement_slots(
+    campaign_id: int,
+    payload: ReplacementSlotsRequest,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
+    campaign = _get_campaign(db, campaign_id)
+    if campaign.status in CampaignStatus.CLOSED:
+        raise HTTPException(status_code=400, detail="This campaign is closed.")
+    if campaign.total_slots + payload.extra_replacement_slots < svc.slots_used(db, campaign.id):
+        raise HTTPException(status_code=400, detail="Slots cannot be lower than the number of riders already assigned.")
+    campaign.extra_replacement_slots = payload.extra_replacement_slots
+    db.commit()
+    svc.sync_campaign_status(db, campaign)
+    log_admin_action(db=db, admin_user=admin, action="CAMPAIGN_REPLACEMENT_SLOTS", target_type="CAMPAIGN", target_id=str(campaign.id),
+                     details=f"Replacement slots set to {payload.extra_replacement_slots} (contracted rider-days unchanged)")
+    return _campaign_dict(db, campaign)
+
+
+@router.post("/{campaign_id}/extensions")
+def approve_extension(
+    campaign_id: int,
+    payload: ExtensionCreate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
+    """Adds dates to recover a shortfall. Never changes contracted rider-days."""
+    campaign = _get_campaign(db, campaign_id)
+    if campaign.status in CampaignStatus.CLOSED or campaign.status == CampaignStatus.DRAFT:
+        raise HTTPException(status_code=400, detail="Extensions can only be added to a published, open campaign.")
+    current_end = fs.effective_end_date(campaign)
+    if payload.start_date != current_end + timedelta(days=1):
+        raise HTTPException(status_code=400, detail=f"The extension must start on {(current_end + timedelta(days=1)):%d %b %Y}, the day after the current end date.")
+    remaining = fs.campaign_fulfillment(db, campaign)["remaining_rider_days"]
+    extension = CampaignExtension(
+        campaign_id=campaign.id,
+        start_date=payload.start_date,
+        end_date=payload.end_date,
+        reason=payload.reason.strip(),
+        rider_day_target=remaining,
+        approved_by_id=admin.id,
+    )
+    db.add(extension)
+    db.commit()
+    db.refresh(campaign)
+    svc.sync_campaign_status(db, campaign)
+    log_admin_action(db=db, admin_user=admin, action="CAMPAIGN_EXTENDED", target_type="CAMPAIGN", target_id=str(campaign.id),
+                     details=f"Extended {payload.start_date:%d %b} to {payload.end_date:%d %b} to recover {remaining} rider-days: {extension.reason}")
+    for a in campaign.assignments:
+        if a.status in AssignmentStatus.CURRENT and a.rider.user_id:
+            svc.send_notification(db=db, user_id=a.rider.user_id, title="Campaign extended",
+                                  message=f"{campaign.name} now runs until {payload.end_date:%d %b %Y}.",
+                                  category="CAMPAIGN", reference_id=str(campaign.id))
+    return _campaign_dict(db, campaign)
+
+
+@router.get("/{campaign_id}/brand-payments")
+def list_brand_payments(campaign_id: int, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
+    campaign = _get_campaign(db, campaign_id)
+    records = db.query(BrandPaymentRecord).filter(BrandPaymentRecord.campaign_id == campaign.id).order_by(BrandPaymentRecord.record_date.desc(), BrandPaymentRecord.id.desc()).all()
+    return {
+        "summary": fs.brand_financials(db, campaign),
+        "records": [
+            {"id": r.id, "kind": r.kind, "amount": r.amount, "record_date": r.record_date.isoformat(), "reference": r.reference,
+             "note": r.note, "created_by": r.created_by.email if r.created_by else None, "created_at": r.created_at}
+            for r in records
+        ],
+    }
+
+
+@router.post("/{campaign_id}/brand-payments")
+def add_brand_payment(
+    campaign_id: int,
+    payload: BrandPaymentCreate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
+    """Explicit admin entry. Delivery shortfalls never create these automatically."""
+    campaign = _get_campaign(db, campaign_id)
+    summary = fs.brand_financials(db, campaign)
+    if payload.kind == BrandPaymentKind.REFUND and payload.amount > summary["net_received"]:
+        raise HTTPException(status_code=400, detail="A refund cannot be more than the amount received.")
+    db.add(BrandPaymentRecord(campaign_id=campaign.id, created_by_id=admin.id, **payload.model_dump()))
+    db.commit()
+    log_admin_action(db=db, admin_user=admin, action=f"BRAND_PAYMENT_{payload.kind}", target_type="CAMPAIGN", target_id=str(campaign.id),
+                     details=f"{payload.kind.title()} ₹{payload.amount:,.2f} for {campaign.name}" + (f" (ref {payload.reference})" if payload.reference else ""))
+    return list_brand_payments(campaign_id, db, admin)
+
+
+@router.get("/{campaign_id}/adjustments")
+def list_adjustments(campaign_id: int, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
+    _get_campaign(db, campaign_id)
+    items = db.query(FinancialAdjustment).filter(FinancialAdjustment.campaign_id == campaign_id).order_by(FinancialAdjustment.created_at.desc()).all()
+    return [
+        {"id": a.id, "rider": _rider_brief(a.rider), "kind": a.kind, "amount": a.amount, "status": a.status, "note": a.note,
+         "created_at": a.created_at, "resolved_at": a.resolved_at}
+        for a in items
+    ]
+
+
+@router.post("/{campaign_id}/adjustments/{adjustment_id}/resolve")
+def resolve_adjustment(
+    campaign_id: int,
+    adjustment_id: int,
+    payload: AdjustmentResolve,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
+    adjustment = db.query(FinancialAdjustment).filter(FinancialAdjustment.id == adjustment_id, FinancialAdjustment.campaign_id == campaign_id).first()
+    if not adjustment:
+        raise HTTPException(status_code=404, detail="Adjustment not found")
+    if adjustment.status != AdjustmentStatus.OPEN:
+        raise HTTPException(status_code=400, detail="This adjustment is already resolved.")
+    adjustment.status = payload.status
+    adjustment.resolved_at = datetime.utcnow()
+    adjustment.resolved_by_id = admin.id
+    if payload.note:
+        adjustment.note = f"{adjustment.note or ''} Resolution: {payload.note}".strip()
+    db.commit()
+    log_admin_action(db=db, admin_user=admin, action=f"ADJUSTMENT_{payload.status}", target_type="CAMPAIGN", target_id=str(campaign_id),
+                     details=f"Overpayment of ₹{adjustment.amount:,.2f} for {adjustment.rider.rider_id} marked {payload.status.lower()}")
+    return list_adjustments(campaign_id, db, admin)
+
+
+def _kit_run(action):
+    try:
+        return action()
+    except ks.KitError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/{campaign_id}/brand-kit")
+def get_brand_kit(campaign_id: int, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
+    campaign = _get_campaign(db, campaign_id)
+    kits = db.query(RiderBrandKit).filter(RiderBrandKit.campaign_id == campaign.id).order_by(RiderBrandKit.id).all()
+    return {
+        "kit": _kit_dict(db, campaign),
+        "summary": ks.summary(db, campaign),
+        "riders": [_rider_kit_dict(k) for k in kits],
+        "statuses": [{"value": s, "label": KitStatus.LABELS[s]} for s in KitStatus.ALL],
+    }
+
+
+@router.put("/{campaign_id}/brand-kit")
+def update_brand_kit(
+    campaign_id: int,
+    payload: BrandKitUpdate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
+    campaign = _get_campaign(db, campaign_id)
+    kit = _kit_run(lambda: ks.update_kit(db, campaign, payload.tshirt_required, payload.size_options, payload.instructions))
+    log_admin_action(db=db, admin_user=admin, action="CAMPAIGN_BRAND_KIT_UPDATED", target_type="CAMPAIGN", target_id=str(campaign.id),
+                     details=f"Brand kit updated (T-shirt {'required' if kit.tshirt_required else 'not required'}; sizes {kit.size_options})")
+    return get_brand_kit(campaign_id, db, admin)
+
+
+def _get_location(db: Session, campaign_id: int, location_id: int) -> CampaignPickupLocation:
+    location = (
+        db.query(CampaignPickupLocation)
+        .filter(CampaignPickupLocation.id == location_id, CampaignPickupLocation.campaign_id == campaign_id)
+        .first()
+    )
+    if not location:
+        raise HTTPException(status_code=404, detail="Pickup location not found")
+    return location
+
+
+@router.post("/{campaign_id}/pickup-locations")
+def add_pickup_location(
+    campaign_id: int, payload: PickupLocationCreate, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)
+):
+    campaign = _get_campaign(db, campaign_id)
+    location = _kit_run(lambda: ks.create_location(db, campaign, payload.model_dump()))
+    log_admin_action(db=db, admin_user=admin, action="CAMPAIGN_PICKUP_LOCATION_ADDED", target_type="CAMPAIGN", target_id=str(campaign.id), details=f"Pickup location added: {location.name}")
+    return _location_dict(location)
+
+
+@router.put("/{campaign_id}/pickup-locations/{location_id}")
+def update_pickup_location(
+    campaign_id: int, location_id: int, payload: PickupLocationUpdate, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)
+):
+    location = _get_location(db, campaign_id, location_id)
+    location = _kit_run(lambda: ks.update_location(db, location, payload.model_dump(exclude_unset=True)))
+    log_admin_action(db=db, admin_user=admin, action="CAMPAIGN_PICKUP_LOCATION_UPDATED", target_type="CAMPAIGN", target_id=str(campaign_id),
+                     details=f"Pickup location updated: {location.name}{'' if location.is_active else ' (inactive)'}")
+    return _location_dict(location)
+
+
+@router.delete("/{campaign_id}/pickup-locations/{location_id}")
+def delete_pickup_location(campaign_id: int, location_id: int, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
+    location = _get_location(db, campaign_id, location_id)
+    name = location.name
+    try:
+        ks.delete_location(db, location)
+    except ks.KitError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    log_admin_action(db=db, admin_user=admin, action="CAMPAIGN_PICKUP_LOCATION_DELETED", target_type="CAMPAIGN", target_id=str(campaign_id), details=f"Pickup location deleted: {name}")
+    return {"success": True}
+
+
+@router.patch("/{campaign_id}/brand-kit/riders/{kit_id}")
+def update_rider_kit(
+    campaign_id: int,
+    kit_id: int,
+    payload: RiderKitUpdate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
+    kit = db.query(RiderBrandKit).filter(RiderBrandKit.id == kit_id, RiderBrandKit.campaign_id == campaign_id).first()
+    if not kit:
+        raise HTTPException(status_code=404, detail="Rider kit not found")
+    before = (kit.status, kit.pickup_location_id)
+    kit = _kit_run(
+        lambda: ks.update_rider_kit(
+            db, kit, admin.id, payload.status, payload.tshirt_size, payload.pickup_date, payload.pickup_location_id, payload.clear_pickup_date
+        )
+    )
+    rider = kit.rider
+    log_admin_action(db=db, admin_user=admin, action="CAMPAIGN_RIDER_KIT_UPDATED", target_type="CAMPAIGN", target_id=str(campaign_id),
+                     details=f"{rider.full_name} kit: {KitStatus.LABELS.get(kit.status, kit.status)}, size {kit.tshirt_size or '-'}")
+    if rider.user_id and (kit.status, kit.pickup_location_id) != before:
+        where = f" at {kit.pickup_location.name}" if kit.pickup_location else ""
+        messages = {
+            KitStatus.READY_FOR_PICKUP: f"Your campaign T-shirt is ready for pickup{where}.",
+            KitStatus.COLLECTED: "Your campaign T-shirt has been marked as collected.",
+        }
+        message = messages.get(kit.status) if kit.status != before[0] else f"Your T-shirt pickup location changed to {kit.pickup_location.name}."
+        if message:
+            svc.send_notification(db=db, user_id=rider.user_id, title="Brand kit update", message=message, category="CAMPAIGN", reference_id=str(campaign_id))
+    return _rider_kit_dict(kit)
+
+
+@router.post("/{campaign_id}/riders/{assignment_id}/excuse")
+def excuse_rider_day(
+    campaign_id: int,
+    assignment_id: int,
+    payload: ExcuseRequest,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
+    assignment = _get_assignment(db, campaign_id, assignment_id)
+    _run(lambda: svc.excuse_day(db, assignment, payload.day, payload.reason, admin))
+    return rider_activity(campaign_id, assignment_id, db, admin)
+
+
+@router.get("/{campaign_id}/activity-log")
+def activity_log(campaign_id: int, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
+    campaign = _get_campaign(db, campaign_id)
+    closed_at = campaign.completed_at or campaign.cancelled_at
+    logs = db.query(ActivityChangeLog).filter(ActivityChangeLog.campaign_id == campaign.id).order_by(ActivityChangeLog.changed_at.desc()).limit(300).all()
+    return [
+        {"id": l.id, "rider": _rider_brief(l.rider), "date": l.activity_date.isoformat(), "old_status": l.old_status,
+         "new_status": l.new_status, "old_earned": l.old_earned, "new_earned": l.new_earned, "reason": l.reason,
+         "changed_by": l.changed_by.email if l.changed_by else "System", "changed_at": l.changed_at,
+         "after_closure": bool(closed_at and l.changed_at > closed_at)}
+        for l in logs
+    ]
+
+
+@router.get("/{campaign_id}/snapshot")
+def fulfillment_snapshot(campaign_id: int, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
+    snapshot = db.query(CampaignFulfillmentSnapshot).filter(CampaignFulfillmentSnapshot.campaign_id == campaign_id).first()
+    if not snapshot:
+        raise HTTPException(status_code=404, detail="No closing summary yet. It is created when the campaign is completed or cancelled.")
+    return {"created_at": snapshot.created_at, **json.loads(snapshot.data)}

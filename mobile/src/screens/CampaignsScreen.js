@@ -5,6 +5,7 @@ import { mobileApi } from '../services/api';
 import { useStyles, useTheme } from '../theme';
 import { Card, EmptyState, FilterPills, OutlineButton, PrimaryButton, ProgressBar, ScreenHeader, SectionHeader, StatusBadge } from '../components/ui';
 import { formatDateRange, formatINR } from '../utils';
+import { useJoinCampaign } from '../components/KitPickup';
 
 const SECTIONS = ['Available', 'My Campaign', 'History'];
 
@@ -12,21 +13,9 @@ const SECTIONS = ['Available', 'My Campaign', 'History'];
 export function AvailableCampaignCard({ campaign, onOpen, onChanged }) {
   const styles = useStyles(makeStyles);
   const { colors } = useTheme();
-  const [joining, setJoining] = useState(false);
   const full = campaign.remaining_slots === 0;
 
-  const join = async () => {
-    setJoining(true);
-    try {
-      await mobileApi.joinCampaign(campaign.id);
-      Alert.alert('Request sent', `Your request to join ${campaign.name} has been sent. You'll be notified once an admin reviews it.`);
-      await onChanged();
-    } catch (err) {
-      Alert.alert('Could not join', err.message);
-    } finally {
-      setJoining(false);
-    }
-  };
+  const { start: join, joining, sheet } = useJoinCampaign(campaign, onChanged);
 
   return (
     <Card style={styles.campaignCard}>
@@ -52,13 +41,13 @@ export function AvailableCampaignCard({ campaign, onOpen, onChanged }) {
       <View style={{ gap: 6, marginTop: 12 }}>
         <View style={styles.slotRow}>
           <Text style={styles.slotText}>
-            {campaign.filled_slots} / {campaign.total_slots} riders assigned
+            {campaign.filled_slots} / {campaign.slot_capacity || campaign.total_slots} riders assigned
           </Text>
           <Text style={[styles.slotText, { color: full ? colors.warning : colors.primary, fontWeight: '700' }]}>
             {full ? 'Full' : `${campaign.remaining_slots} slots left`}
           </Text>
         </View>
-        <ProgressBar value={campaign.filled_slots} max={campaign.total_slots} color={full ? colors.warning : colors.primary} />
+        <ProgressBar value={campaign.filled_slots} max={campaign.slot_capacity || campaign.total_slots} color={full ? colors.warning : colors.primary} />
       </View>
 
       {campaign.rules.length ? (
@@ -86,6 +75,7 @@ export function AvailableCampaignCard({ campaign, onOpen, onChanged }) {
           <PrimaryButton label="Join Campaign" onPress={join} loading={joining} style={{ flex: 1, paddingVertical: 12 }} />
         ) : null}
       </View>
+      {sheet}
     </Card>
   );
 }
@@ -112,10 +102,10 @@ export function ActiveCampaignCard({ campaign, onOpen }) {
         </View>
         <View style={styles.statsRow}>
           {[
-            ['Days done', p.completed_days],
+            ['Today', p.today_photos && p.today_photos.in_window ? `${Math.min(p.today_photos.valid, p.photos_required)}/${p.photos_required}` : '—'],
             ['Streak', `${p.current_streak}d`],
+            ['Photo-days', `${p.completed_days}/${p.target_days}`],
             ['Earned', formatINR(p.earned)],
-            ['Days left', p.remaining_days],
           ].map(([label, value]) => (
             <View key={label} style={styles.stat}>
               <Text style={styles.statValue}>{value}</Text>
@@ -126,7 +116,9 @@ export function ActiveCampaignCard({ campaign, onOpen }) {
         {p.can_submit_today ? (
           <View style={styles.dueRow}>
             <Ionicons name="camera-outline" size={16} color={colors.primary} />
-            <Text style={styles.dueText}>Upload today's proof to earn {formatINR(campaign.daily_rate)}</Text>
+            <Text style={styles.dueText}>
+              Upload today's {p.photos_required} photos to earn {formatINR(campaign.daily_rate)}
+            </Text>
             <Ionicons name="chevron-forward" size={16} color={colors.primary} />
           </View>
         ) : null}
@@ -138,7 +130,8 @@ export function ActiveCampaignCard({ campaign, onOpen }) {
 export default function CampaignsScreen({ data, onOpen, onChanged }) {
   const styles = useStyles(makeStyles);
   const [section, setSection] = useState(data && data.active ? 'My Campaign' : 'Available');
-  const available = data ? data.available : [];
+  // The campaign the rider already asked to join is shown under "Awaiting Approval" instead.
+  const available = data ? data.available.filter((c) => !data.pending_request || c.id !== data.pending_request.id) : [];
   const history = data ? data.history : [];
 
   return (
@@ -170,11 +163,9 @@ export default function CampaignsScreen({ data, onOpen, onChanged }) {
             <EmptyState icon="megaphone-outline" title="No campaigns right now" message="New campaigns will appear here as soon as they're published." />
           ) : (
             <View style={{ gap: 14 }}>
-              {available
-                .filter((c) => !data.pending_request || c.id !== data.pending_request.id)
-                .map((c) => (
-                  <AvailableCampaignCard key={c.id} campaign={c} onOpen={onOpen} onChanged={onChanged} />
-                ))}
+              {available.map((c) => (
+                <AvailableCampaignCard key={c.id} campaign={c} onOpen={onOpen} onChanged={onChanged} />
+              ))}
             </View>
           )}
         </>
@@ -255,9 +246,17 @@ function PendingRequestCard({ campaign, onOpen, onChanged }) {
         </View>
         <StatusBadge status="REQUESTED" />
       </View>
-      <View style={[styles.blocked, { marginTop: 12 }]}>
-        <Ionicons name="time-outline" size={16} color={colors.textMuted} />
-        <Text style={styles.blockedText}>Your request is awaiting admin approval.</Text>
+      <View style={[styles.blocked, { marginTop: 12, flexDirection: 'column', alignItems: 'flex-start', gap: 6 }]}>
+        <Text style={[styles.blockedText, { fontWeight: '700', color: colors.text }]}>Application Submitted</Text>
+        {campaign.my_request && campaign.my_request.kit_status !== 'NOT_REQUIRED' ? (
+          <Text style={styles.blockedText}>
+            T-shirt{campaign.my_request.tshirt_size ? ` (${campaign.my_request.tshirt_size})` : ''}: {campaign.my_request.kit_status_label}
+          </Text>
+        ) : null}
+        <Text style={styles.blockedText}>Campaign: Waiting for Admin Approval</Text>
+        {campaign.my_request && campaign.my_request.kit_status === 'PENDING' ? (
+          <Text style={styles.blockedText}>Open the campaign to see where to collect your T-shirt.</Text>
+        ) : null}
       </View>
       <View style={styles.actions}>
         <OutlineButton label="View Campaign" onPress={() => onOpen(campaign.id)} style={{ flex: 1, paddingVertical: 12 }} />

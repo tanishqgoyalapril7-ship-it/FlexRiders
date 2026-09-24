@@ -3,11 +3,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from app.core.config import settings
-from app.core.database import Base, engine, lock_down_public_api
+from app.core.database import Base, engine, lock_down_public_api, add_missing_columns
 from app.api.v1.api import api_router
 
 # Initialize database tables
 Base.metadata.create_all(bind=engine)
+add_missing_columns()
 lock_down_public_api()
 
 app = FastAPI(

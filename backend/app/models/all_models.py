@@ -78,6 +78,7 @@ class Rider(Base):
     experience_years = Column(Integer, default=0)
     experience_months = Column(Integer, default=0)
     vehicle_type = Column(String(50), default="Bike")  # Bike, Scooter, Electric Bike, Other
+    vehicle_number = Column(String(20), nullable=True, index=True)  # Normalised, e.g. HR26DK8337
 
     # Working Location
     primary_city = Column(String(80), nullable=False, default="Gurugram")
@@ -95,6 +96,9 @@ class Rider(Base):
     status = Column(String(30), default="PENDING", index=True)  # PENDING, UNDER_REVIEW, APPROVED, ACTIVE, etc.
     rejection_reason = Column(Text, nullable=True)
     suspension_reason = Column(Text, nullable=True)
+    # Archived (soft-deleted) riders keep all history but are hidden and can't log in.
+    archived_at = Column(DateTime, nullable=True, index=True)
+    archive_reason = Column(String(255), nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
@@ -164,9 +168,10 @@ class Payment(Base):
     id = Column(Integer, primary_key=True, index=True)
     rider_id = Column(Integer, ForeignKey("riders.id"), nullable=False)
     brand_id = Column(Integer, ForeignKey("brands.id"), nullable=True)
+    campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=True, index=True)  # Set for campaign payouts
     amount = Column(Float, nullable=False)
     payment_date = Column(DateTime, default=datetime.utcnow)
-    payment_period = Column(String(50), default="September 2026")
+    payment_period = Column(String(50), default=lambda: datetime.utcnow().strftime("%B %Y"))
     payment_type = Column(String(40), default="UPI")  # UPI, Bank Transfer, IMPS
     upi_id = Column(String(100), nullable=True)
     payment_reference = Column(String(100), nullable=True)

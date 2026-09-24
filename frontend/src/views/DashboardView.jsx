@@ -194,7 +194,7 @@ export function DashboardView({
 
           <div className="charts-row-split">
             <PaymentsOverviewChart data={dashboardData?.payments_chart} />
-            <BrandDonutChart data={dashboardData?.brand_distribution} />
+            <BrandDonutChart data={dashboardData?.brand_distribution} onCreateBrand={() => onQuickAction('create_brand')} />
           </div>
         </div>
 
@@ -225,7 +225,7 @@ export function DashboardView({
                       <span className="pending-rider-id">{r.rider_id}</span>
                       <span className="pending-rider-name">{r.full_name}</span>
                       <span className="pending-rider-meta">
-                        {r.current_company || 'Independent'} • {r.primary_city}
+                        {[r.current_company, r.primary_city].filter(Boolean).join(' • ')}
                       </span>
                     </div>
                     <div className="pending-rider-actions">
@@ -408,7 +408,7 @@ export function DashboardView({
                         <strong style={{ color: '#2563EB', fontSize: '0.78rem' }}>{r.rider_id}</strong>
                       </td>
                       <td>{r.full_name}</td>
-                      <td>{r.current_company || 'Independent'}</td>
+                      <td>{r.current_company || '—'}</td>
                       <td>{r.primary_city}</td>
                       <td>
                         <span className={`status-pill pill-${r.status?.toLowerCase()}`}>{r.status}</span>

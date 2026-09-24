@@ -22,6 +22,13 @@ from app.models.all_models import (
 
 
 def seed():
+    # Demo data is for local development only: it wipes the database and creates fake
+    # brands, riders and payments. Never run it against the real (Supabase) database.
+    if "--demo" not in sys.argv:
+        sys.exit("Refusing to run: this script wipes the database and loads FAKE demo data.\n"
+                 "Run `python seed_data.py --demo` only against a local SQLite database.")
+    if not str(engine.url).startswith("sqlite"):
+        sys.exit(f"Refusing to load demo data into a non-SQLite database ({engine.url.host}).")
     print("Initializing database tables...")
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)

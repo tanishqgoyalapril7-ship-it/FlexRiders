@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import declarative_base, sessionmaker
 from app.core.config import settings
 
@@ -11,10 +11,19 @@ connect_args = {}
 if database_url.startswith("sqlite"):
     connect_args = {"check_same_thread": False}
 
+pool_args = {}
+if not database_url.startswith("sqlite"):
+    # Supabase's session pooler allows 15 clients per project; stay well under it so the
+    # dev server, tests and scripts can run side by side.
+    # A request waits at most 10s for a free connection, so slow periods fail fast instead of piling up.
+    pool_args = {"pool_size": 5, "max_overflow": 3, "pool_recycle": 300, "pool_timeout": 10}
+    connect_args = {"connect_timeout": 15}
+
 engine = create_engine(
     database_url,
     connect_args=connect_args,
     pool_pre_ping=True,
+    **pool_args,
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -37,5 +46,33 @@ def lock_down_public_api():
     if engine.dialect.name != "postgresql":
         return
     with engine.begin() as conn:
+        # Only tables still missing RLS: ALTER TABLE takes a lock, so running it on every table at
+        # every (re)start is slow and can time out against a busy database.
+        unprotected = {
+            name
+            for (name,) in conn.exec_driver_sql(
+                "select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace "
+                "where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity"
+            )
+        }
         for table in Base.metadata.sorted_tables:
-            conn.exec_driver_sql(f'ALTER TABLE "{table.name}" ENABLE ROW LEVEL SECURITY')
+            if table.name in unprotected:
+                conn.exec_driver_sql(f'ALTER TABLE "{table.name}" ENABLE ROW LEVEL SECURITY')
+
+
+def add_missing_columns():
+    """create_all() creates new tables but never alters existing ones, so add any columns
+    introduced after a table was first created. Only ever adds nullable columns."""
+    inspector = inspect(engine)
+    with engine.begin() as conn:
+        for table in Base.metadata.sorted_tables:
+            if not inspector.has_table(table.name):
+                continue
+            existing = {c["name"] for c in inspector.get_columns(table.name)}
+            for column in table.columns:
+                if column.name in existing:
+                    continue
+                ddl = f'ALTER TABLE "{table.name}" ADD COLUMN "{column.name}" {column.type.compile(dialect=engine.dialect)}'
+                for fk in column.foreign_keys:
+                    ddl += f' REFERENCES "{fk.column.table.name}" ("{fk.column.name}")'
+                conn.exec_driver_sql(ddl)

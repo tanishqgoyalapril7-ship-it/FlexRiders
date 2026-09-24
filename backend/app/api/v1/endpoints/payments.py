@@ -3,9 +3,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from app.core.database import get_db
 from app.models.all_models import Payment, Rider, Brand, User, PaymentStatus
-from app.schemas.all_schemas import PaymentCreate, PaymentUpdate, PaymentResponse
+from app.schemas.all_schemas import PaymentCancel, PaymentCreate, PaymentEdit, PaymentUpdate, PaymentResponse
 from app.api.deps import get_current_admin
 from app.services.payment_service import create_payment, process_payment_transaction
+from app.services.audit_service import log_admin_action
+from datetime import datetime
 from typing import List, Optional
 
 router = APIRouter()
@@ -81,7 +83,7 @@ def create_new_payment(
             amount=p_in.amount,
             admin_user=admin,
             brand_id=p_in.brand_id,
-            payment_period=p_in.payment_period or "September 2026",
+            payment_period=p_in.payment_period or datetime.utcnow().strftime("%B %Y"),
             payment_type=p_in.payment_type or "UPI",
             upi_id=p_in.upi_id,
             notes=p_in.notes,
@@ -126,7 +128,7 @@ def process_payment(
             failure_reason=failure_reason,
         )
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404 if "not found" in str(e) else 400, detail=str(e))
 
     return PaymentResponse(
         id=payment.id,
@@ -145,3 +147,66 @@ def process_payment(
         status=payment.status,
         notes=payment.notes,
     )
+
+
+def _payment_response(p: Payment) -> PaymentResponse:
+    return PaymentResponse(
+        id=p.id,
+        rider_id=p.rider_id,
+        rider_name=p.rider.full_name if p.rider else "Unknown",
+        rider_sr_id=p.rider.rider_id if p.rider else "SR-000000",
+        brand_id=p.brand_id,
+        brand_name=p.brand.name if p.brand else "Super Riders",
+        amount=p.amount,
+        payment_date=p.payment_date,
+        payment_period=p.payment_period,
+        payment_type=p.payment_type,
+        upi_id=p.upi_id,
+        payment_reference=p.payment_reference,
+        transaction_id=p.transaction_id,
+        status=p.status,
+        notes=p.notes,
+    )
+
+
+def _editable_payment(db: Session, id: int) -> Payment:
+    payment = db.query(Payment).filter(Payment.id == id).first()
+    if not payment:
+        raise HTTPException(status_code=404, detail="Payment not found")
+    if payment.campaign_id:
+        raise HTTPException(status_code=400, detail="Campaign payouts are managed from the campaign's Payouts tab.")
+    return payment
+
+
+@router.put("/{id}", response_model=PaymentResponse)
+def edit_payment(id: int, data: PaymentEdit, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
+    """Only pending payments can be edited; processed payments are financial history."""
+    payment = _editable_payment(db, id)
+    if payment.status != PaymentStatus.PENDING:
+        raise HTTPException(status_code=400, detail=f"Only pending payments can be edited. This one is {payment.status.lower()}.")
+    changed = []
+    for field, value in data.model_dump(exclude_unset=True).items():
+        if value is None:
+            continue
+        value = value.strip() or None if isinstance(value, str) else value
+        if getattr(payment, field) != value:
+            setattr(payment, field, value)
+            changed.append(field)
+    db.commit()
+    if changed:
+        log_admin_action(db=db, admin_user=admin, action="PAYMENT_UPDATED", target_type="PAYMENT", target_id=str(payment.id), details=f"Payment {payment.payment_reference} updated: {', '.join(changed)}")
+    return _payment_response(payment)
+
+
+@router.post("/{id}/cancel", response_model=PaymentResponse)
+def cancel_payment(id: int, data: PaymentCancel, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
+    """Soft delete: the record stays (status CANCELLED) so the ledger keeps its history."""
+    payment = _editable_payment(db, id)
+    if payment.status not in (PaymentStatus.PENDING, PaymentStatus.FAILED):
+        raise HTTPException(status_code=400, detail=f"Only pending or failed payments can be cancelled. This one is {payment.status.lower()}.")
+    payment.status = PaymentStatus.CANCELLED
+    payment.failure_reason = data.reason.strip()
+    payment.notes = ((payment.notes or "") + f"\nCancelled: {data.reason.strip()}").strip()
+    db.commit()
+    log_admin_action(db=db, admin_user=admin, action="PAYMENT_CANCELLED", target_type="PAYMENT", target_id=str(payment.id), details=f"Payment {payment.payment_reference} (₹{payment.amount:,.2f}) cancelled: {data.reason.strip()}")
+    return _payment_response(payment)

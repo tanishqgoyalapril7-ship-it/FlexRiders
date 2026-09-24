@@ -1,3 +1,4 @@
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.models.all_models import (
@@ -52,6 +53,9 @@ def register_new_rider(db: Session, reg: RiderRegistrationRequest) -> Rider:
         if existing_rider:
             return existing_rider
 
+    if reg.vehicle_number and db.query(Rider.id).filter(Rider.vehicle_number == reg.vehicle_number).first():
+        raise HTTPException(status_code=400, detail=f"Vehicle {reg.vehicle_number} is already registered to another rider.")
+
     # 2. Generate unique Rider ID
     sr_id = generate_next_rider_id(db)
 
@@ -62,13 +66,14 @@ def register_new_rider(db: Session, reg: RiderRegistrationRequest) -> Rider:
         full_name=reg.full_name,
         mobile_number=reg.mobile_number,
         email=reg.email,
-        profile_photo=reg.profile_photo or f"https://api.dicebear.com/7.x/avataaars/svg?seed={sr_id}",
+        profile_photo=reg.profile_photo,
         dob=reg.dob,
         current_company=reg.current_company or "Independent",
         current_role=reg.current_role or "Rider",
         experience_years=reg.experience_years or 0,
         experience_months=reg.experience_months or 0,
         vehicle_type=reg.vehicle_type or "Bike",
+        vehicle_number=reg.vehicle_number,
         primary_city=reg.primary_city or "Gurugram",
         primary_area=reg.primary_area,
         additional_locations=reg.additional_locations,

@@ -14,10 +14,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { mobileApi } from '../services/api';
 import { useStyles, useTheme } from '../theme';
 import { OutlineButton, PrimaryButton, ScreenHeader } from '../components/ui';
+import { AutocompleteField, DateOfBirthField, PasswordField, ageOn } from '../components/formFields';
+import {
+  CITIES,
+  VEHICLE_MODELS,
+  areaSuggestionsFor,
+  isValidVehicleNumber,
+  normalizeVehicleNumber,
+} from '../data/suggestions';
 
 const STEPS = ['Personal', 'Work', 'Vehicle', 'Payment', 'Review'];
 
-function Field({ label, required, ...inputProps }) {
+function Field({ label, required, hint, hintTone, ...inputProps }) {
   const styles = useStyles(makeStyles);
   const { colors } = useTheme();
   return (
@@ -27,6 +35,11 @@ function Field({ label, required, ...inputProps }) {
         {required ? <Text style={{ color: colors.danger }}> *</Text> : null}
       </Text>
       <TextInput style={styles.input} placeholderTextColor={colors.textSubtle} {...inputProps} />
+      {hint ? (
+        <Text style={[styles.hint, hintTone === 'danger' && { color: colors.danger }, hintTone === 'success' && { color: colors.success }]}>
+          {hint}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -45,6 +58,7 @@ export default function RegisterScreen({ onBack, onRegistered }) {
     current_company: '',
     current_role: 'Rider',
     vehicle_type: '',
+    vehicle_number: '',
     primary_city: '',
     primary_area: '',
     upi_id: '',
@@ -56,8 +70,13 @@ export default function RegisterScreen({ onBack, onRegistered }) {
     if (step === 0) {
       if (!form.full_name.trim() || !form.mobile_number.trim()) return 'Please enter your full name and mobile number.';
       if (form.password.length < 6) return 'Please choose a password of at least 6 characters.';
+      if (form.dob && ageOn(form.dob) < 18) return 'Riders must be at least 18 years old.';
     }
-    if (step === 2 && !form.primary_city.trim()) return 'Please enter your primary working city.';
+    if (step === 2) {
+      if (!form.vehicle_number.trim()) return 'Please enter your vehicle registration number.';
+      if (!isValidVehicleNumber(form.vehicle_number)) return 'Please enter a valid vehicle number, e.g. HR26DK8337.';
+      if (!form.primary_city.trim()) return 'Please enter your primary working city.';
+    }
     return null;
   };
 
@@ -74,6 +93,7 @@ export default function RegisterScreen({ onBack, onRegistered }) {
     setLoading(true);
     try {
       const trimmed = Object.fromEntries(Object.entries(form).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v]));
+      trimmed.vehicle_number = normalizeVehicleNumber(trimmed.vehicle_number);
       const result = await mobileApi.register(trimmed);
       await onRegistered(result);
     } catch (err) {
@@ -88,7 +108,9 @@ export default function RegisterScreen({ onBack, onRegistered }) {
     ['Mobile', form.mobile_number],
     ['Email', form.email],
     ['Company', form.current_company],
+    ['Date of Birth', form.dob],
     ['Vehicle', form.vehicle_type],
+    ['Vehicle Number', normalizeVehicleNumber(form.vehicle_number)],
     ['Location', [form.primary_city, form.primary_area].filter(Boolean).join(', ')],
     ['UPI ID', form.upi_id],
   ];
@@ -121,8 +143,8 @@ export default function RegisterScreen({ onBack, onRegistered }) {
             <Field label="Full Name" required value={form.full_name} onChangeText={set('full_name')} placeholder="Your full name" />
             <Field label="Mobile Number" required keyboardType="phone-pad" value={form.mobile_number} onChangeText={set('mobile_number')} placeholder="10-digit mobile number" />
             <Field label="Email Address" keyboardType="email-address" autoCapitalize="none" value={form.email} onChangeText={set('email')} placeholder="name@example.com" />
-            <Field label="Date of Birth" value={form.dob} onChangeText={set('dob')} placeholder="DD-MM-YYYY" />
-            <Field label="Create Password" required secureTextEntry value={form.password} onChangeText={set('password')} placeholder="At least 6 characters" />
+            <DateOfBirthField label="Date of Birth" value={form.dob} onChange={set('dob')} />
+            <PasswordField label="Create Password" required value={form.password} onChangeText={set('password')} placeholder="At least 6 characters" />
           </>
         )}
 
@@ -137,9 +159,57 @@ export default function RegisterScreen({ onBack, onRegistered }) {
         {step === 2 && (
           <>
             <Text style={styles.stepTitle}>Vehicle & location</Text>
-            <Field label="Vehicle Model" value={form.vehicle_type} onChangeText={set('vehicle_type')} placeholder="e.g. Honda Activa, EV scooter" />
-            <Field label="Primary Working City" required value={form.primary_city} onChangeText={set('primary_city')} placeholder="e.g. Gurugram" />
-            <Field label="Area / Zone" value={form.primary_area} onChangeText={set('primary_area')} placeholder="e.g. Sector 29" />
+            <AutocompleteField
+              label="Vehicle Model"
+              icon="bicycle-outline"
+              value={form.vehicle_type}
+              onChangeText={set('vehicle_type')}
+              options={VEHICLE_MODELS}
+              placeholder="Start typing, e.g. Activa"
+            />
+            <Field
+              label="Vehicle Number"
+              required
+              value={form.vehicle_number}
+              onChangeText={(v) => set('vehicle_number')(v.toUpperCase())}
+              placeholder="e.g. HR 26 DK 8337"
+              autoCapitalize="characters"
+              autoCorrect={false}
+              maxLength={16}
+              hint={
+                !form.vehicle_number
+                  ? 'As printed on your RC. Bharat series (e.g. 22 BH 1234 AA) is also accepted.'
+                  : isValidVehicleNumber(form.vehicle_number)
+                  ? `Valid: ${normalizeVehicleNumber(form.vehicle_number)}`
+                  : normalizeVehicleNumber(form.vehicle_number).length >= 8
+                  ? 'This does not look like a valid vehicle number.'
+                  : 'Keep typing: state, RTO, series and 4 digits.'
+              }
+              hintTone={
+                !form.vehicle_number
+                  ? undefined
+                  : isValidVehicleNumber(form.vehicle_number)
+                  ? 'success'
+                  : normalizeVehicleNumber(form.vehicle_number).length >= 8
+                  ? 'danger'
+                  : undefined
+              }
+            />
+            <AutocompleteField
+              label="Primary Working City"
+              required
+              value={form.primary_city}
+              onChangeText={set('primary_city')}
+              options={CITIES}
+              placeholder="Start typing, e.g. Gur"
+            />
+            <AutocompleteField
+              label="Area / Zone"
+              value={form.primary_area}
+              onChangeText={set('primary_area')}
+              options={areaSuggestionsFor(form.primary_city)}
+              placeholder="Start typing, e.g. Sector"
+            />
           </>
         )}
 
@@ -221,6 +291,7 @@ const makeStyles = (c) =>
       fontSize: 15,
       color: c.text,
     },
+    hint: { fontSize: 12, color: c.textMuted, marginTop: 6 },
     note: { flexDirection: 'row', gap: 10, backgroundColor: c.primarySoft, padding: 14, borderRadius: 12 },
     noteText: { flex: 1, fontSize: 13, color: c.text, lineHeight: 19 },
     reviewCard: { backgroundColor: c.surface, borderRadius: 16, borderWidth: 1, borderColor: c.border, paddingHorizontal: 16 },

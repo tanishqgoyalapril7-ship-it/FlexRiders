@@ -137,7 +137,7 @@ export function PaymentsOverviewChart({ data = [] }) {
   );
 }
 
-export function BrandDonutChart({ data = [] }) {
+export function BrandDonutChart({ data = [], onCreateBrand }) {
   const brands = data;
 
   const totalRiders = brands.reduce((acc, curr) => acc + (curr.rider_count || 0), 0);
@@ -191,7 +191,14 @@ export function BrandDonutChart({ data = [] }) {
         {/* Legend */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {brands.length === 0 && (
-            <span style={{ fontSize: '0.78rem', color: '#64748B' }}>No brands yet</span>
+            <>
+              <span style={{ fontSize: '0.78rem', color: '#64748B' }}>No brands created yet.</span>
+              {onCreateBrand ? (
+                <button className="btn-primary" style={{ padding: '6px 12px', fontSize: '0.78rem' }} onClick={onCreateBrand}>
+                  Create Brand
+                </button>
+              ) : null}
+            </>
           )}
           {brands.map((b, idx) => (
             <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem' }}>

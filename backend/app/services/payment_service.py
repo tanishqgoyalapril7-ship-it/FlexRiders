@@ -21,7 +21,7 @@ def create_payment(
     amount: float,
     admin_user: User,
     brand_id: Optional[int] = None,
-    payment_period: str = "September 2026",
+    payment_period: Optional[str] = None,
     payment_type: str = "UPI",
     upi_id: Optional[str] = None,
     notes: Optional[str] = None,
@@ -41,7 +41,7 @@ def create_payment(
         brand_id=brand_id,
         amount=amount,
         payment_date=datetime.utcnow(),
-        payment_period=payment_period,
+        payment_period=payment_period or datetime.utcnow().strftime("%B %Y"),
         payment_type=payment_type,
         upi_id=upi_id or rider.upi_id,
         payment_reference=f"REF-{rider.rider_id}-{int(datetime.utcnow().timestamp())}",
@@ -87,6 +87,8 @@ def process_payment_transaction(
     payment = db.query(Payment).filter(Payment.id == payment_id).first()
     if not payment:
         raise ValueError("Payment not found")
+    if payment.status in (PaymentStatus.PAID, PaymentStatus.CANCELLED):
+        raise ValueError(f"This payment is already {payment.status.lower()}.")
 
     rider = payment.rider
     if mark_as == "PAID":

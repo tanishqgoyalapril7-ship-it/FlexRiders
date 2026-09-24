@@ -6,13 +6,22 @@ import { assetUrl, mobileApi } from '../services/api';
 import { useStyles, useTheme } from '../theme';
 import { Card, EmptyState, OutlineButton, PrimaryButton, ProgressBar, ScreenHeader, SectionHeader, StatusBadge, toneColors } from '../components/ui';
 import { formatDate, formatDateRange, formatINR, formatShortDate } from '../utils';
+import { PickupCard, RequestStatusCard, useJoinCampaign } from '../components/KitPickup';
 
 const DAY_STYLES = {
   COMPLETED: { icon: 'checkmark-circle', tone: 'success', label: 'Completed' },
   SUBMITTED: { icon: 'time-outline', tone: 'primary', label: 'In review' },
   REJECTED: { icon: 'close-circle', tone: 'danger', label: 'Rejected' },
+  INCOMPLETE: { icon: 'remove-circle-outline', tone: 'danger', label: 'Incomplete' },
   MISSED: { icon: 'close-circle-outline', tone: 'danger', label: 'Missed' },
   DUE: { icon: 'ellipse-outline', tone: 'warning', label: 'Due today' },
+  EXCUSED: { icon: 'medkit-outline', tone: 'neutral', label: 'Excused' },
+};
+
+const PHOTO_STYLES = {
+  APPROVED: { icon: 'checkmark-circle', tone: 'success' },
+  PENDING: { icon: 'time', tone: 'primary' },
+  REJECTED: { icon: 'close-circle', tone: 'danger' },
 };
 
 async function pickPhoto(source) {
@@ -68,18 +77,8 @@ export default function CampaignDetailScreen({ campaignId, onBack, onChanged }) 
     await onChanged();
   };
 
-  const join = async () => {
-    setBusy(true);
-    try {
-      await mobileApi.joinCampaign(campaignId);
-      Alert.alert('Request sent', "You'll be notified once an admin reviews your request.");
-      await refresh();
-    } catch (err) {
-      Alert.alert('Could not join', err.message);
-    } finally {
-      setBusy(false);
-    }
-  };
+  // The hook needs a campaign; before it loads, joining isn't possible anyway.
+  const joinFlow = useJoinCampaign(campaign || { id: campaignId, name: 'this campaign' }, refresh);
 
   const uploadProof = async () => {
     const source = await askPhotoSource();
@@ -88,8 +87,15 @@ export default function CampaignDetailScreen({ campaignId, onBack, onChanged }) 
       const result = await pickPhoto(source);
       if (result.canceled || !result.assets || !result.assets.length) return;
       setBusy(true);
-      await mobileApi.uploadCampaignProof(campaignId, result.assets[0]);
-      Alert.alert('Proof submitted', "Today's photo has been sent for review. The day counts towards your payout once it's approved.");
+      const res = await mobileApi.uploadCampaignProof(campaignId, result.assets[0]);
+      const sent = (res && res.photos_valid + res.photos_pending) || 1;
+      const required = (res && res.photos_required) || 3;
+      Alert.alert(
+        'Photo submitted',
+        sent >= required
+          ? `All ${required} photos for today are in. Your day (and streak) counts once they're approved.`
+          : `Photo ${sent} of ${required} sent for review. Upload ${required - sent} more to complete today.`
+      );
       await refresh();
     } catch (err) {
       Alert.alert('Upload failed', err.message);
@@ -110,8 +116,12 @@ export default function CampaignDetailScreen({ campaignId, onBack, onChanged }) 
   }
 
   const p = campaign.progress;
-  // While uploads are open, today is always the last day of the rider's timeline.
-  const today = p && p.can_submit_today ? p.days[p.days.length - 1] : null;
+  // Today is the last day of the rider's timeline while it falls within their campaign period.
+  const todayPhotos = p ? p.today_photos : null;
+  const today = p && todayPhotos && todayPhotos.in_window ? p.days.find((d) => d.date === todayPhotos.date) : null;
+  const required = p ? p.photos_required : 3;
+  const todayValid = todayPhotos ? Math.min(todayPhotos.valid, required) : 0;
+  const todaySent = todayPhotos ? todayPhotos.valid + todayPhotos.pending : 0;
   const full = campaign.remaining_slots === 0;
 
   return (
@@ -132,7 +142,7 @@ export default function CampaignDetailScreen({ campaignId, onBack, onChanged }) 
           {[
             ['calendar-outline', 'Dates', formatDateRange(campaign.start_date, campaign.end_date)],
             ['cash-outline', 'Daily payout', `${formatINR(campaign.daily_rate)} / eligible day`],
-            ['people-outline', 'Slots', `${campaign.filled_slots} / ${campaign.total_slots} assigned`],
+            ['people-outline', 'Slots', `${campaign.filled_slots} / ${campaign.slot_capacity || campaign.total_slots} assigned`],
             ['flag-outline', 'Campaign status', campaign.status.charAt(0) + campaign.status.slice(1).toLowerCase()],
           ].map(([icon, label, value]) => (
             <View key={label} style={styles.infoItem}>
@@ -146,22 +156,136 @@ export default function CampaignDetailScreen({ campaignId, onBack, onChanged }) 
         </View>
         <View style={{ gap: 6, marginTop: 14 }}>
           <Text style={[styles.infoLabel, { color: full ? colors.warning : colors.primary, fontWeight: '700' }]}>
-            {full ? 'All slots are filled' : `${campaign.remaining_slots} of ${campaign.total_slots} slots available`}
+            {full ? 'All slots are filled' : `${campaign.remaining_slots} of ${campaign.slot_capacity || campaign.total_slots} slots available`}
           </Text>
-          <ProgressBar value={campaign.filled_slots} max={campaign.total_slots} color={full ? colors.warning : colors.primary} />
+          <ProgressBar value={campaign.filled_slots} max={campaign.slot_capacity || campaign.total_slots} color={full ? colors.warning : colors.primary} />
         </View>
       </Card>
 
+      {p && p.target_reached ? (
+        <View style={[styles.targetBanner, { marginTop: 14 }]}>
+          <Ionicons name="trophy-outline" size={20} color={colors.success} />
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.todayTitle, { color: colors.success }]}>Campaign target reached</Text>
+            <Text style={styles.todayText}>The brand's commitment has been delivered, so no more proof is needed. Thank you!</Text>
+          </View>
+        </View>
+      ) : null}
+
+      {!p && campaign.my_request && ['REQUESTED', 'REJECTED'].includes(campaign.my_request.status) ? (
+        <RequestStatusCard request={campaign.my_request} campaign={campaign} />
+      ) : (
+        <PickupCard campaign={campaign} myKit={campaign.my_kit} joined={Boolean(p)} />
+      )}
+
       {p ? (
         <>
+          {today && today.status !== 'EXCUSED' ? (
+            <>
+              <SectionHeader title="Today's Photos" />
+              <Card style={[{ gap: 12 }, todayPhotos.completed && { borderColor: colors.success }]}>
+                <View style={styles.titleRow}>
+                  <View style={[styles.todayIcon, todayPhotos.completed && { backgroundColor: colors.successSoft }]}>
+                    <Ionicons name={todayPhotos.completed ? 'flame' : 'camera-outline'} size={22} color={todayPhotos.completed ? colors.success : colors.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.todayTitle}>
+                      {todayPhotos.completed ? 'Today complete' : `${todayValid}/${required} photos approved`}
+                    </Text>
+                    <Text style={styles.todayText}>
+                      {todayPhotos.completed
+                        ? `All ${required} photos approved. Today counts towards your streak and earns ${formatINR(p.daily_rate)}.`
+                        : todayPhotos.pending
+                        ? `${todayPhotos.pending} awaiting review. The day counts once ${required} different photos are approved.`
+                        : `Upload ${required} different photos today to complete the day and earn ${formatINR(p.daily_rate)}.`}
+                    </Text>
+                  </View>
+                  <Text style={[styles.photoCount, { color: todayPhotos.completed ? colors.success : colors.text }]}>
+                    {todayValid}/{required}
+                  </Text>
+                </View>
+                <View style={styles.slotRow}>
+                  {Array.from({ length: required }).map((_, i) => {
+                    // Show approved and in-review photos first; rejected ones only after them.
+                    const shown = today.photos
+                      .filter((ph) => ph.status !== 'REJECTED')
+                      .concat(today.photos.filter((ph) => ph.status === 'REJECTED'));
+                    const photo = shown[i];
+                    const tone = photo ? toneColors(colors, PHOTO_STYLES[photo.status].tone) : null;
+                    return (
+                      <View key={i} style={styles.slot}>
+                        {photo ? (
+                          <>
+                            <Image source={{ uri: assetUrl(photo.photo_url) }} style={styles.slotImage} />
+                            <View style={styles.slotBadge}>
+                              <Ionicons name={PHOTO_STYLES[photo.status].icon} size={16} color={tone.fg} />
+                            </View>
+                          </>
+                        ) : (
+                          <Text style={styles.slotEmpty}>Photo {i + 1}</Text>
+                        )}
+                      </View>
+                    );
+                  })}
+                </View>
+                {today.photos.filter((ph) => ph.status === 'REJECTED').map((ph) => (
+                  <Text key={ph.id} style={styles.dayReason}>
+                    Rejected: {ph.rejection_reason}. Upload a new photo to replace it.
+                  </Text>
+                ))}
+                {p.can_submit_today ? (
+                  <PrimaryButton
+                    label={`Upload Photo ${Math.min(todaySent + 1, required)} of ${required}`}
+                    onPress={uploadProof}
+                    loading={busy}
+                    style={{ paddingVertical: 12 }}
+                  />
+                ) : !todayPhotos.completed && todaySent >= required ? (
+                  <Text style={styles.infoLabel}>All {required} photos uploaded. Waiting for review.</Text>
+                ) : null}
+              </Card>
+            </>
+          ) : null}
+
+          <SectionHeader title="Photo Streak" />
+          <Card style={{ gap: 12 }}>
+            <View style={styles.streakRow}>
+              {[
+                ['flame', 'Current', p.current_streak, colors.warning],
+                ['trophy-outline', 'Longest', p.longest_streak, colors.primary],
+                ['checkmark-done-outline', 'Photo-days', p.total_photo_streak_days, colors.success],
+              ].map(([icon, label, value, color]) => (
+                <View key={label} style={styles.streakItem}>
+                  <Ionicons name={icon} size={20} color={color} />
+                  <Text style={styles.streakValue}>{value}</Text>
+                  <Text style={styles.infoLabel}>{label}</Text>
+                </View>
+              ))}
+            </View>
+            {p.streak_broken ? (
+              <View style={styles.brokenRow}>
+                <Ionicons name="alert-circle-outline" size={18} color={colors.danger} />
+                <Text style={[styles.todayText, { flex: 1, marginTop: 0 }]}>
+                  Streak broken on {formatDate(p.streak_broken_on)}. Complete {required} photos today to start a new one.
+                </Text>
+              </View>
+            ) : null}
+            <View style={{ gap: 6 }}>
+              <Text style={styles.infoLabel}>
+                Target: {p.completed_days} of {p.target_days} days completed · {p.remaining_target_days} to go
+              </Text>
+              <ProgressBar value={p.completed_days} max={Math.max(p.target_days, 1)} color={colors.success} />
+            </View>
+          </Card>
+
           <SectionHeader title="My Progress" />
           <View style={styles.progressGrid}>
             {[
-              ['Days completed', p.completed_days],
-              ['Current streak', `${p.current_streak} days`],
-              ['Eligible days', p.eligible_days],
+              ['Completion', p.completion_pct == null ? '—' : `${p.completion_pct}%`],
+              ['Missed days', p.missed_days],
+              ['Excused days', p.excused_days],
               ['Total earned', formatINR(p.earned)],
-              ['Remaining days', p.remaining_days],
+              ['Campaign days left', p.remaining_days],
               ['Pending payout', formatINR(p.pending)],
             ].map(([label, value]) => (
               <Card key={label} style={styles.progressCard}>
@@ -170,36 +294,6 @@ export default function CampaignDetailScreen({ campaignId, onBack, onChanged }) 
               </Card>
             ))}
           </View>
-
-          {p.can_submit_today ? (
-            <Card style={[styles.todayCard, { borderColor: colors.primary }]}>
-              <View style={styles.todayIcon}>
-                <Ionicons name="camera-outline" size={22} color={colors.primary} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.todayTitle}>
-                  {today && today.status === 'SUBMITTED'
-                    ? 'Proof submitted for today'
-                    : today && today.status === 'REJECTED'
-                    ? "Today's proof was rejected"
-                    : "Upload today's proof"}
-                </Text>
-                <Text style={styles.todayText}>
-                  {today && today.status === 'SUBMITTED'
-                    ? "It's awaiting review. You can replace it with a better photo."
-                    : today && today.status === 'REJECTED'
-                    ? `Reason: ${today.rejection_reason}. Upload a new photo.`
-                    : `Complete today's requirement and upload a photo to earn ${formatINR(p.daily_rate)}.`}
-                </Text>
-                <PrimaryButton
-                  label={today && today.status !== 'DUE' ? 'Replace Photo' : 'Upload Photo'}
-                  onPress={uploadProof}
-                  loading={busy}
-                  style={{ marginTop: 12, paddingVertical: 12 }}
-                />
-              </View>
-            </Card>
-          ) : null}
 
           <SectionHeader title="Daily Activity" />
           {p.days.length === 0 ? (
@@ -219,10 +313,22 @@ export default function CampaignDetailScreen({ campaignId, onBack, onChanged }) 
                         <Text style={styles.dayTitle}>
                           Day {day.day_number} · {formatShortDate(day.date)}
                         </Text>
-                        <Text style={[styles.dayStatus, { color: tone.fg }]}>{style.label}</Text>
+                        <Text style={[styles.dayStatus, { color: tone.fg }]}>
+                          {day.unpaid_surplus ? 'Completed · target reached, not paid' : style.label}
+                          {day.period === 'EXTENSION' ? ' · extension' : ''}
+                        </Text>
+                        {day.status !== 'EXCUSED' ? (
+                          <Text style={styles.dayReason}>
+                            {Math.min(day.photos_valid, day.photos_required)}/{day.photos_required} photos
+                            {day.photos_pending ? ` · ${day.photos_pending} in review` : ''}
+                          </Text>
+                        ) : null}
                         {day.rejection_reason ? <Text style={styles.dayReason}>{day.rejection_reason}</Text> : null}
+                        {day.excuse_reason ? <Text style={styles.dayReason}>{day.excuse_reason}</Text> : null}
                       </View>
-                      {day.photo_url ? <Image source={{ uri: assetUrl(day.photo_url) }} style={styles.thumb} /> : null}
+                      {day.photos.length || day.photo_url ? (
+                        <Image source={{ uri: assetUrl(day.photos.length ? day.photos[0].photo_url : day.photo_url) }} style={styles.thumb} />
+                      ) : null}
                       <Text style={styles.dayEarned}>{formatINR(day.earned)}</Text>
                     </View>
                   );
@@ -258,7 +364,7 @@ export default function CampaignDetailScreen({ campaignId, onBack, onChanged }) 
       {!p ? (
         <View style={{ marginTop: 20 }}>
           {campaign.can_join ? (
-            <PrimaryButton label="Join Campaign" onPress={join} loading={busy} />
+            <PrimaryButton label="Join Campaign" onPress={joinFlow.start} loading={joinFlow.joining} />
           ) : campaign.join_blocked_reason ? (
             <View style={styles.blocked}>
               <Ionicons name="information-circle-outline" size={18} color={colors.textMuted} />
@@ -282,6 +388,7 @@ export default function CampaignDetailScreen({ campaignId, onBack, onChanged }) 
           ) : null}
         </View>
       ) : null}
+      {joinFlow.sheet}
     </ScrollView>
   );
 }
@@ -314,5 +421,27 @@ const makeStyles = (c) =>
     body: { flex: 1, fontSize: 14, color: c.text, lineHeight: 20 },
     ruleRow: { flexDirection: 'row', gap: 10, alignItems: 'flex-start' },
     blocked: { flexDirection: 'row', gap: 10, alignItems: 'center', backgroundColor: c.surfaceAlt, borderRadius: 12, padding: 14 },
+    targetBanner: { flexDirection: 'row', gap: 12, backgroundColor: c.successSoft, borderRadius: 14, padding: 14 },
     blockedText: { flex: 1, fontSize: 13, color: c.textMuted, lineHeight: 18 },
+    photoCount: { fontSize: 22, fontWeight: '800' },
+    slotRow: { flexDirection: 'row', gap: 10 },
+    slot: {
+      flex: 1,
+      aspectRatio: 1,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderStyle: 'dashed',
+      borderColor: c.border,
+      backgroundColor: c.surfaceAlt,
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden',
+    },
+    slotImage: { width: '100%', height: '100%' },
+    slotBadge: { position: 'absolute', top: 6, right: 6, borderRadius: 10, padding: 2, backgroundColor: c.surface },
+    slotEmpty: { fontSize: 12, color: c.textMuted, fontWeight: '600' },
+    streakRow: { flexDirection: 'row', justifyContent: 'space-between' },
+    streakItem: { flex: 1, alignItems: 'center', gap: 2 },
+    streakValue: { fontSize: 22, fontWeight: '800', color: c.text, marginTop: 2 },
+    brokenRow: { flexDirection: 'row', gap: 8, alignItems: 'center', backgroundColor: c.dangerSoft, borderRadius: 10, padding: 10 },
   });

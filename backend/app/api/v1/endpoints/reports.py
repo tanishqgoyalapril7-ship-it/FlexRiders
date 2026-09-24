@@ -25,11 +25,39 @@ def get_dashboard_analytics(
     admin: User = Depends(get_current_admin),
 ):
     """Calculates all live metrics for the Admin Web Dashboard from real database records"""
-    total_riders = db.query(Rider).count()
-    pending_approvals = db.query(Rider).filter(Rider.status == RiderStatus.PENDING).count()
-    approved_riders = db.query(Rider).filter(Rider.status.in_([RiderStatus.APPROVED, RiderStatus.ACTIVE])).count()
-    active_riders = db.query(Rider).filter(Rider.status == RiderStatus.ACTIVE).count()
-    suspended_riders = db.query(Rider).filter(Rider.status == RiderStatus.SUSPENDED).count()
+    # Archived riders are excluded from operational counts; their payments still count in money totals.
+    riders_q = db.query(Rider).filter(Rider.archived_at.is_(None))
+    total_riders = riders_q.count()
+    pending_approvals = riders_q.filter(Rider.status == RiderStatus.PENDING).count()
+    approved_riders = riders_q.filter(Rider.status.in_([RiderStatus.APPROVED, RiderStatus.ACTIVE])).count()
+    active_riders = riders_q.filter(Rider.status == RiderStatus.ACTIVE).count()
+    suspended_riders = riders_q.filter(Rider.status == RiderStatus.SUSPENDED).count()
+
+    # Month boundaries for real month-over-month figures.
+    now = datetime.utcnow()
+    this_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    last_month = (this_month - timedelta(days=1)).replace(day=1)
+    three_months_ago = ((last_month - timedelta(days=1)).replace(day=1))
+
+    def paid_between(start, end=None):
+        q = db.query(func.sum(Payment.amount)).filter(Payment.status == PaymentStatus.PAID, Payment.payment_date >= start)
+        if end is not None:
+            q = q.filter(Payment.payment_date < end)
+        return float(q.scalar() or 0.0)
+
+    def riders_between(start, end=None):
+        q = db.query(func.count(Rider.id)).filter(Rider.created_at >= start)
+        if end is not None:
+            q = q.filter(Rider.created_at < end)
+        return q.scalar() or 0
+
+    def growth(current, previous):
+        if previous == 0:
+            return 0.0  # No baseline to compare with
+        return round((current - previous) / previous * 100, 1)
+
+    paid_this_month = paid_between(this_month)
+    paid_last_month = paid_between(last_month, this_month)
 
     # Real Payments aggregation
     total_payments = float(db.query(func.sum(Payment.amount)).filter(Payment.status == PaymentStatus.PAID).scalar() or 0.0)
@@ -51,9 +79,9 @@ def get_dashboard_analytics(
         total_payments=total_payments,
         pending_payments=pending_payments,
         today_payments=today_payments,
-        growth_riders=0.0 if total_riders == 0 else 100.0,
-        growth_active=0.0 if active_riders == 0 else 100.0,
-        growth_payments=0.0 if total_payments == 0 else 100.0,
+        growth_riders=growth(riders_between(this_month), riders_between(last_month, this_month)),
+        growth_active=0.0,  # Needs historical status snapshots, which aren't stored
+        growth_payments=growth(paid_this_month, paid_last_month),
     )
 
     # 7-day registration chart calculated from real registrations
@@ -98,7 +126,7 @@ def get_dashboard_analytics(
         brand_dist.append(BrandDistribution(brand_name=b.name, rider_count=r_count, percentage=pct))
 
     # Real Pending riders queue (first 5)
-    pending_list = db.query(Rider).filter(Rider.status == RiderStatus.PENDING).order_by(desc(Rider.id)).limit(5).all()
+    pending_list = riders_q.filter(Rider.status == RiderStatus.PENDING).order_by(desc(Rider.id)).limit(5).all()
     pending_responses = []
     for r in pending_list:
         pending_responses.append(
@@ -118,7 +146,7 @@ def get_dashboard_analytics(
         )
 
     # Real Recent registrations (last 6)
-    recent_r_list = db.query(Rider).order_by(desc(Rider.id)).limit(6).all()
+    recent_r_list = riders_q.order_by(desc(Rider.id)).limit(6).all()
     recent_registrations = [
         RiderResponse(
             id=r.id,
@@ -161,10 +189,10 @@ def get_dashboard_analytics(
         )
 
     monthly_report = {
-        "this_month": total_payments,
-        "last_month": 0.0,
-        "last_3_months": total_payments,
-        "growth": 0.0,
+        "this_month": paid_this_month,
+        "last_month": paid_last_month,
+        "last_3_months": paid_between(three_months_ago),
+        "growth": growth(paid_this_month, paid_last_month),
     }
 
     return DashboardOverview(

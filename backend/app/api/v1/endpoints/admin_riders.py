@@ -4,6 +4,9 @@ from sqlalchemy import or_, desc
 from app.core.database import get_db
 from app.models.all_models import Rider, RiderDocument, RiderBrandAssignment, User, RiderStatus
 from app.schemas.all_schemas import (
+    AdminRiderCreate,
+    AdminRiderUpdate,
+    ArchiveRequest,
     RiderResponse,
     RiderDetailResponse,
     RiderStatusUpdate,
@@ -14,6 +17,9 @@ from app.api.deps import get_current_admin
 from app.services.audit_service import log_admin_action
 from app.services.notification_service import send_notification
 from app.services.payment_service import calculate_rider_earnings
+from app.services import data_admin_service as das
+from app.services.rider_service import generate_next_rider_id
+from app.core.security import get_password_hash, UserRole
 from typing import List, Optional
 
 router = APIRouter()
@@ -26,13 +32,19 @@ def get_all_riders(
     brand_id: Optional[int] = None,
     city: Optional[str] = None,
     company: Optional[str] = None,
+    archived: str = Query("exclude", pattern="^(exclude|only|include)$"),
     skip: int = 0,
-    limit: int = 100,
+    limit: int = 500,
     db: Session = Depends(get_db),
     admin: User = Depends(get_current_admin),
 ):
     """Admin search and filter riders"""
     query = db.query(Rider)
+    # Archived (soft-deleted) riders are hidden unless asked for.
+    if archived == "exclude":
+        query = query.filter(Rider.archived_at.is_(None))
+    elif archived == "only":
+        query = query.filter(Rider.archived_at.isnot(None))
 
     if search:
         search_fmt = f"%{search.strip()}%"
@@ -44,6 +56,7 @@ def get_all_riders(
                 Rider.current_company.ilike(search_fmt),
                 Rider.primary_city.ilike(search_fmt),
                 Rider.upi_id.ilike(search_fmt),
+                Rider.vehicle_number.ilike(search_fmt.replace(" ", "")),
             )
         )
 
@@ -86,6 +99,9 @@ def get_all_riders(
                 experience_years=r.experience_years,
                 experience_months=r.experience_months,
                 vehicle_type=r.vehicle_type,
+                vehicle_number=r.vehicle_number,
+                archived_at=r.archived_at,
+                archive_reason=r.archive_reason,
                 primary_city=r.primary_city,
                 primary_area=r.primary_area,
                 additional_locations=r.additional_locations,
@@ -164,6 +180,9 @@ def get_rider_detail(
         experience_years=rider.experience_years,
         experience_months=rider.experience_months,
         vehicle_type=rider.vehicle_type,
+        vehicle_number=rider.vehicle_number,
+        archived_at=rider.archived_at,
+        archive_reason=rider.archive_reason,
         primary_city=rider.primary_city,
         primary_area=rider.primary_area,
         additional_locations=rider.additional_locations,
@@ -329,3 +348,158 @@ def reactivate_rider(
     )
 
     return {"success": True, "message": f"Rider {rider.rider_id} reactivated", "status": rider.status}
+
+
+# ---------------------------------------------------------------------------
+# Create / edit / delete / archive
+# ---------------------------------------------------------------------------
+
+def _get_rider(db: Session, id: int) -> Rider:
+    rider = db.query(Rider).filter(Rider.id == id).first()
+    if not rider:
+        raise HTTPException(status_code=404, detail="Rider not found")
+    return rider
+
+
+def _clean_mobile(value: str) -> str:
+    digits = "".join(ch for ch in value if ch.isdigit() or ch == "+")
+    if len(digits.lstrip("+")) < 10:
+        raise HTTPException(status_code=400, detail="Enter a valid mobile number (at least 10 digits)")
+    return digits
+
+
+def _check_rider_unique(db: Session, mobile: Optional[str], vehicle_number: Optional[str], email: Optional[str], exclude_rider: Optional[Rider] = None):
+    exclude_user_id = exclude_rider.user_id if exclude_rider else None
+    if mobile:
+        q = db.query(User).filter(User.phone == mobile)
+        if exclude_user_id:
+            q = q.filter(User.id != exclude_user_id)
+        if q.first():
+            raise HTTPException(status_code=400, detail="Another account already uses this mobile number")
+    if email:
+        q = db.query(User).filter(User.email == email)
+        if exclude_user_id:
+            q = q.filter(User.id != exclude_user_id)
+        if q.first():
+            raise HTTPException(status_code=400, detail="Another account already uses this email")
+    if vehicle_number:
+        q = db.query(Rider).filter(Rider.vehicle_number == vehicle_number)
+        if exclude_rider:
+            q = q.filter(Rider.id != exclude_rider.id)
+        if q.first():
+            raise HTTPException(status_code=400, detail=f"Vehicle {vehicle_number} is already registered to another rider")
+
+
+@router.post("", response_model=RiderDetailResponse)
+def create_rider(data: AdminRiderCreate, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
+    if data.status not in (RiderStatus.PENDING, RiderStatus.APPROVED):
+        raise HTTPException(status_code=400, detail="New riders start as Pending or Approved")
+    mobile = _clean_mobile(data.mobile_number)
+    _check_rider_unique(db, mobile, data.vehicle_number, data.email)
+    user = User(phone=mobile, email=data.email, hashed_password=get_password_hash(data.password), role=UserRole.RIDER, is_active=True)
+    db.add(user)
+    db.flush()
+    clean = lambda v: (v or "").strip() or None
+    rider = Rider(
+        user_id=user.id,
+        rider_id=generate_next_rider_id(db),
+        full_name=data.full_name.strip(),
+        mobile_number=mobile,
+        email=data.email,
+        dob=clean(data.dob),
+        current_company=clean(data.current_company),
+        current_role=clean(data.current_role) or "Rider",
+        vehicle_type=clean(data.vehicle_type),
+        vehicle_number=data.vehicle_number,
+        primary_city=data.primary_city.strip(),
+        primary_area=clean(data.primary_area),
+        upi_id=clean(data.upi_id),
+        gpay_number=clean(data.gpay_number),
+        status=data.status,
+    )
+    db.add(rider)
+    db.commit()
+    db.refresh(rider)
+    log_admin_action(db=db, admin_user=admin, action="RIDER_CREATED", target_type="RIDER", target_id=rider.rider_id, details=f"{rider.full_name} created by admin ({rider.status})")
+    return get_rider_detail(rider.id, db, admin)
+
+
+EDITABLE_FIELDS = (
+    "full_name", "email", "dob", "current_company", "current_role", "vehicle_type", "vehicle_number",
+    "primary_city", "primary_area", "upi_id", "gpay_number",
+)
+
+
+@router.put("/{id}", response_model=RiderDetailResponse)
+def update_rider(id: int, data: AdminRiderUpdate, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
+    rider = _get_rider(db, id)
+    changes = data.model_dump(exclude_unset=True)
+    mobile = _clean_mobile(changes["mobile_number"]) if changes.get("mobile_number") else None
+    if "email" in changes and changes["email"]:
+        from app.schemas.all_schemas import normalize_email
+
+        try:
+            changes["email"] = normalize_email(changes["email"])
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+    _check_rider_unique(db, mobile if mobile != rider.mobile_number else None, changes.get("vehicle_number") or None, changes.get("email") or None, exclude_rider=rider)
+    for field in ("full_name", "primary_city"):
+        if field in changes and not (changes[field] or "").strip():
+            raise HTTPException(status_code=400, detail=f"{field.replace('_', ' ').capitalize()} is required")
+
+    changed = []
+    for field in EDITABLE_FIELDS:
+        if field in changes:
+            value = changes[field]
+            value = value.strip() if isinstance(value, str) else value
+            value = value or None
+            if getattr(rider, field) != value:
+                setattr(rider, field, value)
+                changed.append(field)
+    if mobile and mobile != rider.mobile_number:
+        rider.mobile_number = mobile
+        if rider.user:
+            rider.user.phone = mobile  # The rider logs in with this number
+        changed.append("mobile_number")
+    if "email" in changed and rider.user:
+        rider.user.email = rider.email
+    db.commit()
+    if changed:
+        log_admin_action(db=db, admin_user=admin, action="RIDER_UPDATED", target_type="RIDER", target_id=rider.rider_id, details=f"{rider.full_name} updated: {', '.join(changed)}")
+    return get_rider_detail(rider.id, db, admin)
+
+
+@router.get("/{id}/delete-impact")
+def rider_delete_impact(id: int, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
+    return das.rider_impact(db, _get_rider(db, id))
+
+
+@router.delete("/{id}")
+def delete_rider(id: int, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
+    """Permanent delete, only for riders with no history. Otherwise archive."""
+    rider = _get_rider(db, id)
+    try:
+        das.hard_delete_rider(db, rider, admin)
+    except das.DataAdminError as e:
+        raise HTTPException(status_code=409, detail=str(e))
+    return {"success": True, "message": "Rider permanently deleted"}
+
+
+@router.post("/{id}/archive", response_model=RiderDetailResponse)
+def archive_rider(id: int, data: ArchiveRequest, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
+    rider = _get_rider(db, id)
+    try:
+        das.archive_rider(db, rider, admin, data.reason)
+    except das.DataAdminError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return get_rider_detail(rider.id, db, admin)
+
+
+@router.post("/{id}/restore", response_model=RiderDetailResponse)
+def restore_rider(id: int, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
+    rider = _get_rider(db, id)
+    try:
+        das.restore_rider(db, rider, admin)
+    except das.DataAdminError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return get_rider_detail(rider.id, db, admin)

@@ -1,14 +1,15 @@
 import React from 'react';
 import { FileSpreadsheet, Download, Users, CreditCard, BarChart2 } from 'lucide-react';
 import { api } from '../services/api';
+import { toast } from '../components/Feedback';
 
 export default function ReportsView({ dashboardData }) {
   const handleDownloadRiders = () => {
-    window.open(api.getRidersExportUrl(), '_blank');
+    api.downloadRidersExport().catch((err) => toast.error(err.message));
   };
 
   const handleDownloadPayments = () => {
-    window.open(api.getPaymentsExportUrl(), '_blank');
+    api.downloadPaymentsExport().catch((err) => toast.error(err.message));
   };
 
   return (

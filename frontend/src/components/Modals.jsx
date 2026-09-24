@@ -9,13 +9,20 @@ export function RiderDetailModal({
   onReject,
   onSuspend,
   onReactivate,
-  onAssignBrand,
+  onOpenAssign,
+  onEndAssignment,
+  onEdit,
+  onDelete,
+  onRestore,
+  onAddToCampaign,
 }) {
-  const [selectedBrandId, setSelectedBrandId] = useState('');
   const [rejectReason, setRejectReason] = useState('');
   const [showRejectInput, setShowRejectInput] = useState(false);
 
   if (!rider) return null;
+  const archived = Boolean(rider.archived_at);
+  const canAssign = !archived && (rider.status === 'APPROVED' || rider.status === 'ACTIVE');
+  const currentAssignment = (rider.brand_history || []).find((a) => a.is_current);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -30,6 +37,11 @@ export function RiderDetailModal({
             <div style={{ fontSize: '0.8rem', color: '#64748B', marginTop: '2px' }}>
               Rider ID: <strong>{rider.rider_id}</strong> • Registered: {new Date(rider.created_at).toLocaleDateString()}
             </div>
+            {archived ? (
+              <div className="impact-note" style={{ marginTop: 8 }}>
+                Archived on {new Date(rider.archived_at).toLocaleDateString()}: {rider.archive_reason}. Login is disabled; history is kept.
+              </div>
+            ) : null}
           </div>
           <button onClick={onClose} style={{ color: '#94A3B8' }}>
             <X size={20} />
@@ -48,14 +60,15 @@ export function RiderDetailModal({
 
             <div style={{ background: '#F8FAFC', padding: '12px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
               <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>WORK & VEHICLE</div>
-              <div style={{ fontSize: '0.84rem', fontWeight: 600, marginTop: '2px' }}>{rider.current_company || 'Independent'}</div>
-              <div style={{ fontSize: '0.75rem', color: '#64748B' }}>{rider.vehicle_type || 'Bike'} • {rider.current_role}</div>
+              <div style={{ fontSize: '0.84rem', fontWeight: 600, marginTop: '2px' }}>{rider.current_company || 'Not provided'}</div>
+              <div style={{ fontSize: '0.75rem', color: '#64748B' }}>{[rider.vehicle_type, rider.current_role].filter(Boolean).join(' • ') || 'Not provided'}</div>
+              <div style={{ fontSize: '0.75rem', color: '#0F172A', fontWeight: 600 }}>{rider.vehicle_number ? `Reg. No. ${rider.vehicle_number}` : 'Vehicle number not provided'}</div>
             </div>
 
             <div style={{ background: '#F8FAFC', padding: '12px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
               <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>LOCATION</div>
               <div style={{ fontSize: '0.84rem', fontWeight: 600, marginTop: '2px' }}>{rider.primary_city}</div>
-              <div style={{ fontSize: '0.75rem', color: '#64748B' }}>{rider.primary_area || 'Central'} (Radius: {rider.preferred_radius || '10 km'})</div>
+              <div style={{ fontSize: '0.75rem', color: '#64748B' }}>{rider.primary_area || 'Area not provided'}{rider.preferred_radius ? ` (Radius: ${rider.preferred_radius})` : ''}</div>
             </div>
           </div>
 
@@ -115,7 +128,7 @@ export function RiderDetailModal({
               </div>
             ) : (
               <div style={{ fontSize: '0.8rem', color: '#94A3B8', fontStyle: 'italic' }}>
-                Govt ID, Driving License & RC uploaded digitally via mobile registration.
+                No documents uploaded. Verify the rider's Driving Licence, Aadhaar and vehicle RC offline.
               </div>
             )}
           </div>
@@ -125,31 +138,35 @@ export function RiderDetailModal({
             <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0F172A', marginBottom: '8px' }}>
               BRAND ASSIGNMENT
             </div>
-            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-              <select
-                className="form-input"
-                style={{ flex: 1 }}
-                value={selectedBrandId}
-                onChange={(e) => setSelectedBrandId(e.target.value)}
-              >
-                <option value="">Select Brand to Assign...</option>
-                {brands.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name} ({b.active_riders_count || 0} active riders)
-                  </option>
-                ))}
-              </select>
-              <button
-                className="btn-primary"
-                disabled={!selectedBrandId}
-                onClick={() => onAssignBrand(rider.id, selectedBrandId)}
-                style={{ opacity: selectedBrandId ? 1 : 0.5 }}
-              >
-                Assign Brand
-              </button>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+              <div>
+                <div style={{ fontSize: '0.92rem', fontWeight: 700, color: rider.current_brand ? '#2563EB' : '#94A3B8' }}>
+                  {rider.current_brand || 'No brand assigned'}
+                </div>
+                {currentAssignment ? (
+                  <div style={{ fontSize: '0.74rem', color: '#64748B' }}>
+                    Assigned {new Date(currentAssignment.assignment_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                    {currentAssignment.assigned_by_name ? ` by ${currentAssignment.assigned_by_name}` : ''}
+                  </div>
+                ) : null}
+              </div>
+              {canAssign ? (
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {rider.current_brand ? (
+                    <button className="btn-danger-outline" style={{ padding: '7px 14px', fontSize: '0.8rem' }} onClick={() => onEndAssignment(rider)}>
+                      End Assignment
+                    </button>
+                  ) : null}
+                  <button className="btn-primary" style={{ padding: '7px 14px', fontSize: '0.8rem' }} onClick={() => onOpenAssign(rider)}>
+                    {rider.current_brand ? 'Change Brand' : 'Assign Brand'}
+                  </button>
+                </div>
+              ) : null}
             </div>
-            <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '4px' }}>
-              Assigning a brand activates the rider account and allows them to receive payouts.
+            <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: '6px' }}>
+              {canAssign
+                ? 'Assigning a brand activates the rider account and allows them to receive payouts.'
+                : 'Approve this rider before assigning a brand.'}
             </div>
           </div>
 
@@ -188,8 +205,27 @@ export function RiderDetailModal({
           <button className="btn-secondary" onClick={onClose}>
             Close
           </button>
+          {archived ? (
+            <button className="btn-sm-approve" style={{ padding: '8px 16px', fontSize: '0.82rem' }} onClick={() => onRestore(rider)}>
+              Restore Rider
+            </button>
+          ) : (
+            <>
+              <button className="btn-danger-outline" style={{ padding: '8px 14px', fontSize: '0.82rem', marginRight: 'auto', order: -1 }} onClick={() => onDelete(rider)}>
+                Delete / Archive
+              </button>
+              <button className="btn-sm-view" style={{ padding: '8px 14px', fontSize: '0.82rem' }} onClick={() => onEdit(rider)}>
+                Edit Details
+              </button>
+              {canAssign ? (
+                <button className="btn-sm-view" style={{ padding: '8px 14px', fontSize: '0.82rem' }} onClick={() => onAddToCampaign(rider)}>
+                  Add to Campaign
+                </button>
+              ) : null}
+            </>
+          )}
 
-          {rider.status === 'PENDING' && (
+          {!archived && rider.status === 'PENDING' && (
             <>
               <button
                 className="btn-sm-reject"
@@ -208,17 +244,17 @@ export function RiderDetailModal({
             </>
           )}
 
-          {rider.status === 'ACTIVE' && (
+          {!archived && (rider.status === 'ACTIVE' || rider.status === 'APPROVED') && (
             <button
               className="btn-sm-reject"
               style={{ padding: '8px 16px', fontSize: '0.82rem' }}
-              onClick={() => onSuspend(rider.id, 'Administrative suspension')}
+              onClick={() => onSuspend(rider)}
             >
               Suspend Account
             </button>
           )}
 
-          {rider.status === 'SUSPENDED' && (
+          {!archived && rider.status === 'SUSPENDED' && (
             <button
               className="btn-sm-approve"
               style={{ padding: '8px 16px', fontSize: '0.82rem' }}
@@ -233,93 +269,13 @@ export function RiderDetailModal({
   );
 }
 
-export function CreateBrandModal({ onClose, onSubmit }) {
-  const [formData, setFormData] = useState({
-    name: '',
-    code: '',
-    description: '',
-    contact_person: '',
-    contact_number: '',
-  });
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!formData.name) return;
-    onSubmit(formData);
-  };
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '480px' }}>
-        <div className="modal-header">
-          <span className="modal-title">Create New Brand</span>
-          <button onClick={onClose}><X size={18} /></button>
-        </div>
-        <form onSubmit={handleSubmit}>
-          <div className="modal-body">
-            <div className="form-group">
-              <label className="form-label">Brand Name *</label>
-              <input
-                className="form-input"
-                placeholder="e.g. Brand F Express"
-                required
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Brand Code</label>
-              <input
-                className="form-input"
-                placeholder="e.g. brand_f"
-                value={formData.code}
-                onChange={(e) => setFormData({ ...formData, code: e.target.value })}
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Description</label>
-              <input
-                className="form-input"
-                placeholder="Business line / delivery specialty"
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Contact Person</label>
-              <input
-                className="form-input"
-                placeholder="Full Name"
-                value={formData.contact_person}
-                onChange={(e) => setFormData({ ...formData, contact_person: e.target.value })}
-              />
-            </div>
-            <div className="form-group">
-              <label className="form-label">Contact Phone</label>
-              <input
-                className="form-input"
-                placeholder="+91..."
-                value={formData.contact_number}
-                onChange={(e) => setFormData({ ...formData, contact_number: e.target.value })}
-              />
-            </div>
-          </div>
-          <div className="modal-footer">
-            <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
-            <button type="submit" className="btn-primary">Create Brand</button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
 
 export function CreatePaymentModal({ riders = [], brands = [], onClose, onSubmit }) {
   const [formData, setFormData] = useState({
     rider_id: riders[0]?.id || '',
     brand_id: brands[0]?.id || '',
     amount: '',
-    payment_period: 'September 2026',
+    payment_period: new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' }),
     payment_type: 'UPI',
     notes: 'Weekly rider payout',
   });

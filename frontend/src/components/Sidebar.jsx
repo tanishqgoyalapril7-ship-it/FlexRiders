@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  Inbox,
   LayoutDashboard,
   Users,
   Briefcase,
@@ -121,6 +122,14 @@ export default function Sidebar({ activeView, setActiveView, riderFilter, setRid
           <div className="nav-item-left">
             <Megaphone size={18} />
             <span>Campaigns</span>
+          </div>
+        </div>
+
+        {/* Campaign join requests across all campaigns */}
+        <div className={`nav-item ${activeView === 'join-requests' ? 'active' : ''}`} onClick={() => setActiveView('join-requests')}>
+          <div className="nav-item-left">
+            <Inbox size={18} />
+            <span>Join Requests</span>
           </div>
           {campaignRequestCount > 0 && <span className="badge-counter badge-orange">{campaignRequestCount}</span>}
         </div>

@@ -36,6 +36,17 @@ class Settings(BaseSettings):
     ENABLE_OTP_LOGIN: bool = True
     MOCK_OTP_CODE: str = "123456"
 
+    # Campaign fulfilment thresholds
+    FULFILLMENT_ON_TRACK_PCT: float = 95.0  # Actual ≥ this % of expected → On Track
+    FULFILLMENT_AT_RISK_PCT: float = 80.0  # Actual below this % of expected → Behind Target
+    LOW_SAMPLE_MIN_DAYS: int = 3  # Fewer elapsed campaign days → "Low sample"
+    LOW_SAMPLE_MIN_RIDER_DAYS: int = 20  # Fewer possible rider-days → "Low sample"
+    RIDER_BEHIND_PCT: float = 80.0  # Rider approved < this % of their elapsed days → Behind Target
+    INACTIVE_MISSED_DAYS: int = 3  # Consecutive days with nothing submitted → Inactive
+    # Log why each campaign is shown/hidden in the rider app's Available list (debugging aid).
+    CAMPAIGN_VISIBILITY_LOG: bool = False
+    PHOTOS_PER_DAY: int = 3  # Distinct approved photos needed for one completed rider-day (1 Photo Streak day)
+
     # Uploads directory for local dev
     UPLOAD_DIR: str = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads")
 

@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useStyles, useTheme } from '../theme';
 import { Card, EmptyState, FilterPills, IconButton, ScreenHeader, toneColors } from '../components/ui';
+import ConfirmSheet from '../components/ConfirmSheet';
 
 const FILTERS = ['All', 'Unread', 'Payments', 'System'];
 
-export default function NotificationsScreen({ notifications, onBack, onMarkAllRead }) {
+export default function NotificationsScreen({ notifications, onBack, onMarkAllRead, onDelete, onClearAll }) {
   const styles = useStyles(makeStyles);
   const { colors } = useTheme();
   const [filter, setFilter] = useState('All');
+  const [confirm, setConfirm] = useState(null); // { notification } or { all: true }
   const visible = notifications.filter((n) => {
     if (filter === 'Unread') return n.unread;
     if (filter === 'Payments') return n.category === 'PAYMENT';
@@ -23,7 +25,12 @@ export default function NotificationsScreen({ notifications, onBack, onMarkAllRe
       <ScreenHeader
         title="Notifications"
         onBack={onBack}
-        right={hasUnread ? <IconButton icon="checkmark-done-outline" onPress={onMarkAllRead} /> : null}
+        right={
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {hasUnread ? <IconButton icon="checkmark-done-outline" onPress={onMarkAllRead} /> : null}
+            {notifications.length ? <IconButton icon="trash-outline" onPress={() => setConfirm({ all: true })} /> : null}
+          </View>
+        }
       />
       <View style={{ marginBottom: 16 }}>
         <FilterPills options={FILTERS} value={filter} onChange={setFilter} />
@@ -49,12 +56,41 @@ export default function NotificationsScreen({ notifications, onBack, onMarkAllRe
                   <Text style={styles.message}>{n.message}</Text>
                   <Text style={styles.time}>{n.timeLabel}</Text>
                 </View>
-                {n.unread ? <View style={styles.unreadDot} /> : null}
+                <View style={{ alignItems: 'center', gap: 10 }}>
+                  {n.unread ? <View style={styles.unreadDot} /> : null}
+                  <TouchableOpacity
+                    onPress={() => setConfirm({ notification: n })}
+                    hitSlop={10}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Delete notification: ${n.title}`}
+                  >
+                    <Ionicons name="trash-outline" size={18} color={colors.textSubtle} />
+                  </TouchableOpacity>
+                </View>
               </View>
             );
           })}
         </Card>
       )}
+
+      <ConfirmSheet
+        visible={Boolean(confirm)}
+        title={confirm && confirm.all ? 'Delete all notifications?' : 'Delete notification?'}
+        message={
+          confirm && confirm.all
+            ? `All ${notifications.length} notifications will be removed from your inbox. Your payments and campaign records are not affected.`
+            : confirm
+            ? `"${confirm.notification.title}" will be removed from your inbox.`
+            : ''
+        }
+        confirmLabel={confirm && confirm.all ? 'Delete All' : 'Delete'}
+        onConfirm={async () => {
+          if (confirm.all) await onClearAll();
+          else await onDelete(confirm.notification.id);
+          setConfirm(null);
+        }}
+        onClose={() => setConfirm(null)}
+      />
     </ScrollView>
   );
 }

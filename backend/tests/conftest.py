@@ -7,6 +7,10 @@ from sqlalchemy.orm import sessionmaker
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+# Tests must never touch the real (Supabase) database: point the app at the test SQLite file
+# before it is imported, since importing it creates and migrates tables.
+os.environ["DATABASE_URL"] = "sqlite:///./test_super_riders.db"
+
 from app.main import app
 from app.core.database import Base, get_db
 

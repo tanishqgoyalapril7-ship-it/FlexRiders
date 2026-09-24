@@ -32,6 +32,8 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Password is required. Use OTP login endpoint for OTP auth.",
         )
+    if not user.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This account has been deactivated. Contact support.")
 
     rider = db.query(Rider).filter(Rider.user_id == user.id).first()
     rider_sr_id = rider.rider_id if rider else None
@@ -73,6 +75,11 @@ def verify_otp(request: OTPVerifyRequest, db: Session = Depends(get_db)):
         )
 
     user = db.query(User).filter(User.phone == request.phone.strip()).first()
+    # The OTP is a fixed development code, so it must never unlock an admin account.
+    if user and user.role in UserRole.ADMIN_ROLES:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin accounts must log in with a password.")
+    if user and not user.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This account has been deactivated. Contact support.")
     if not user:
         # Create user if logging in first time via OTP as Rider
         user = User(

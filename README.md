@@ -1,383 +1,384 @@
-# ⚡ Super Riders — Production Rider Management & UPI Settlement Platform
+# Super Riders — Rider Management & Brand Campaign Platform
 
-<p align="center">
-  <img src="https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi" alt="FastAPI" />
-  <img src="https://img.shields.io/badge/React_18-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" alt="React 18" />
-  <img src="https://img.shields.io/badge/React_Native-Expo_v52-000020?style=for-the-badge&logo=expo&logoColor=white" alt="React Native Expo" />
-  <img src="https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.11+" />
-  <img src="https://img.shields.io/badge/iOS_&_Android-Ready-green?style=for-the-badge&logo=apple&logoColor=white" alt="iOS & Android Ready" />
-  <img src="https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge" alt="License MIT" />
-</p>
+Super Riders manages delivery riders end to end: registration and verification, brand assignment, paid brand campaigns tracked through daily photo proof, T-shirt / brand-kit pickup, payouts, and the admin tooling around all of it.
 
----
+It has three parts that share one backend:
 
-## 📖 Executive Summary
-
-**Super Riders** is an enterprise-grade fleet management, rider onboarding lifecycle, multi-brand logistics allocation, and UPI payment settlement platform.
-
-The system is engineered as a unified full-stack solution serving two core experiences:
-1. **Rider Mobile App (iOS & Android)**: Built with **React Native (Expo SDK 52)**, allowing delivery executives to register in a guided 4-step wizard, submit KYC documents, track approval status in real-time, view assigned delivery brand partnerships, toggle duty status, and monitor earnings with instant UPI payouts.
-2. **Admin Web Operations Dashboard**: Built with **React 18 & Vite**, offering logistics operators, fleet managers, and finance teams full operational visibility with real-time fleet analytics, approval queues, brand allocation matrix, instant/batch UPI settlements with UTR tracking, and immutable audit logging.
-3. **Backend REST API**: Built with **FastAPI & SQLAlchemy**, offering asynchronous database access, sequential Rider ID generation (`SR-000001` format), JWT role-based access control (RBAC), and automated settlement simulation.
+| Part | Stack | Folder |
+|---|---|---|
+| **Backend API** | FastAPI, SQLAlchemy 2, Pydantic v2, PostgreSQL (Supabase) or SQLite | `backend/` |
+| **Admin dashboard** (web) | React 18, Vite 5, lucide-react | `frontend/` |
+| **Rider app** (iOS & Android) | React Native 0.74, Expo SDK 51 | `mobile/` |
 
 ---
 
-## 🌟 Key Features
+## Contents
 
-### 🛵 1. Rider Mobile App (Cross-Platform iOS & Android)
-- **Guided 4-Step Registration Wizard**:
-  - *Personal Info*: Full Name, Mobile, Email, Date of Birth, Profile Avatar, Government ID.
-  - *Work Profile*: Current delivery company (Zomato, Swiggy, Zepto, Blinkit, Shadowfax), vehicle type (EV, Petrol Bike, Bicycle), vehicle registration number, driving license.
-  - *Working Locations*: Preferred operating cities, delivery zones, and primary hubs.
-  - *Payment Details*: UPI ID (e.g. `rider@okaxis`), Google Pay number, Account holder name, and IFSC code.
-- **Sequential Rider Identification**: Every rider is issued a unique company identifier (e.g., `SR-000001`, `SR-000145`) upon submission.
-- **Real-Time Verification Screen**: Polls backend state dynamically and alerts the rider when their account is reviewed, approved, or brand-assigned.
-- **Active Rider Home Screen**:
-  - Assigned Brand Partnership card with contract details.
-  - Live Duty Switch (`Online` / `Offline`).
-  - Today's Deliveries, Active Hours, and Estimated Earnings.
-- **Earnings & UPI Payout Ledger**:
-  - Weekly and monthly earnings breakdown.
-  - Complete history of settlements with UTR reference numbers, payment mode (`UPI` / `GPay`), timestamp, and receipt generation.
-- **Digital Rider ID & Profile**:
-  - Digital Fleet Badge with embedded QR code.
-  - Direct emergency SOS and operations support hotline.
+- [Quick start](#quick-start)
+- [Rider app features](#rider-app-features)
+- [Admin dashboard features](#admin-dashboard-features)
+- [Campaigns in depth](#campaigns-in-depth)
+- [Data safety: delete, archive, reset](#data-safety-delete-archive-reset)
+- [Security](#security)
+- [Configuration](#configuration)
+- [API overview](#api-overview)
+- [Project structure](#project-structure)
+- [Testing](#testing)
+- [Known limitations](#known-limitations)
 
 ---
 
-### 🖥️ 2. Admin Operations & Finance Dashboard
-- **Executive Analytics Overview**:
-  - Real-time KPI tiles: Total Fleet Size, Pending Review Queue, Total Payout Volume (₹), and Active Partner Brands.
-  - Interactive SVG trend charts: 7-day registration velocity, 30-day payout volume, and brand market distribution.
-- **Rider Verification & Dossier Review Queue**:
-  - Advanced search and multi-criteria filters (by Status, City, Brand, Vehicle Type).
-  - Comprehensive **Rider Dossier Modal**: view submitted government IDs, driving license, vehicle details, and UPI information.
-  - One-click workflow actions: **Approve Rider**, **Reject Application**, **Put on Hold**, or **Blacklist**.
-- **Multi-Brand Fleet Allocation Matrix**:
-  - Brand partner CRUD (e.g., Brand A through E, Zomato, Swiggy, Zepto, Blinkit).
-  - Active fleet count per brand, contract commission percentages, and payout models.
-  - Single and bulk brand assignment modal with automatic notification dispatch.
-- **Finance & UPI Payout Engine**:
-  - Instant settlement trigger with custom or full amount.
-  - Batch payout execution for entire approved fleet.
-  - Unique transaction identifier generation (`TXN-YYYYMMDD-XXXXXX`) and bank UTR tracking.
-  - Filter ledger by `PAID`, `PROCESSING`, `PENDING`, or `FAILED`.
-- **Audit Trail & Governance Log**:
-  - Immutable audit logs recording actor email, action type, target entity ID, IP address, and timestamp.
-- **Embedded Interactive Mobile Simulator**:
-  - Test the entire mobile user experience directly within the browser dashboard via a virtual smartphone frame.
-
----
-
-## 📐 System Architecture & Workflow
-
-```mermaid
-flowchart TD
-    subgraph Mobile ["📱 Rider Mobile App (React Native / Expo)"]
-        A1[Rider Download & Launch] --> A2[OTP / Phone Auth]
-        A2 --> A3[4-Step Registration Wizard]
-        A3 --> A4[Pending Verification State]
-        A4 -. Real-time Polling .-> A5[Approved / Active Dashboard]
-        A5 --> A6[Duty On / Off & Payout Tracking]
-    end
-
-    subgraph Backend ["⚡ FastAPI Core Services (/api/v1)"]
-        B1[Auth & RBAC Service]
-        B2[Rider Onboarding Engine]
-        B3[Sequential ID Generator]
-        B4[Brand Allocation Service]
-        B5[UPI Settlement & Payout Engine]
-        B6[Audit & Notification Logger]
-    end
-
-    subgraph Admin ["🖥️ Admin Web Dashboard (React 18 + Vite)"]
-        C1[Operations Overview & KPIs]
-        C2[Verification & Dossier Review]
-        C3[Brand Allocation Matrix]
-        C4[Finance Ledger & Batch Payouts]
-        C5[Reports & CSV Exports]
-    end
-
-    A3 -->|POST /api/v1/riders/register| B2
-    B2 -->|Generate SR-XXXXXX| B3
-    B2 -->|Store in Pending Queue| C2
-    C2 -->|POST /approve & /assign-brand| B4
-    B4 -->|Push Notification / Status Change| A4
-    C4 -->|POST /payments/process| B5
-    B5 -->|Simulate UPI / Generate UTR| A6
-    B1 --- B6
-```
-
----
-
-## 🎨 UI & Design System
-
-The platform follows a modern, high-contrast **Obsidian & Deep Navy** design system engineered for high-density logistics monitoring:
-
-| Component | Design Specification | Details |
-| :--- | :--- | :--- |
-| **Color Palette** | Navy Obsidian (`#0f172a`), Slate Card (`#1e293b`), Electric Blue (`#3b82f6`), Emerald Success (`#10b981`), Amber Caution (`#f59e0b`), Rose Reject (`#ef4444`) | Curated dark-mode theme preventing eye strain during operations monitoring |
-| **Typography** | Inter, Plus Jakarta Sans, SF Pro Display / System Sans | Clean, legible sans-serif with distinct numeric tabular figures for currency and counts |
-| **Data Tables** | High-density tables with inline status pill badges, quick action menus, and pagination | Allows review of hundreds of riders in minimal screen real-estate |
-| **Mobile Experience**| Ergonomic bottom navigation, card-based statistics, native haptics-ready touch targets (48px+) | Designed for one-handed operation by delivery executives on the road |
-
----
-
-## 📂 Project Structure
-
-```text
-Super-Riders/
-├── backend/                      # FastAPI Python Backend
-│   ├── app/
-│   │   ├── api/
-│   │   │   ├── deps.py           # Dependency injection (DB session, JWT auth)
-│   │   │   └── v1/
-│   │   │       ├── api.py        # Central API router
-│   │   │       └── endpoints/
-│   │   │           ├── auth.py          # Admin & Rider Authentication
-│   │   │           ├── riders.py        # Rider profile & registration endpoints
-│   │   │           ├── admin_riders.py  # Review queue, approvals, rejections
-│   │   │           ├── brands.py        # Partner brand management & assignment
-│   │   │           ├── payments.py      # UPI payouts & settlement ledger
-│   │   │           ├── reports.py       # Metrics calculation & CSV export
-│   │   │           ├── notifications.py # In-app notification feeds
-│   │   │           └── audit_logs.py    # Compliance & audit trail endpoints
-│   │   ├── core/
-│   │   │   ├── config.py         # App settings & environment resolution
-│   │   │   ├── database.py       # SQLAlchemy engine & session factory
-│   │   │   └── security.py       # Password hashing & JWT generation
-│   │   ├── models/
-│   │   │   └── all_models.py     # SQLAlchemy models (Rider, Brand, Payment, etc.)
-│   │   ├── schemas/
-│   │   │   └── all_schemas.py    # Pydantic v2 validation models
-│   │   ├── services/             # Core business logic services
-│   │   └── main.py               # FastAPI application entrypoint
-│   ├── tests/
-│   │   ├── conftest.py           # Pytest fixtures and test database setup
-│   │   └── test_super_riders.py  # End-to-end integration test suite
-│   ├── reset_clean_db.py         # Resets database to clean slate for live testing
-│   ├── seed_data.py              # Seeds database with realistic demo fleet
-│   ├── requirements.txt          # Python dependencies
-│   └── .env.example              # Environment variables template
-│
-├── frontend/                     # Admin Web Dashboard (Vite + React 18)
-│   ├── src/
-│   │   ├── components/           # Reusable UI components (Sidebar, Topbar, Simulator)
-│   │   ├── views/                # Full-page operational views:
-│   │   │   ├── DashboardView.jsx # KPIs, charts, quick actions
-│   │   │   ├── RidersView.jsx    # Rider fleet table & dossier modal
-│   │   │   ├── BrandsView.jsx    # Brand allocation & commission matrix
-│   │   │   ├── PaymentsView.jsx  # Payouts ledger & settlement modal
-│   │   │   ├── ReportsView.jsx   # Analytics charts & CSV data export
-│   │   │   ├── AuditLogsView.jsx # System audit log
-│   │   │   └── SettingsView.jsx  # Configuration & policies
-│   │   ├── services/
-│   │   │   └── api.js            # Axios client with automatic auth headers
-│   │   ├── App.jsx               # Navigation router & state manager
-│   │   ├── main.jsx              # React DOM entrypoint
-│   │   └── index.css             # Design tokens, variables, and utility classes
-│   ├── index.html                # HTML entrypoint
-│   ├── vite.config.js            # Vite bundler configuration
-│   └── package.json
-│
-├── mobile/                       # Rider Mobile App (React Native / Expo SDK 52)
-│   ├── src/
-│   │   └── services/
-│   │       └── api.js            # Mobile API client with automatic token attachment
-│   ├── App.js                    # 7-screen mobile navigation & state flow
-│   ├── app.json                  # Expo application manifest (bundle ID, permissions)
-│   ├── eas.json                  # Cloud build profiles for Android (.aab) & iOS (.ipa)
-│   ├── metro.config.js           # Metro bundler configuration
-│   └── package.json
-│
-├── docs/                         # Comprehensive Engineering & Deployment Guides
-│   ├── ARCHITECTURE.md           # System design & lifecycle state machines
-│   ├── DATABASE_SCHEMA.md        # Relational ER diagrams & schema dictionary
-│   ├── API_DOCUMENTATION.md      # OpenAPI specification & payload reference
-│   ├── PLAY_STORE_GUIDE.md       # Google Play Store publishing guide (.aab)
-│   ├── APP_STORE_GUIDE.md        # Apple App Store & TestFlight publishing guide
-│   └── AWS_DEPLOYMENT.md         # Production AWS ECS/RDS/S3 deployment guide
-│
-├── .gitignore                    # Production Git ignore rules
-└── README.md                     # Master project documentation
-```
-
----
-
-## 🚀 Quick Start Guide
+## Quick start
 
 ### Prerequisites
-- **Python**: Version 3.11 or higher
-- **Node.js**: Version 18.x or 20.x LTS
-- **Git**
-- Optional: **Xcode** (for iOS Simulator on macOS) or **Android Studio** (for Android Emulator)
+- Python 3.9+
+- Node.js 18+
+- For the rider app: Xcode (iOS Simulator) or Android Studio, or the Expo Go app on a phone
 
----
-
-### 1. Backend Setup (FastAPI)
+### 1. Backend (port 8000)
 
 ```bash
-# 1. Navigate to the backend directory
 cd backend
-
-# 2. Create and activate a Python virtual environment
 python3 -m venv venv
-source venv/bin/activate       # On Windows: venv\Scripts\activate
-
-# 3. Install required dependencies
+source venv/bin/activate
 pip install -r requirements.txt
-
-# 4. Initialize database
-# For a clean testing slate (0 riders, ready for real registrations):
-python reset_clean_db.py
-
-# OR to seed realistic test riders and payments:
-# python seed_data.py
-
-# 5. Start the FastAPI development server
-uvicorn app.main:app --reload --port 8000
+cp .env.example .env            # then edit .env (see Configuration)
+python reset_clean_db.py        # creates tables + the 3 admin accounts (no demo data)
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-- **Interactive Swagger / OpenAPI Docs**: [http://localhost:8000/docs](http://localhost:8000/docs)
-- **Health Check Endpoint**: [http://localhost:8000/health](http://localhost:8000/health)
+- Health check: http://127.0.0.1:8000/health
+- Interactive API docs: http://127.0.0.1:8000/docs
+- Tables and new columns are created automatically at startup. On PostgreSQL, row-level security is enabled on every table so Supabase's public REST API can't read the data; the backend keeps full access.
 
----
-
-### 2. Admin Web Dashboard Setup (React + Vite)
+### 2. Admin dashboard (port 5173)
 
 ```bash
-# 1. Navigate to the frontend directory
 cd frontend
-
-# 2. Install dependencies
 npm install
-
-# 3. Start the Vite development server
 npm run dev
 ```
 
-- **Open Dashboard**: [http://localhost:5173](http://localhost:5173)
-- Log in using default Admin credentials (see below).
+Open http://localhost:5173 and sign in. `reset_clean_db.py` creates these accounts:
+
+| Role | Phone | Password |
+|---|---|---|
+| Super Admin | `+919999999999` | `admin123` |
+| Operations Admin | `+919999999998` | `ops123` |
+| Finance Admin | `+919999999997` | `finance123` |
+
+> **Change these passwords** (Admins page → Edit) before using the system with real data.
+
+### 3. Rider app
+
+```bash
+cd mobile
+npm install
+npx expo start          # press i for the iOS Simulator, a for Android
+```
+
+The app talks to `http://127.0.0.1:8000/api/v1` on the iOS Simulator and `http://10.0.2.2:8000/api/v1` on the Android emulator. On a real phone, point it at your computer's Wi-Fi IP:
+
+```bash
+EXPO_PUBLIC_API_URL=http://192.168.1.20:8000/api/v1 npx expo start
+```
+
+(For a phone, also start the backend with `--host 0.0.0.0`.)
+
+### Optional: demo data
+`python seed_data.py --demo` fills a **local SQLite** database with sample riders and brands. It refuses to run against PostgreSQL so demo data never reaches a real database.
 
 ---
 
-### 3. Rider Mobile App Setup (React Native / Expo)
+## Rider app features
 
-```bash
-# 1. Navigate to the mobile directory
-cd mobile
+### Account
+- **Registration wizard** (Personal → Work → Vehicle & Location → Payment → Review):
+  - Show/hide toggle on the password field.
+  - Date of birth picker with Day / Month / Year lists (riders must be 18+).
+  - Type-ahead suggestions for **city** (~90 Indian cities), **area** (popular areas in the major cities) and **vehicle model**. The lists are bundled in the app, so nothing typed is sent to a third party; any value can still be typed.
+  - **Vehicle number** with live validation of Indian formats (`HR 26 DK 8337`, `DL 3C 1234`, Bharat series `22 BH 1234 AA`). It's stored normalised (`HR26DK8337`) and must be unique.
+  - Each rider gets a sequential Rider ID (`SR-000001`, `SR-000002`, …).
+- **Login** with mobile number + password (with show/hide), or OTP (development code; see limitations).
+- **Status-aware Home screen**: application under review → approved → brand assigned → campaign active → campaign completed, each with a tailored banner.
 
-# 2. Install dependencies
-npm install
+### Home
+- Greeting and location, notification bell with an unread dot.
+- **Brand card** (current brand, assignment date, current campaign, account status, today's earnings, pending payout).
+- **My Campaign** card with today's photos (x/3), streak, photo-days vs target and earnings.
+- Quick actions (My Brand, Earnings, Payments, Documents, Support, Campaigns) and Recent Activity.
 
-# 3. Launch on iOS Simulator (macOS):
-npx expo start --ios
+### Campaigns
+- **Available / My Campaign / History** tabs.
+- **Join flow**: if the campaign needs a T-shirt, the rider picks a size (and a pickup location when there are several). A popup explains that the T-shirt must be collected before the campaign starts, with **Continue / Cancel**. Joining only creates a request; the rider isn't a campaign rider yet.
+- **Request status**: *Application Submitted*, T-shirt *Pending Collection / Collected*, Campaign *Waiting for Admin Approval*, and the pickup location's address, dates, hours, contact, instructions, plus **Open Map** and **Call** buttons. A rejected request shows *Application Rejected* with the reason.
+- **Daily photo proof (Photo Streaks)**:
+  - 3 different approved photos on a day = 1 completed day = 1 delivered rider-day.
+  - The Today's Photos card has 3 slots showing each photo as approved, in review or rejected, and an "Upload Photo 2 of 3" button.
+  - Current streak, longest streak, total photo-days and a "streak broken" warning.
+  - Target days vs completed, completion %, missed and excused days.
+  - A day-by-day timeline (x/3 photos per day, surplus days shown as "target reached, not paid").
+- **T-Shirt / Brand Kit Pickup card** with size, status, location, map and call buttons.
+- A "Campaign target reached" banner when the brand's commitment is fully delivered.
 
-# OR Launch on Android Emulator:
-npx expo start --android
+### Money
+- Earnings summary and payment history.
 
-# OR Run in Web Browser:
-npx expo start --web
+### Notifications
+- Filter (All / Unread / Payments / System), mark all read, delete one, delete all.
+
+### Profile
+- Profile card (name, Rider ID, status), Light / Dark / System theme.
+- Personal details. The rider can edit or remove date of birth, vehicle model, area, UPI ID and GPay number. Name, mobile, vehicle number and city are verified fields that only operations can change.
+- Account status card (verified / under review / suspended, with the reason).
+- **Delete account**: password + typing DELETE. A rider with no history is removed completely; a rider with payments or campaign history is deactivated instead, so payout records are kept. It's blocked while the rider is in an active campaign.
+
+### Reliability
+- Background refresh every 4 s that never overlaps itself (a slow backend can't pile up requests), plus 20-second request timeouts (60 s for photo uploads).
+
+---
+
+## Admin dashboard features
+
+Sign-in is required. The session is stored in the browser, and an expired session returns to the login screen.
+
+### Dashboard
+- KPIs, 7-day registrations, payment chart, brand distribution, campaign overview, pending approvals.
+- Monthly payments with real month-over-month change.
+
+### Riders
+- Status tabs: All, Pending, Approved, Active, Suspended, Rejected, **Archived**. Search by name, ID, phone, vehicle number, email or UPI; filter by city.
+- **Create rider** (sets their app login), **edit rider** (changing the mobile number changes their login; vehicle number is validated and unique).
+- Approve, reject (with a reason), suspend (with a reason), reactivate.
+- Assign or end a **brand** assignment; **add to a campaign** directly.
+- **Delete / Archive / Restore** (see [Data safety](#data-safety-delete-archive-reset)).
+
+### Brands
+- Create, edit, activate or deactivate, search and filter, detail view with assignment history.
+- Delete: shows linked campaigns and riders first; brands with history can only be deactivated.
+
+### Campaigns
+- Create / edit wizard: Basics → Slots & Payout → **T-Shirt & Pickup** → Details. It includes the brand contract value (with a per-rider-day helper), whether surplus days are paid, and whether riders continue after fulfilment.
+- **Publish / Unpublish / Pause / Resume / Complete / Cancel / Delete**. Drafts are clearly marked "Hidden from riders".
+- A **rider visibility banner** on each campaign says whether riders can see it (and why not), how many slots are left, and why individual riders can't join.
+- Campaign detail tabs:
+  - **Delivery**: contracted vs delivered rider-days, fulfilment %, expected-vs-actual chart, pace status, recovery plan (projected shortfall, replacement riders, extension days, each with its formula), active and at-risk riders.
+  - **Riders**: today's photos (x/3), current and longest streak, photo-days, target, remaining, completion %, Active / At Risk / Inactive, earnings, "Replaces …". Add a rider directly, remove a rider, open the activity view.
+  - **Requests**: see *Join Requests* below.
+  - **Photos**: review each photo individually (approve, or reject with a reason). Each photo shows how many valid photos its day has.
+  - **Payouts**: approve and pay rider payouts (recorded in the payments ledger).
+  - **Extensions**: approve dated extensions to recover a shortfall.
+  - **Brand Kit**: T-shirt requirement, size-wise counts, pickup locations, per-rider size / location / status / pickup date / collected date.
+  - **Financials**: brand contract value, received / refunds / credits, payment status, rider payout totals, platform margin, overpayment adjustments (mark Recovered or Waived).
+  - **History**: every rider-day change (who, when, old → new, why) and the final summary saved at closure.
+- CSV export per campaign.
+
+### Join Requests
+- Sidebar page with pending requests across all campaigns (filters: Pending, Approved, Rejected, All, by campaign), plus the same table in each campaign's Requests tab.
+- **Mark T-shirt Collected** (records the size handed over; can be undone), **Approve** (disabled with the reason until allowed), **Reject** (reason required).
+
+### Payments
+- Create, mark paid, mark failed, retry. **Edit** or **cancel** pending payments; paid payments are locked. CSV export.
+
+### Notifications, Audit Log, Reports
+- Notifications: mark read, delete one, delete read, delete all.
+- Audit log of every admin action.
+- Riders and payments CSV exports.
+
+### Admins & Settings
+- **Admin accounts**: add, edit role or password, deactivate. You can't lock yourself out, and there is always at least one active super admin. Accounts are never deleted, because the audit log refers to them.
+- **Settings**: the operating rules currently in effect (read-only), and **Reset Data** (super admin only; see below).
+
+UX conventions: every destructive action uses a confirmation dialog that shows linked records, needs a reason or a typed confirmation, and shows loading and errors inside the dialog. Results appear as toast messages; there are no browser alert pop-ups.
+
+---
+
+## Campaigns in depth
+
+### Purchased vs delivered vs earned vs paid
+Four figures are kept strictly separate:
+
+1. **Purchased**: contracted rider-days `C = required riders × contract days`, fixed at publish.
+2. **Delivered**: completed rider-days on contract or extension dates, one per rider per date. Days are counted in date order; days that were already paid always stay inside the contract.
+3. **Earned**: payable days × each rider's daily rate. Days beyond `C` are *surplus*, unpaid unless "Allow payout beyond contract" is on.
+4. **Brand money**: contract value plus explicit Received / Refund / Credit records. A delivery shortfall never changes billing automatically.
+
+### Photo Streaks
+- A day completes only with **3 distinct approved photos** (`PHOTOS_PER_DAY`). Duplicate images (same file hash) are rejected at upload and never counted twice; extra photos never create extra days.
+- Streaks follow the **photo date**, not the approval time. Today stays open until it completes, days awaiting review don't break a streak, and excused days neither break nor extend it.
+- Rejecting a photo that was already approved needs a reason, recalculates payouts, logs the change and, if the rider was already paid, creates an **overpayment adjustment**. Nothing is deducted automatically.
+
+### Pace, recovery and extensions
+- Status: *On Track* (≥ 95 % of expected), *At Risk* (≥ 80 %), *Behind Target* (< 80 %), plus *Fulfilled*, *Extended*, *Completed with Shortfall*. With little data (fewer than 3 days or 20 rider-days), 100 % attendance is assumed and the plan is labelled *Preliminary*.
+- Replacement riders = `ceil(shortfall ÷ days remaining)`, not one per missed day. Extension days = `ceil(shortfall ÷ (riders × attendance))`.
+- Extensions and replacement slots never change `C`.
+
+### Join → approval flow
+```
+Rider joins (size + pickup location) ─► request: T-shirt "Pending Collection", campaign "Pending Admin Approval"
+        │
+        ▼
+Rider collects the T-shirt ─► admin marks it Collected
+        │
+        ▼
+Admin approves ─► checks: rider eligible, campaign published, no conflicting campaign,
+                  T-shirt collected (if required), slot available
+        │
+        ▼
+Rider becomes an official campaign rider ─► campaign appears under My Active Campaign
+```
+A join request is **never** an active campaign rider.
+
+### What riders see
+A campaign is visible in the rider app when it is **published**, not completed or cancelled, and hasn't ended (including extensions). A rider's approval status, brand or current campaign never hides a campaign; they only decide whether the rider can join. Set `CAMPAIGN_VISIBILITY_LOG=true` to log the reason each campaign is hidden.
+
+### T-shirt / brand-kit pickup
+- Admins configure one or more **pickup locations** per campaign: name, address, Google Maps link, available dates and days, start and end time, contact person and phone, instructions. Locations can be activated or deactivated; one that riders were given can't be deleted.
+- With several active locations, the rider chooses one when joining; with one, it's assigned automatically. Riders can't change it afterwards; admins can.
+- Not required at all when the campaign has no T-shirt.
+
+---
+
+## Data safety: delete, archive, reset
+
+| Record | Permanently deleted only when… | Otherwise |
+|---|---|---|
+| Rider | no payments, brand, campaign or photo history | **Archived**: hidden, login disabled, current brand and campaign ended, history kept, restorable |
+| Brand | no campaigns, assignments or payments | **Deactivated** |
+| Campaign | draft or cancelled, with no riders, activity, paid payouts or brand-payment records | **Cancelled** |
+| Pickup location | no rider or request uses it | **Deactivated** |
+| Payment | never | Cancelled (pending or failed only) |
+| Admin account | never | Deactivated |
+| Notification | always deletable | — |
+
+**Reset Data** (Settings, super admin only, type `RESET` to confirm). The dialog shows the exact number of records each option will delete:
+- *Campaign activity & photos*, *Campaigns*, *Brands* (includes their campaigns), *Riders*, or *All application data*.
+- Admin accounts, the audit log, the database structure and configuration are **never** touched, and every reset is written to the audit log.
+
+---
+
+## Security
+- JWT authentication; admin routes require an admin role, and riders get `403` on every admin endpoint.
+- Admin accounts can **never** log in with OTP; deactivated or archived accounts can't log in.
+- Notifications are scoped to their owner.
+- On Supabase, row-level security is enabled on all tables (no public REST access).
+- Rider photo uploads: image type and size are checked, and a SHA-256 hash is used for duplicate detection.
+- `backend/.env` holds the database password and is gitignored. Never commit it.
+
+---
+
+## Configuration
+
+`backend/.env` (see `backend/.env.example`):
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `DATABASE_URL` | local SQLite file | PostgreSQL / Supabase URL (URL-encode `@` in passwords as `%40`) |
+| `SECRET_KEY` | dev value | JWT signing key: **set a long random value** |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | `1440` | Login session length |
+| `MOCK_OTP_CODE` | `123456` | Development OTP (riders only) |
+| `PHOTOS_PER_DAY` | `3` | Distinct approved photos for a completed day |
+| `FULFILLMENT_ON_TRACK_PCT` / `FULFILLMENT_AT_RISK_PCT` | `95` / `80` | Campaign pace thresholds |
+| `LOW_SAMPLE_MIN_DAYS` / `LOW_SAMPLE_MIN_RIDER_DAYS` | `3` / `20` | "Preliminary" plan threshold |
+| `RIDER_BEHIND_PCT` / `INACTIVE_MISSED_DAYS` | `80` / `3` | Rider At Risk / Inactive rules |
+| `CAMPAIGN_VISIBILITY_LOG` | `false` | Log rider-app campaign visibility decisions |
+
+**Supabase notes:** the session pooler allows 15 connections. The backend uses at most 8 and waits at most 10 s for one. Use the pooler host (the direct host is IPv6-only).
+
+---
+
+## API overview
+
+Base path `/api/v1`. Full, interactive reference at `/docs`.
+
+| Area | Main endpoints |
+|---|---|
+| Auth | `POST /auth/login`, `/auth/otp/send`, `/auth/otp/verify`, `/auth/register`, `GET /auth/me` |
+| Rider (self) | `GET/PATCH/DELETE /riders/me`, `GET /riders/me/payments` |
+| Rider campaigns | `GET /riders/me/campaigns`, `GET /riders/me/campaigns/{id}`, `POST …/{id}/join`, `…/{id}/withdraw`, `…/{id}/activity` (photo upload) |
+| Admin riders | `GET/POST /admin/riders`, `GET/PUT/DELETE /admin/riders/{id}`, `…/delete-impact`, `…/archive`, `…/restore`, `…/approve`, `…/reject`, `…/suspend`, `…/reactivate` |
+| Brands | `GET/POST /brands`, `GET/PUT/DELETE /brands/{id}`, `…/delete-impact`, `POST /brands/assign/{rider_id}`, `DELETE /brands/unassign/{rider_id}` |
+| Campaigns | CRUD, `…/{publish,unpublish,pause,resume,complete,cancel}`, `…/fulfillment`, `…/rider-visibility`, `…/riders`, `…/photos`, `…/payouts`, `…/extensions`, `…/brand-payments`, `…/adjustments`, `…/brand-kit`, `…/pickup-locations`, `…/activity-log`, `…/snapshot`, `…/export` |
+| Join requests | `GET /campaigns/join-requests`, `GET /campaigns/{id}/applications`, `POST …/applications/{id}/{kit,approve,reject}` |
+| Payments | `GET/POST /payments`, `PUT /payments/{id}`, `POST …/{id}/process`, `…/{id}/cancel` |
+| Notifications | `GET /notifications`, `PATCH …/{id}/read`, `PATCH …/read-all`, `DELETE …/{id}`, `DELETE /notifications` |
+| Admin system | `GET/POST /admin/users`, `PUT/DELETE /admin/users/{id}`, `GET /admin/system/settings`, `GET /admin/system/reset-preview`, `POST /admin/system/reset` |
+| Reports | `GET /reports/dashboard`, `/reports/export/riders`, `/reports/export/payments`, `GET /audit-logs` |
+
+---
+
+## Project structure
+
+```
+backend/
+  app/
+    api/v1/endpoints/   auth, riders, admin_riders, brands, campaigns, payments,
+                        notifications, reports, audit_logs, admin_system
+    models/             all_models.py (users, riders, brands, payments…), campaign_models.py
+    schemas/            Pydantic request/response models
+    services/           campaign_service (rules), fulfillment_service (rider-days, recovery),
+                        kit_service (T-shirt pickup), data_admin_service (delete/archive/reset),
+                        rider_service, payment_service, notification_service, audit_service
+    core/               config, database (pool, startup migrations, RLS), security
+  tests/                pytest suite (runs on SQLite, never touches Supabase)
+  reset_clean_db.py     tables + admin accounts, no demo data
+  seed_data.py          demo data (SQLite only, needs --demo)
+frontend/src/
+  views/                Dashboard, Riders, Brands, Campaigns, CampaignDetail, Payments,
+                        Reports, AuditLogs, AdminPages (Login, Admins, Settings, Notifications)
+  components/           CampaignFulfillment, BrandKitEditor, JoinRequests, AdminCrud,
+                        Feedback (toasts + danger dialog), modals, charts
+  services/api.js       API client
+mobile/
+  App.js                navigation, session, background refresh
+  src/screens/          Splash, Login, Register, Home, Campaigns, CampaignDetail, Earnings,
+                        Payments, Brand, Notifications, Profile, Support
+  src/components/       ui, formFields, KitPickup, ConfirmSheet
+  src/data/             city, area and vehicle suggestions
+  src/services/api.js   API client (timeouts)
+docs/                   earlier architecture, deployment and store guides (this README is the current reference)
 ```
 
 ---
 
-## 🔑 Default Credentials & Role-Based Access
-
-| Role | Email / Phone | Password | Access Scope |
-| :--- | :--- | :--- | :--- |
-| **Super Admin** | `admin@superriders.com` / `+919999999999` | `admin123` | Full administrative control, system settings, audit logs |
-| **Operations Admin** | `ops@superriders.com` / `+919999999998` | `ops123` | Rider approvals, rejections, brand allocations |
-| **Finance Admin** | `finance@superriders.com` / `+919999999997` | `finance123` | Payment ledger, batch UPI settlement generation |
-| **Rider (Test)** | `+919876543210` | `password123` | Rider mobile portal & earnings ledger |
-
-> **OTP Verification Note**: In development mode, any 6-digit OTP code `123456` is accepted for phone authentication.
-
----
-
-## 📡 Core API Endpoints
-
-### Authentication & Profiles
-- `POST /api/v1/auth/login`: Admin and rider authentication with JWT response.
-- `POST /api/v1/auth/request-otp`: Dispatch OTP to phone number.
-- `POST /api/v1/auth/verify-otp`: Exchange OTP for authentication token.
-- `GET /api/v1/auth/me`: Fetch authenticated user profile.
-
-### Rider Operations
-- `POST /api/v1/riders/register`: Multi-step registration entrypoint. Automatically issues sequential `SR-XXXXXX` ID.
-- `GET /api/v1/riders/my-profile`: Retrieve rider profile, duty status, and assigned brand details.
-- `PUT /api/v1/riders/duty-status`: Toggle duty mode between `ONLINE` and `OFFLINE`.
-- `GET /api/v1/riders/{id}/payments`: Fetch UPI settlement and earnings history for a specific rider.
-
-### Admin Fleet Governance
-- `GET /api/v1/admin/riders`: Filterable list of all riders with status, city, and brand parameters.
-- `GET /api/v1/admin/riders/{id}`: Detailed rider dossier with submitted documents.
-- `POST /api/v1/admin/riders/{id}/approve`: Approves rider, changes state to `APPROVED`, sends alert.
-- `POST /api/v1/admin/riders/{id}/reject`: Rejects application with audit reason.
-- `POST /api/v1/admin/riders/{id}/assign-brand`: Assigns rider to a partner brand and transitions status to `ACTIVE`.
-
-### Payments & Settlements
-- `GET /api/v1/payments`: Comprehensive financial ledger with status filters.
-- `POST /api/v1/payments/process`: Trigger instant UPI/GPay payout for a rider. Generates unique UTR number.
-- `POST /api/v1/payments/batch-settle`: Execute batch payouts for all active riders with pending balances.
-
-### Reports & Analytics
-- `GET /api/v1/reports/dashboard`: Live fleet statistics, weekly payouts, and brand allocation charts.
-- `GET /api/v1/reports/export/riders`: Downloads full rider fleet roster as CSV.
-- `GET /api/v1/reports/export/payments`: Downloads full payment transactions ledger as CSV.
-
----
-
-## 🧪 Automated Testing
-
-The backend includes a comprehensive automated test suite testing end-to-end flows:
+## Testing
 
 ```bash
 cd backend
-venv/bin/pytest tests/ -v
+source venv/bin/activate
+python -m pytest -q          # 68 tests
 ```
 
-**Test Coverage Highlights**:
-- API health check and configuration integrity.
-- Admin token generation and role authorization.
-- Multi-step rider registration and sequential `SR-XXXXXX` format validation.
-- Transition lifecycle: `PENDING` -> `APPROVED` -> `ACTIVE` with brand allocation.
-- UPI payment processing and transaction ledger verification.
+The suite always uses a throwaway SQLite database. It covers:
+- registration and vehicle numbers;
+- brands;
+- the campaign lifecycle and fulfilment worked examples (e.g. 300 → 245 delivered = 81.67 %, replacement and extension maths);
+- photo streaks;
+- corrections and overpayments;
+- brand money;
+- the T-shirt pickup and join-request flow;
+- rider visibility;
+- CRUD, archive and permission rules;
+- data reset.
 
----
-
-## 📱 Publishing to Mobile App Stores
-
-For production builds, Super Riders is configured with **Expo Application Services (EAS)**:
-
-### Google Play Store (Android)
+Build checks:
 ```bash
-cd mobile
-eas build --platform android --profile production
+cd frontend && npm run build
+cd mobile && npx expo start    # then open the iOS/Android bundle; Metro reports any compile error
 ```
-Produces an optimized Android App Bundle (`.aab`) ready for submission to the Google Play Console. Refer to [`docs/PLAY_STORE_GUIDE.md`](docs/PLAY_STORE_GUIDE.md) for step-by-step instructions.
-
-### Apple App Store (iOS)
-```bash
-cd mobile
-eas build --platform ios --profile production
-```
-Generates an signed `.ipa` build and uploads directly to Apple TestFlight and App Store Connect. Refer to [`docs/APP_STORE_GUIDE.md`](docs/APP_STORE_GUIDE.md) for full configuration details.
 
 ---
 
-## ☁️ Production Cloud Deployment (AWS)
-
-The platform is architected for cloud-native deployment:
-- **Backend API**: Containerized with Docker and hosted on **AWS ECS Fargate**.
-- **Database**: Managed **Amazon RDS PostgreSQL** (Multi-AZ with automated backups).
-- **Static Frontend**: Hosted on **Amazon S3** distributed globally via **AWS CloudFront**.
-- **KYC Documents Storage**: Secure private **Amazon S3** bucket with time-expiring pre-signed URLs.
-
-Complete infrastructure setup and Docker configurations are detailed in [`docs/AWS_DEPLOYMENT.md`](docs/AWS_DEPLOYMENT.md).
+## Known limitations
+- **OTP login** uses a fixed development code, and there is no SMS provider. It is disabled for admin accounts, but a real SMS/OTP service is needed before production.
+- **No payment gateway**: "Mark Paid" records a payment made outside the app.
+- **Rider documents** (licence, Aadhaar, RC) are verified offline; in-app document upload isn't built yet.
+- **Profile photo upload, Terms & Conditions and Privacy Policy** pages aren't built yet.
+- The rider app's **Support** screen is informational ("coming soon").
+- **Operating rules** are set in `backend/.env`, not from the dashboard.
+- **Performance**: the dashboard refreshes every 3 s. With Supabase in a distant region each query takes about 160 ms, so a nearer region or Supabase's transaction pooler is recommended as data grows.
 
 ---
 
-## 📄 License
-
-This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
+## License
+MIT: see [LICENSE](LICENSE).

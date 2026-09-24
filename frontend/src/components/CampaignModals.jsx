@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { X, Check, CheckCircle2, XCircle, Clock, ImageOff, Flame, Trophy, CalendarDays, Wallet } from 'lucide-react';
 import { api } from '../services/api';
+import { toast } from './Feedback';
+import { KitSettingsEditor, kitToDraft, syncBrandKit } from './BrandKitEditor';
 import { formatDate, formatINR, StatusPill, EmptyState } from './CampaignShared';
 
-const STEPS = ['Basics', 'Slots & Payout', 'Details'];
+const STEPS = ['Basics', 'Slots & Payout', 'T-Shirt & Pickup', 'Details'];
 
 const toInputDate = (d) => d.toISOString().slice(0, 10);
 
@@ -21,11 +23,16 @@ function emptyForm() {
     description: '',
     rules: '',
     visibility: 'DRAFT',
+    brand_contract_value: 0,
+    allow_payout_beyond_contract: false,
+    continue_after_fulfillment: false,
   };
 }
 
-export function CampaignFormModal({ brands = [], campaign, onClose, onSaved }) {
+export function CampaignFormModal({ brands = [], campaign, onClose, onSaved, onCreateBrand }) {
   const editing = Boolean(campaign);
+  // Only active, admin-created brands can be used; keep the current brand selectable when editing.
+  const brandOptions = brands.filter((b) => b.is_active || (editing && b.id === campaign.brand_id));
   const [step, setStep] = useState(0);
   const [form, setForm] = useState(() =>
     editing
@@ -39,16 +46,38 @@ export function CampaignFormModal({ brands = [], campaign, onClose, onSaved }) {
           description: campaign.description || '',
           rules: campaign.rules_text || '',
           visibility: campaign.visibility,
+          brand_contract_value: campaign.brand_contract_value || 0,
+          allow_payout_beyond_contract: campaign.allow_payout_beyond_contract,
+          continue_after_fulfillment: campaign.continue_after_fulfillment,
         }
       : emptyForm()
   );
+  const locked = editing && campaign.commitment_locked;
+  const [brandRate, setBrandRate] = useState('');
   const [imageFile, setImageFile] = useState(null);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  // Pickup settings are saved through the brand-kit endpoints after the campaign itself.
+  const [kitOriginal, setKitOriginal] = useState(null);
+  const [kitDraft, setKitDraft] = useState(() => kitToDraft(null));
+  const [kitLoaded, setKitLoaded] = useState(!editing);
+  useEffect(() => {
+    if (!editing) return;
+    api
+      .getBrandKit(campaign.id)
+      .then((d) => {
+        setKitOriginal(d.kit);
+        setKitDraft(kitToDraft(d.kit));
+      })
+      .catch((err) => setError(err.message))
+      .finally(() => setKitLoaded(true));
+  }, []);
   const set = (key) => (e) => setForm((prev) => ({ ...prev, [key]: e.target.value }));
 
   const days = Math.max(Math.round((new Date(form.end_date) - new Date(form.start_date)) / 86400000) + 1, 0);
-  const maxBudget = days * Number(form.total_slots || 0) * Number(form.daily_rate || 0);
+  const riderDays = days * Number(form.total_slots || 0);
+  const maxBudget = riderDays * Number(form.daily_rate || 0);
+  const toggle = (key) => (e) => setForm((prev) => ({ ...prev, [key]: e.target.checked }));
 
   const validate = (index) => {
     if (index === 0) {
@@ -63,6 +92,9 @@ export function CampaignFormModal({ brands = [], campaign, onClose, onSaved }) {
         return `Total slots cannot be lower than the ${campaign.stats.assigned_riders} riders already approved.`;
       if (!(Number(form.daily_rate) > 0)) return 'Daily payout must be greater than ₹0.';
     }
+    if (index === 2 && kitDraft.tshirt_required && !kitDraft.size_options.split(',').some((x) => x.trim())) {
+      return 'Add at least one T-shirt size.';
+    }
     return '';
   };
 
@@ -73,7 +105,7 @@ export function CampaignFormModal({ brands = [], campaign, onClose, onSaved }) {
   };
 
   const save = async (visibility) => {
-    const message = validate(0) || validate(1);
+    const message = validate(0) || validate(1) || validate(2);
     if (message) {
       setError(message);
       return;
@@ -85,6 +117,7 @@ export function CampaignFormModal({ brands = [], campaign, onClose, onSaved }) {
       brand_id: Number(form.brand_id),
       total_slots: Number(form.total_slots),
       daily_rate: Number(form.daily_rate),
+      brand_contract_value: Number(form.brand_contract_value || 0),
       name: form.name.trim(),
     };
     try {
@@ -92,6 +125,19 @@ export function CampaignFormModal({ brands = [], campaign, onClose, onSaved }) {
         ? await api.updateCampaign(campaign.id, payload)
         : await api.createCampaign({ ...payload, visibility });
       if (imageFile) saved = await api.uploadCampaignImage(saved.id, imageFile);
+      const kitTouched = kitOriginal || kitDraft.tshirt_required || kitDraft.locations.length > 0;
+      if (kitTouched) {
+        try {
+          const warnings = await syncBrandKit(saved.id, kitDraft, kitOriginal);
+          warnings.forEach((w) => toast.info(w));
+        } catch (err) {
+          // The campaign is saved; report the pickup problem so it can be fixed from the Brand Kit tab.
+          toast.error(`Campaign saved, but pickup settings weren't: ${err.message}`);
+        }
+      }
+      if (!editing && saved.status === 'DRAFT') {
+        toast.info('Saved as a draft. Riders can’t see it until you publish it.');
+      }
       onSaved(saved);
     } catch (err) {
       setError(err.message);
@@ -131,14 +177,25 @@ export function CampaignFormModal({ brands = [], campaign, onClose, onSaved }) {
             <>
               <div className="form-group">
                 <label className="form-label">Brand *</label>
+                {brandOptions.length === 0 ? (
+                  <div className="mini-stat" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                    <span style={{ fontSize: '0.84rem', color: '#64748B' }}>No active brands. Create a brand first.</span>
+                    {onCreateBrand ? (
+                      <button type="button" className="btn-primary" style={{ padding: '6px 12px', fontSize: '0.8rem' }} onClick={onCreateBrand}>
+                        Create Brand
+                      </button>
+                    ) : null}
+                  </div>
+                ) : (
                 <select className="form-input" value={form.brand_id} onChange={set('brand_id')}>
                   <option value="">Select a brand</option>
-                  {brands.map((b) => (
+                  {brandOptions.map((b) => (
                     <option key={b.id} value={b.id}>
                       {b.name}
                     </option>
                   ))}
                 </select>
+                )}
               </div>
               <div className="form-group">
                 <label className="form-label">Campaign Name *</label>
@@ -147,13 +204,16 @@ export function CampaignFormModal({ brands = [], campaign, onClose, onSaved }) {
               <div className="form-row-2">
                 <div className="form-group">
                   <label className="form-label">Start Date *</label>
-                  <input type="date" className="form-input" value={form.start_date} onChange={set('start_date')} />
+                  <input type="date" className="form-input" value={form.start_date} onChange={set('start_date')} disabled={locked} />
                 </div>
                 <div className="form-group">
                   <label className="form-label">End Date *</label>
-                  <input type="date" className="form-input" value={form.end_date} min={form.start_date} onChange={set('end_date')} />
+                  <input type="date" className="form-input" value={form.end_date} min={form.start_date} onChange={set('end_date')} disabled={locked} />
                 </div>
               </div>
+              {locked ? (
+                <span className="form-hint">Dates and required riders are locked after publishing. Use an extension or replacement slots instead.</span>
+              ) : null}
             </>
           )}
 
@@ -162,7 +222,7 @@ export function CampaignFormModal({ brands = [], campaign, onClose, onSaved }) {
               <div className="form-row-2">
                 <div className="form-group">
                   <label className="form-label">Required Riders / Total Slots *</label>
-                  <input type="number" min="1" className="form-input" value={form.total_slots} onChange={set('total_slots')} />
+                  <input type="number" min="1" className="form-input" value={form.total_slots} onChange={set('total_slots')} disabled={locked} />
                   <span className="form-hint">Only approved riders use a slot.</span>
                 </div>
                 <div className="form-group">
@@ -178,18 +238,63 @@ export function CampaignFormModal({ brands = [], campaign, onClose, onSaved }) {
               ) : null}
               <div className="mini-stat-list">
                 <div className="mini-stat">
-                  <div className="mini-stat-label">Campaign Length</div>
-                  <div className="mini-stat-value">{days} days</div>
+                  <div className="mini-stat-label">Contracted Rider-Days</div>
+                  <div className="mini-stat-value">
+                    {riderDays} <span style={{ fontSize: '0.78rem', color: '#64748B' }}>({form.total_slots} × {days} days)</span>
+                  </div>
                 </div>
                 <div className="mini-stat">
-                  <div className="mini-stat-label">Maximum Budget (all slots, every day)</div>
+                  <div className="mini-stat-label">Planned Rider Budget</div>
                   <div className="mini-stat-value">{formatINR(maxBudget)}</div>
                 </div>
               </div>
+              <div className="form-row-2">
+                <div className="form-group">
+                  <label className="form-label">Brand Contract Value (₹)</label>
+                  <input type="number" min="0" className="form-input" value={form.brand_contract_value} onChange={set('brand_contract_value')} />
+                  <span className="form-hint">What the brand pays. Independent of rider payout.</span>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Helper: brand price per rider-day (₹)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    className="form-input"
+                    value={brandRate}
+                    onChange={(e) => {
+                      setBrandRate(e.target.value);
+                      setForm((prev) => ({ ...prev, brand_contract_value: Math.round(Number(e.target.value || 0) * riderDays * 100) / 100 }));
+                    }}
+                    placeholder="Optional"
+                  />
+                  <span className="form-hint">Fills the contract value as rate × {riderDays} rider-days.</span>
+                </div>
+              </div>
+              <label className="toggle-row">
+                <input type="checkbox" checked={form.continue_after_fulfillment} onChange={toggle('continue_after_fulfillment')} />
+                <div>
+                  <strong>Continue rider activity after fulfilment</strong>
+                  <span>Off: riders stop uploading once {riderDays} rider-days are delivered. Extra days are tracked as surplus.</span>
+                </div>
+              </label>
+              <label className="toggle-row">
+                <input type="checkbox" checked={form.allow_payout_beyond_contract} onChange={toggle('allow_payout_beyond_contract')} />
+                <div>
+                  <strong>Allow payout beyond contracted rider-days</strong>
+                  <span>Off: surplus days are recorded but not paid, which caps rider payout at the planned budget.</span>
+                </div>
+              </label>
             </>
           )}
 
-          {step === 2 && (
+          {step === 2 &&
+            (kitLoaded ? (
+              <KitSettingsEditor draft={kitDraft} setDraft={setKitDraft} />
+            ) : (
+              <EmptyState icon={Clock}>Loading pickup settings…</EmptyState>
+            ))}
+
+          {step === 3 && (
             <>
               <div className="form-group">
                 <label className="form-label">Campaign Description</label>
@@ -328,11 +433,22 @@ const DAY_ICONS = {
   COMPLETED: CheckCircle2,
   MISSED: XCircle,
   REJECTED: XCircle,
+  INCOMPLETE: XCircle,
   SUBMITTED: Clock,
   DUE: Clock,
+  EXCUSED: Clock,
 };
 
-const DAY_LABELS = { COMPLETED: 'Completed', MISSED: 'Missed', REJECTED: 'Rejected', SUBMITTED: 'In review', DUE: 'Due today' };
+const DAY_LABELS = {
+  COMPLETED: 'Completed',
+  MISSED: 'Missed',
+  REJECTED: 'Rejected',
+  INCOMPLETE: 'Incomplete',
+  SUBMITTED: 'In review',
+  DUE: 'Due today',
+  EXCUSED: 'Excused',
+  NOT_ELIGIBLE: 'Not eligible',
+};
 
 // Review controls shared by the activity modal and the Photos tab.
 export function PhotoReviewCard({ campaignId, photo, riderName, onPreview, onChanged, onReject }) {
@@ -340,10 +456,12 @@ export function PhotoReviewCard({ campaignId, photo, riderName, onPreview, onCha
   const approve = async () => {
     setBusy(true);
     try {
-      await api.approveCampaignActivity(campaignId, photo.id || photo.activity_id);
+      // Per-photo proofs are reviewed one by one; legacy single-photo days as a whole day.
+      if (photo.id) await api.approveCampaignPhoto(campaignId, photo.id);
+      else await api.approveCampaignActivity(campaignId, photo.activity_id);
       onChanged();
     } catch (err) {
-      alert(err.message);
+      toast.error(err.message);
     } finally {
       setBusy(false);
     }
@@ -364,6 +482,12 @@ export function PhotoReviewCard({ campaignId, photo, riderName, onPreview, onCha
           <StatusPill status={status} />
         </div>
         {riderName ? <span style={{ color: '#64748B' }}>{formatDate(photo.date)}</span> : null}
+        {photo.photos_required ? (
+          <span style={{ color: photo.day_valid >= photo.photos_required ? '#047857' : '#64748B', fontWeight: 600 }}>
+            Day: {Math.min(photo.day_valid, photo.photos_required)}/{photo.photos_required} valid photos
+            {photo.day_valid >= photo.photos_required ? ' · Streak day complete' : ''}
+          </span>
+        ) : null}
         {photo.rejection_reason ? <span style={{ color: '#B91C1C' }}>Reason: {photo.rejection_reason}</span> : null}
         <div className="row-actions">
           {status !== 'APPROVED' && (
@@ -386,8 +510,9 @@ export function RiderActivityModal({ campaignId, assignmentId, onClose, onChange
   const [data, setData] = useState(null);
   const [preview, setPreview] = useState(null);
   const [rejecting, setRejecting] = useState(null);
+  const [excusing, setExcusing] = useState(null);
 
-  const load = () => api.getCampaignRiderActivity(campaignId, assignmentId).then(setData).catch((err) => alert(err.message));
+  const load = () => api.getCampaignRiderActivity(campaignId, assignmentId).then(setData).catch((err) => toast.error(err.message));
   useEffect(() => {
     load();
   }, [campaignId, assignmentId]);
@@ -397,7 +522,20 @@ export function RiderActivityModal({ campaignId, assignmentId, onClose, onChange
     onChanged && onChanged();
   };
 
-  const photos = data ? data.days.filter((d) => d.activity_id).slice().reverse() : [];
+  // One card per photo (legacy single-photo days show as one card for the whole day).
+  const photos = data
+    ? data.days
+        .filter((d) => d.activity_id)
+        .slice()
+        .reverse()
+        .flatMap((d) => {
+          const day = { activity_id: d.activity_id, date: d.date, day_valid: d.photos_valid, photos_required: d.photos_required };
+          if (d.photos.length === 0) {
+            return d.photo_url ? [{ ...day, id: null, photo_url: d.photo_url, photo_status: d.photo_status, rejection_reason: d.rejection_reason }] : [];
+          }
+          return d.photos.map((p) => ({ ...day, id: p.id, photo_url: p.photo_url, photo_status: p.status, rejection_reason: p.rejection_reason }));
+        })
+    : [];
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -429,7 +567,7 @@ export function RiderActivityModal({ campaignId, assignmentId, onClose, onChange
               {[
                 ['Current Streak', `${data.current_streak} days`, Flame, '#F59E0B', '#FFFBEB'],
                 ['Longest Streak', `${data.longest_streak} days`, Trophy, '#8B5CF6', '#F5F3FF'],
-                ['Completed / Eligible', `${data.completed_days} / ${data.eligible_days}`, CalendarDays, '#2563EB', '#EFF6FF'],
+                ['Photo-Days / Target', `${data.completed_days} / ${data.target_days}`, CalendarDays, '#2563EB', '#EFF6FF'],
                 ['Total Earned', formatINR(data.earned), Wallet, '#10B981', '#ECFDF5'],
               ].map(([title, value, Icon, color, bg]) => (
                 <div key={title} className="stat-card" style={{ padding: '14px 16px' }}>
@@ -445,7 +583,19 @@ export function RiderActivityModal({ campaignId, assignmentId, onClose, onChange
             </div>
 
             <div style={{ fontSize: '0.8rem', color: '#64748B' }}>
-              Missed days: <strong style={{ color: '#0F172A' }}>{data.missed_days}</strong> • Awaiting review:{' '}
+              Today:{' '}
+              <strong style={{ color: '#0F172A' }}>
+                {data.today_photos.in_window ? `${Math.min(data.today_photos.valid, data.photos_required)}/${data.photos_required} photos` : '—'}
+              </strong>{' '}
+              • Remaining: <strong style={{ color: '#0F172A' }}>{data.remaining_target_days} days</strong> • Completion:{' '}
+              <strong style={{ color: '#0F172A' }}>{data.completion_pct == null ? '—' : `${data.completion_pct}%`}</strong>
+              {data.streak_broken ? (
+                <>
+                  {' '}• <strong style={{ color: '#B91C1C' }}>Streak broken {formatDate(data.streak_broken_on)}</strong>
+                </>
+              ) : null}{' '}
+              • Missed days:{' '}
+              <strong style={{ color: '#0F172A' }}>{data.missed_days}</strong> • Excused: <strong style={{ color: '#0F172A' }}>{data.excused_days}</strong> • Awaiting review:{' '}
               <strong style={{ color: '#0F172A' }}>{data.pending_review_days}</strong> • Paid:{' '}
               <strong style={{ color: '#0F172A' }}>{formatINR(data.paid)}</strong> • Pending payout:{' '}
               <strong style={{ color: '#0F172A' }}>{formatINR(data.pending)}</strong>
@@ -460,13 +610,29 @@ export function RiderActivityModal({ campaignId, assignmentId, onClose, onChange
                   {data.days.map((day) => {
                     const Icon = DAY_ICONS[day.status] || Clock;
                     return (
-                      <div key={day.date} className={`activity-day ${day.status.toLowerCase()}`} title={day.rejection_reason || ''}>
+                      <div
+                        key={day.date}
+                        className={`activity-day ${day.status.toLowerCase()}`}
+                        title={day.rejection_reason || day.excuse_reason || ''}
+                        style={day.period === 'EXTENSION' ? { borderStyle: 'dashed' } : undefined}
+                      >
                         <span className="activity-day-date">{formatDate(day.date, false)}</span>
                         <span className="activity-day-status">
                           <Icon size={13} />
                           {DAY_LABELS[day.status]}
                         </span>
-                        <span style={{ fontSize: '0.78rem', fontWeight: 700 }}>{formatINR(day.earned)}</span>
+                        <span style={{ fontSize: '0.72rem', color: '#64748B' }}>
+                          {Math.min(day.photos_valid, day.photos_required)}/{day.photos_required} photos
+                          {day.photos_pending ? ` · ${day.photos_pending} in review` : ''}
+                        </span>
+                        <span style={{ fontSize: '0.78rem', fontWeight: 700 }}>
+                          {day.unpaid_surplus ? 'Surplus – unpaid' : formatINR(day.earned)}
+                        </span>
+                        {['MISSED', 'REJECTED', 'INCOMPLETE'].includes(day.status) && day.date <= new Date().toISOString().slice(0, 10) ? (
+                          <button className="card-action-link" style={{ fontSize: '0.7rem', textAlign: 'left' }} onClick={() => setExcusing(day)}>
+                            Excuse
+                          </button>
+                        ) : null}
                       </div>
                     );
                   })}
@@ -482,7 +648,7 @@ export function RiderActivityModal({ campaignId, assignmentId, onClose, onChange
                 <div className="photo-grid">
                   {photos.map((p) => (
                     <PhotoReviewCard
-                      key={p.activity_id}
+                      key={p.id ? `p${p.id}` : `a${p.activity_id}`}
                       campaignId={campaignId}
                       photo={p}
                       onPreview={setPreview}
@@ -498,15 +664,34 @@ export function RiderActivityModal({ campaignId, assignmentId, onClose, onChange
       </div>
 
       <PhotoLightbox url={preview} onClose={() => setPreview(null)} />
+      {excusing ? (
+        <ConfirmDialog
+          title="Excuse absence"
+          message={`Mark ${formatDate(excusing.date)} as an excused absence (e.g. medical or emergency)? It won't count against the rider, but it isn't delivered or paid.`}
+          confirmLabel="Excuse Day"
+          reasonLabel="Reason (required)"
+          onConfirm={async (reason) => {
+            if (!reason) throw new Error('Please give a reason.');
+            await api.excuseRiderDay(campaignId, assignmentId, excusing.date, reason);
+            refresh();
+          }}
+          onClose={() => setExcusing(null)}
+        />
+      ) : null}
       {rejecting ? (
         <ConfirmDialog
-          title="Reject proof"
-          message={`Reject the proof for ${formatDate(rejecting.date)}? This day will earn ₹0 unless it's approved later.`}
+          title={rejecting.id ? 'Reject photo' : 'Reject proof'}
+          message={`Reject this ${rejecting.id ? 'photo' : 'proof'} for ${formatDate(rejecting.date)}? The day only counts with ${
+            rejecting.photos_required || 3
+          } valid photos; otherwise it earns ₹0.${
+            rejecting.photo_status === 'APPROVED' ? ' It was already approved, so a reason is required and the change is logged.' : ''
+          }`}
           confirmLabel="Reject Proof"
           danger
           reasonLabel="Rejection reason"
           onConfirm={async (reason) => {
-            await api.rejectCampaignActivity(campaignId, rejecting.activity_id || rejecting.id, reason);
+            if (rejecting.id) await api.rejectCampaignPhoto(campaignId, rejecting.id, reason);
+            else await api.rejectCampaignActivity(campaignId, rejecting.activity_id, reason);
             refresh();
           }}
           onClose={() => setRejecting(null)}

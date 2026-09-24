@@ -17,6 +17,21 @@ const getDefaultBaseUrl = () => {
 
 export const API_BASE_URL = getDefaultBaseUrl();
 
+// Requests give up after 20s, so a slow or restarting backend can't leave the app waiting forever
+// (a hung request would otherwise also block the next background refresh).
+const REQUEST_TIMEOUT_MS = 20000;
+const nativeFetch = global.fetch;
+const fetch = (url, { timeoutMs = REQUEST_TIMEOUT_MS, ...options } = {}) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return nativeFetch(url, { ...options, signal: controller.signal })
+    .catch((err) => {
+      if (err.name === 'AbortError') throw new Error('The server is taking too long to respond. Please try again.');
+      throw err;
+    })
+    .finally(() => clearTimeout(timer));
+};
+
 let authToken = '';
 
 // FastAPI returns validation errors (422) as an array of {loc, msg} objects.
@@ -43,8 +58,12 @@ export const loadStoredToken = async () => {
 // Uploaded files are served by the backend under /uploads.
 export const assetUrl = (path) => (path && path.startsWith('/') ? API_BASE_URL.replace(/\/api\/v1$/, '') + path : path);
 
-const authedPost = async (path) => {
-  const res = await fetch(`${API_BASE_URL}${path}`, { method: 'POST', headers: { Authorization: `Bearer ${authToken}` } });
+const authedPost = async (path, body) => {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${authToken}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(formatError(err, 'Something went wrong'));
@@ -59,6 +78,20 @@ const authedGet = async (path) => {
     const err = new Error(`Request failed (${res.status})`);
     err.status = res.status;
     throw err;
+  }
+  return res.json();
+};
+
+// PATCH / DELETE with an optional JSON body; errors carry the server's message.
+const authedRequest = async (method, path, body) => {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method,
+    headers: { Authorization: `Bearer ${authToken}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(formatError(err, 'Something went wrong'));
   }
   return res.json();
 };
@@ -146,7 +179,11 @@ export const mobileApi = {
 
   getCampaign: (campaignId) => authedGet(`/riders/me/campaigns/${campaignId}`),
 
-  joinCampaign: (campaignId) => authedPost(`/riders/me/campaigns/${campaignId}/join`),
+  joinCampaign: (campaignId, tshirtSize, pickupLocationId) =>
+    authedPost(
+      `/riders/me/campaigns/${campaignId}/join`,
+      tshirtSize ? { tshirt_size: tshirtSize, pickup_location_id: pickupLocationId || null } : undefined
+    ),
 
   withdrawCampaignRequest: (campaignId) => authedPost(`/riders/me/campaigns/${campaignId}/withdraw`),
 
@@ -154,6 +191,7 @@ export const mobileApi = {
     const form = new FormData();
     form.append('photo', { uri: photo.uri, name: photo.fileName || 'proof.jpg', type: photo.mimeType || 'image/jpeg' });
     const res = await fetch(`${API_BASE_URL}/riders/me/campaigns/${campaignId}/activity`, {
+      timeoutMs: 60000, // Photo uploads can be slow on mobile data
       method: 'POST',
       headers: { Authorization: `Bearer ${authToken}` },
       body: form,
@@ -164,6 +202,12 @@ export const mobileApi = {
     }
     return res.json();
   },
+
+  deleteNotification: (id) => authedRequest('DELETE', `/notifications/${id}`),
+  clearNotifications: () => authedRequest('DELETE', '/notifications'),
+  // Only non-verified fields; an empty string removes the value.
+  updateProfile: (changes) => authedRequest('PATCH', '/riders/me', changes),
+  deleteAccount: (password, reason) => authedRequest('DELETE', '/riders/me', { password, reason }),
 
   markAllNotificationsRead: () =>
     fetch(`${API_BASE_URL}/notifications/read-all`, {

@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { Search, Bell, LogOut, CheckCheck } from 'lucide-react';
+import { Search, Bell, LogOut } from 'lucide-react';
 
 export default function Topbar({
   onSearch,
   searchValue,
   notifications = [],
-  adminUser = { name: 'Admin', role: 'Super Admin' },
+  adminUser,
+  onLogout,
+  onViewAllNotifications,
 }) {
   const [showNotifDropdown, setShowNotifDropdown] = useState(false);
   const unreadCount = notifications.filter((n) => !n.is_read).length;
@@ -65,6 +67,7 @@ export default function Topbar({
                 <span style={{ fontSize: '0.75rem', color: '#2563EB', fontWeight: 600 }}>{unreadCount} unread</span>
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', maxHeight: '280px', overflowY: 'auto' }}>
+                {notifications.length === 0 ? <div style={{ fontSize: '0.8rem', color: '#94A3B8' }}>No notifications.</div> : null}
                 {notifications.slice(0, 5).map((n) => (
                   <div key={n.id} style={{ fontSize: '0.8rem', padding: '6px 0', borderBottom: '1px solid #F1F5F9' }}>
                     <div style={{ fontWeight: 600, color: '#0F172A' }}>{n.title}</div>
@@ -72,18 +75,31 @@ export default function Topbar({
                   </div>
                 ))}
               </div>
+              <button
+                className="card-action-link"
+                style={{ marginTop: 10, fontSize: '0.8rem' }}
+                onClick={() => {
+                  setShowNotifDropdown(false);
+                  onViewAllNotifications && onViewAllNotifications();
+                }}
+              >
+                View all notifications
+              </button>
             </div>
           )}
         </div>
 
         {/* Admin Profile Pill */}
         <div className="user-profile-badge">
-          <div className="user-avatar-circle">A</div>
+          <div className="user-avatar-circle">{(adminUser?.email || 'A').charAt(0).toUpperCase()}</div>
           <div className="user-info-text">
-            <span className="user-name-text">{adminUser.name || 'Admin'}</span>
-            <span className="user-role-text">{adminUser.role || 'Super Admin'}</span>
+            <span className="user-name-text">{adminUser?.email || 'Admin'}</span>
+            <span className="user-role-text">{(adminUser?.role || '').replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase())}</span>
           </div>
         </div>
+        <button className="icon-btn-round" onClick={onLogout} title="Log out" aria-label="Log out">
+          <LogOut size={17} />
+        </button>
       </div>
     </header>
   );

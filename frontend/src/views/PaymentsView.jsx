@@ -7,6 +7,8 @@ export default function PaymentsView({
   setFilterStatus,
   onCreatePayment,
   onProcessPayment,
+  onEditPayment,
+  onCancelPayment,
   onDownloadCsv,
 }) {
   const [searchTerm, setSearchTerm] = useState('');
@@ -48,7 +50,7 @@ export default function PaymentsView({
       <div className="card" style={{ padding: '16px 20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
           <div className="tabs-header-bar">
-            {['ALL', 'PENDING', 'PAID', 'FAILED'].map((st) => (
+            {['ALL', 'PENDING', 'PAID', 'FAILED', 'CANCELLED'].map((st) => (
               <button
                 key={st}
                 className={`tab-btn ${filterStatus === st ? 'active' : ''}`}
@@ -140,6 +142,12 @@ export default function PaymentsView({
                         >
                           Fail
                         </button>
+                        <button className="btn-sm-view" onClick={() => onEditPayment(p)} title="Edit this pending payment">
+                          Edit
+                        </button>
+                        <button className="btn-sm-reject" onClick={() => onCancelPayment(p)} title="Cancel this payment (the record is kept)">
+                          Cancel
+                        </button>
                       </div>
                     )}
                     {p.status === 'PAID' && (
@@ -149,14 +157,16 @@ export default function PaymentsView({
                       </span>
                     )}
                     {p.status === 'FAILED' && (
-                      <button
-                        className="btn-sm-view"
-                        style={{ fontSize: '0.72rem' }}
-                        onClick={() => onProcessPayment(p.id, 'PAID')}
-                      >
-                        Retry
-                      </button>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button className="btn-sm-view" style={{ fontSize: '0.72rem' }} onClick={() => onProcessPayment(p.id, 'PAID')}>
+                          Retry
+                        </button>
+                        <button className="btn-sm-reject" onClick={() => onCancelPayment(p)}>
+                          Cancel
+                        </button>
+                      </div>
                     )}
+                    {p.status === 'CANCELLED' && <span style={{ fontSize: '0.72rem', color: '#94A3B8' }}>Cancelled</span>}
                   </td>
                 </tr>
               ))}

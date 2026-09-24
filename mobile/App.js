@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, SafeAreaView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { registerRootComponent } from 'expo';
 import { Ionicons } from '@expo/vector-icons';
@@ -29,7 +29,13 @@ const EMPTY_RIDER = {
   phone: '',
   email: '',
   vehicle: '',
+  vehicle_number: '',
   upi_id: '',
+  // Raw editable fields for Edit Profile
+  dob: '',
+  city: '',
+  area: '',
+  gpay_number: '',
   total: 0,
   paid: 0,
   pending: 0,
@@ -59,6 +65,11 @@ const toRider = (profile) => {
     phone: profile.mobile_number || '',
     email: profile.email || '',
     vehicle: profile.vehicle_type || '',
+    vehicle_number: profile.vehicle_number || '',
+    dob: profile.dob || '',
+    city: profile.primary_city || '',
+    area: profile.primary_area || '',
+    gpay_number: profile.gpay_number || '',
     upi_id: profile.upi_id || '',
     total: profile.total_earnings || 0,
     paid: profile.paid_earnings || 0,
@@ -120,7 +131,7 @@ function RiderApp() {
 
   // Loads the logged-in rider's data. Returns true on success, false when the account
   // has no rider profile yet, and null on other errors (e.g. backend unreachable).
-  const refreshData = useCallback(async () => {
+  const loadData = useCallback(async () => {
     if (!getAuthToken()) return null;
     try {
       setRider(toRider(await mobileApi.getProfile()));
@@ -139,6 +150,25 @@ function RiderApp() {
     return true;
   }, [logout]);
 
+  // Only one refresh runs at a time: when the backend is slow, polling must not pile up requests
+  // (that exhausted the backend's database connections and made campaigns fail to load).
+  // Refreshes after a rider action wait for any running refresh, then load fresh data;
+  // the background poll simply skips a tick while one is running.
+  const refreshing = useRef(null);
+  const refreshData = useCallback(() => {
+    const run = (refreshing.current || Promise.resolve())
+      .catch(() => null)
+      .then(loadData)
+      .finally(() => {
+        if (refreshing.current === run) refreshing.current = null;
+      });
+    refreshing.current = run;
+    return run;
+  }, [loadData]);
+  const poll = useCallback(() => {
+    if (!refreshing.current) refreshData();
+  }, [refreshData]);
+
   // Restore a saved login on launch.
   useEffect(() => {
     loadStoredToken().then(async (token) => {
@@ -149,9 +179,9 @@ function RiderApp() {
 
   useEffect(() => {
     if (screen !== 'main') return undefined;
-    const id = setInterval(refreshData, REFRESH_INTERVAL_MS);
+    const id = setInterval(poll, REFRESH_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [screen, refreshData]);
+  }, [screen, poll]);
 
   const handleLoggedIn = async () => {
     const result = await refreshData();
@@ -172,6 +202,21 @@ function RiderApp() {
       'Application submitted',
       `Your Rider ID is ${result.rider_id}.\n\nOur operations team will review your application. You'll be notified in the app once it's approved.`
     );
+  };
+
+  const deleteNotification = async (id) => {
+    await mobileApi.deleteNotification(id);
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  };
+
+  const clearNotifications = async () => {
+    await mobileApi.clearNotifications();
+    setNotifications([]);
+  };
+
+  const handleAccountDeleted = (message) => {
+    logout();
+    Alert.alert('Account deleted', message);
   };
 
   const markAllRead = async () => {
@@ -197,9 +242,17 @@ function RiderApp() {
       case 'brand':
         return <BrandScreen rider={rider} onBack={goHome} onShowDocuments={showDocumentsInfo} onSupport={() => setTab('support')} />;
       case 'notifications':
-        return <NotificationsScreen notifications={notifications} onBack={goHome} onMarkAllRead={markAllRead} />;
+        return (
+          <NotificationsScreen
+            notifications={notifications}
+            onBack={goHome}
+            onMarkAllRead={markAllRead}
+            onDelete={deleteNotification}
+            onClearAll={clearNotifications}
+          />
+        );
       case 'profile':
-        return <ProfileScreen rider={rider} onLogout={logout} />;
+        return <ProfileScreen rider={rider} onLogout={logout} onProfileChanged={refreshData} onAccountDeleted={handleAccountDeleted} />;
       case 'support':
         return <SupportScreen onBack={goHome} />;
       case 'campaigns':

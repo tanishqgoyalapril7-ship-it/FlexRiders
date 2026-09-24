@@ -1,27 +1,47 @@
 import React, { useState } from 'react';
-import { Search, Filter, Plus, Check, X, Shield, Eye, Bike, UserPlus } from 'lucide-react';
+import { Search, Eye, Pencil, Trash2, UserPlus } from 'lucide-react';
+import { RiderAvatar } from '../components/AdminCrud';
+
+const STATUS_TABS = [
+  ['ALL', 'All Riders'],
+  ['PENDING', 'Pending'],
+  ['APPROVED', 'Approved'],
+  ['ACTIVE', 'Active'],
+  ['SUSPENDED', 'Suspended'],
+  ['REJECTED', 'Rejected'],
+  ['ARCHIVED', 'Archived'],
+];
 
 export default function RidersView({
   riders = [],
+  archivedRiders = [],
   filterStatus = 'ALL',
   setFilterStatus,
   onViewRider,
   onApproveRider,
   onRejectRider,
   onAddNewRider,
+  onAssignBrand,
+  onEditRider,
+  onDeleteRider,
+  onRestoreRider,
+  showTabs = true,
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [cityFilter, setCityFilter] = useState('ALL');
+  const archivedTab = filterStatus === 'ARCHIVED';
+  const source = archivedTab ? archivedRiders : riders;
+  const cities = [...new Set(source.map((r) => r.primary_city).filter(Boolean))].sort();
+  const term = searchTerm.trim().toLowerCase();
 
-  const filteredRiders = riders.filter((r) => {
-    const matchesStatus = filterStatus === 'ALL' || r.status === filterStatus;
+  const filteredRiders = source.filter((r) => {
+    const matchesStatus = archivedTab || filterStatus === 'ALL' || r.status === filterStatus;
     const matchesSearch =
-      !searchTerm ||
-      r.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.rider_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.mobile_number?.includes(searchTerm) ||
-      r.current_company?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCity = cityFilter === 'ALL' || r.primary_city?.toLowerCase().includes(cityFilter.toLowerCase());
+      !term ||
+      [r.full_name, r.rider_id, r.mobile_number, r.current_company, r.vehicle_number, r.email, r.upi_id].some((v) =>
+        (v || '').toLowerCase().includes(term)
+      );
+    const matchesCity = cityFilter === 'ALL' || r.primary_city === cityFilter;
     return matchesStatus && matchesSearch && matchesCity;
   });
 
@@ -43,17 +63,17 @@ export default function RidersView({
       <div className="card" style={{ padding: '16px 20px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px' }}>
           {/* Status Tabs */}
-          <div className="tabs-header-bar">
-            {['ALL', 'PENDING', 'ACTIVE', 'SUSPENDED'].map((st) => (
-              <button
-                key={st}
-                className={`tab-btn ${filterStatus === st ? 'active' : ''}`}
-                onClick={() => setFilterStatus(st)}
-              >
-                {st === 'ALL' ? 'All Riders' : st.charAt(0) + st.slice(1).toLowerCase()}
-              </button>
-            ))}
-          </div>
+          {showTabs ? (
+            <div className="tabs-header-bar" style={{ flexWrap: 'wrap' }}>
+              {STATUS_TABS.map(([st, label]) => (
+                <button key={st} className={`tab-btn ${filterStatus === st ? 'active' : ''}`} onClick={() => setFilterStatus(st)}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div />
+          )}
 
           {/* Search & City Filter */}
           <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
@@ -62,7 +82,7 @@ export default function RidersView({
               <input
                 type="text"
                 className="search-input"
-                placeholder="Filter by name, ID, phone..."
+                placeholder="Name, ID, phone, vehicle no…"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -75,10 +95,11 @@ export default function RidersView({
               onChange={(e) => setCityFilter(e.target.value)}
             >
               <option value="ALL">All Cities</option>
-              <option value="Gurugram">Gurugram</option>
-              <option value="Noida">Noida</option>
-              <option value="Delhi">Delhi</option>
-              <option value="Faridabad">Faridabad</option>
+              {cities.map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -110,11 +131,7 @@ export default function RidersView({
                   </td>
                   <td>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <img
-                        src={r.profile_photo || `https://api.dicebear.com/7.x/avataaars/svg?seed=${r.rider_id}`}
-                        alt={r.full_name}
-                        style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover' }}
-                      />
+                      <RiderAvatar rider={r} />
                       <div>
                         <div style={{ fontWeight: 600 }}>{r.full_name}</div>
                         <div style={{ fontSize: '0.72rem', color: '#94A3B8' }}>{r.mobile_number}</div>
@@ -122,11 +139,12 @@ export default function RidersView({
                     </div>
                   </td>
                   <td>
-                    <div>{r.current_company || 'Independent'}</div>
+                    <div>{r.current_company || '—'}</div>
                     <div style={{ fontSize: '0.72rem', color: '#94A3B8' }}>{r.current_role}</div>
                   </td>
                   <td>
-                    <div>{r.vehicle_type || 'Bike'}</div>
+                    <div>{r.vehicle_type || '—'}</div>
+                    {r.vehicle_number ? <div style={{ fontSize: '0.72rem', fontWeight: 600 }}>{r.vehicle_number}</div> : null}
                     <div style={{ fontSize: '0.72rem', color: '#64748B' }}>{r.primary_city}</div>
                   </td>
                   <td>
@@ -141,6 +159,11 @@ export default function RidersView({
                   </td>
                   <td>
                     <span className={`status-pill pill-${r.status?.toLowerCase()}`}>{r.status}</span>
+                    {r.archived_at ? (
+                      <div style={{ fontSize: '0.7rem', color: '#64748B', marginTop: 4 }} title={r.archive_reason}>
+                        Archived {new Date(r.archived_at).toLocaleDateString()}
+                      </div>
+                    ) : null}
                   </td>
                   <td>
                     <div style={{ display: 'flex', gap: '6px' }}>
@@ -148,7 +171,26 @@ export default function RidersView({
                         <Eye size={13} style={{ marginRight: '3px', verticalAlign: 'middle' }} />
                         View
                       </button>
-                      {r.status === 'PENDING' && (
+                      {r.archived_at ? (
+                        <button className="btn-sm-approve" onClick={() => onRestoreRider(r)}>
+                          Restore
+                        </button>
+                      ) : (
+                        <>
+                          <button className="btn-sm-view" onClick={() => onEditRider(r)} title="Edit rider" aria-label={`Edit ${r.full_name}`}>
+                            <Pencil size={13} />
+                          </button>
+                          <button className="btn-sm-reject" onClick={() => onDeleteRider(r)} title="Delete or archive rider" aria-label={`Delete ${r.full_name}`}>
+                            <Trash2 size={13} />
+                          </button>
+                        </>
+                      )}
+                      {!r.archived_at && (r.status === 'APPROVED' || r.status === 'ACTIVE') && onAssignBrand && (
+                        <button className="btn-sm-approve" onClick={() => onAssignBrand(r)} title="Assign this rider to a brand">
+                          {r.current_brand ? 'Change Brand' : 'Assign Brand'}
+                        </button>
+                      )}
+                      {!r.archived_at && r.status === 'PENDING' && (
                         <>
                           <button
                             className="btn-sm-approve"
@@ -159,7 +201,7 @@ export default function RidersView({
                           </button>
                           <button
                             className="btn-sm-reject"
-                            onClick={() => onRejectRider(r.id)}
+                            onClick={() => onRejectRider(r)}
                             title="Reject rider application"
                           >
                             Reject
@@ -173,7 +215,11 @@ export default function RidersView({
               {filteredRiders.length === 0 && (
                 <tr>
                   <td colSpan={8} style={{ textAlign: 'center', padding: '36px', color: '#94A3B8' }}>
-                    No riders match the current filter or search criteria.
+                    {source.length === 0
+                      ? archivedTab
+                        ? 'No archived riders.'
+                        : 'No riders yet. Riders appear here when they register in the app or when you add one.'
+                      : 'No riders match the current filter or search criteria.'}
                   </td>
                 </tr>
               )}
