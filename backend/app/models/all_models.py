@@ -283,3 +283,20 @@ class RiderReferral(Base):
     referrer = relationship("Rider", foreign_keys=[referrer_rider_id])
     referred = relationship("Rider", foreign_keys=[referred_rider_id])
     reward_payment = relationship("Payment")
+
+
+class AccountDeletionRequest(Base):
+    """A deletion request sent through the public web form (flexriders.in/delete-account), for riders who
+    no longer have the app. An admin confirms the requester by phone before the account is deleted."""
+
+    __tablename__ = "account_deletion_requests"
+
+    id = Column(Integer, primary_key=True, index=True)
+    mobile_number = Column(String(20), nullable=False, index=True)
+    full_name = Column(String(120), nullable=False)
+    message = Column(String(1000), nullable=True)
+    status = Column(String(20), default="NEW", nullable=False)  # NEW, COMPLETED, REJECTED
+    resolution = Column(String(500), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    handled_at = Column(DateTime, nullable=True)
+    handled_by_email = Column(String(120), nullable=True)

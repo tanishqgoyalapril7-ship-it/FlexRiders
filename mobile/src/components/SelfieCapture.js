@@ -23,7 +23,7 @@ export default function SelfieCapture({ value, onChange }) {
     try {
       let result;
       if (DEV_GALLERY) {
-        result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8 });
+        result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
       } else {
         const permission = await ImagePicker.requestCameraPermissionsAsync();
         if (!permission.granted) {
@@ -32,7 +32,7 @@ export default function SelfieCapture({ value, onChange }) {
         }
         try {
           result = await ImagePicker.launchCameraAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            mediaTypes: ['images'],
             cameraType: ImagePicker.CameraType.front,
             quality: 0.8,
             allowsEditing: false,

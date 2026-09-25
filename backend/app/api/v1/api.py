@@ -11,6 +11,7 @@ from app.api.v1.endpoints import (
     campaigns,
     admin_system,
     internal,
+    account_deletion,
 )
 
 api_router = APIRouter()
@@ -29,3 +30,5 @@ api_router.include_router(campaigns.public_router, prefix="/public/campaigns", t
 api_router.include_router(admin_system.users_router, prefix="/admin/users", tags=["Admin Accounts"])
 api_router.include_router(admin_system.system_router, prefix="/admin/system", tags=["System"])
 api_router.include_router(internal.router, prefix="/internal", tags=["Scheduled jobs"])
+api_router.include_router(account_deletion.public_router, prefix="/public", tags=["Account Deletion (public)"])
+api_router.include_router(account_deletion.admin_router, prefix="/admin/deletion-requests", tags=["Account Deletion (admin)"])

@@ -12,6 +12,7 @@ import {
   HelpCircle,
   ShieldCheck,
   UserCog,
+  UserX,
   Settings,
   ChevronDown,
   ChevronRight,
@@ -239,6 +240,17 @@ export default function Sidebar({ open = false, onClose, activeView, setActiveVi
           <div className="nav-item-left">
             <ShieldCheck size={18} />
             <span>Audit Logs</span>
+          </div>
+        </div>
+
+        {/* Account deletion requests (from the public web form) */}
+        <div
+          className={`nav-item ${activeView === 'deletion-requests' ? 'active' : ''}`}
+          onClick={() => setActiveView('deletion-requests')}
+        >
+          <div className="nav-item-left">
+            <UserX size={18} />
+            <span>Deletion Requests</span>
           </div>
         </div>
 

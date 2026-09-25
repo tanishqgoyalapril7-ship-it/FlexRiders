@@ -158,6 +158,67 @@ def archive_rider(db: Session, rider: Rider, admin: Optional[User], reason: str)
     return rider
 
 
+ERASED_NOTE = "Personal data erased on the rider's deletion request"
+
+
+def erase_personal_data(db: Session, rider: Rider) -> Dict[str, int]:
+    """Account deletion for a rider whose payment / campaign history must be kept.
+
+    Removed: driver selfie (file too), email, date of birth, work details, area / extra locations, UPI,
+    GPay, bank details, vehicle model, GPS route points, notifications and documents; the login is
+    disabled and its password replaced so it can never be used again.
+    Kept (payout, tax and audit records): name, Rider ID, mobile number, vehicle type and number (they
+    appear in approved campaign photos), campaign photos, payments, payouts, and terms acceptances.
+    The rider must already be archived."""
+    import secrets
+
+    from app.core.security import get_password_hash
+
+    selfie = rider.profile_photo
+    documents = db.query(RiderDocument).filter(RiderDocument.rider_id == rider.id).all()
+    files = [selfie] + [d.file_url for d in documents]
+    removed = {
+        "route_points": db.query(RoutePoint).filter(RoutePoint.rider_id == rider.id).delete(synchronize_session=False),
+        "documents": len(documents),
+        "notifications": (
+            db.query(Notification).filter(Notification.user_id == rider.user_id).delete(synchronize_session=False) if rider.user_id else 0
+        ),
+    }
+    for d in documents:
+        db.delete(d)
+    for field in (
+        "profile_photo", "email", "dob", "current_company", "current_role", "experience_years", "experience_months",
+        "vehicle_type", "primary_area", "additional_locations", "preferred_radius", "upi_id", "gpay_number",
+        "bank_account_number", "ifsc_code",
+    ):
+        setattr(rider, field, None)
+    rider.archive_reason = ((rider.archive_reason or "") + f" | {ERASED_NOTE} ({datetime.utcnow():%d %b %Y})").strip(" |")[:255]
+    if rider.user:
+        rider.user.email = None
+        rider.user.is_active = False
+        rider.user.hashed_password = get_password_hash(secrets.token_urlsafe(32))
+    db.commit()
+    for url in files:
+        _remove_upload(url)
+    return removed
+
+
+def delete_rider_account(db: Session, rider: Rider, reason: str, admin: Optional[User] = None) -> Dict:
+    """One rule for every deletion request (in the app or via the web form): delete everything when the
+    rider has no history; otherwise archive and erase personal data, keeping the records that must stay."""
+    impact = rider_impact(db, rider)
+    if impact["can_hard_delete"]:
+        hard_delete_rider(db, rider, admin, reason)
+        return {"deleted": True, "erased": True}
+    if not rider.archived_at:
+        archive_rider(db, rider, admin, f"Account deletion requested: {reason}"[:255])
+    removed = erase_personal_data(db, rider)
+    if admin is not None:
+        log_admin_action(db=db, admin_user=admin, action="RIDER_PERSONAL_DATA_ERASED", target_type="RIDER", target_id=rider.rider_id,
+                         details=f"{rider.full_name}: personal data erased on deletion request. Payment and campaign records kept.")
+    return {"deleted": False, "erased": True, "removed": removed}
+
+
 def restore_rider(db: Session, rider: Rider, admin: User) -> Rider:
     if not rider.archived_at:
         raise DataAdminError("This rider is not archived.")

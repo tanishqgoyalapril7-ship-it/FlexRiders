@@ -73,3 +73,7 @@ backend/uploads/*
 !backend/uploads/.gitkeep
 logs/
 *.log
+
+# Generated native projects (Expo prebuild / CNG): recreated from app.json
+mobile/android/
+mobile/ios/

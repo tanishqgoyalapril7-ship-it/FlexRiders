@@ -194,7 +194,8 @@ def test_rider_profile_edit_and_account_deletion(client, db_session, admin):
     headers = {"Authorization": "Bearer " + login(client, body["mobile_number"]).json()["access_token"]}
     res = client.request("DELETE", f"{API}/riders/me", json={"password": "riderPass1"}, headers=headers).json()
     assert res["deleted"] is False
-    assert login(client, body["mobile_number"]).status_code == 403
+    # History is kept, but the login is destroyed (password replaced), so the old password no longer works at all.
+    assert login(client, body["mobile_number"]).status_code == 401
     assert client.get(f"{API}/payments?rider_id={rider['id']}", headers=admin).json()[0]["amount"] == 50
 
 

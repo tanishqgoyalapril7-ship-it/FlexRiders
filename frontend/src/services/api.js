@@ -283,6 +283,12 @@ export const api = {
   getActivityLog: (id) => fetchWithAuth(`/campaigns/${id}/activity-log`),
   getCampaignSnapshot: (id) => fetchWithAuth(`/campaigns/${id}/snapshot`),
 
+  getDeletionRequests: (status) => fetchWithAuth(`/admin/deletion-requests${status && status !== 'ALL' ? `?status=${status}` : ''}`),
+  completeDeletionRequest: (id, note) =>
+    fetchWithAuth(`/admin/deletion-requests/${id}/complete`, { method: 'POST', body: JSON.stringify({ note: note || null }) }),
+  rejectDeletionRequest: (id, note) =>
+    fetchWithAuth(`/admin/deletion-requests/${id}/reject`, { method: 'POST', body: JSON.stringify({ note }) }),
+
   // Driver selfies are private: loaded with the admin token into a local object URL (the caller revokes it).
   getRiderSelfieUrl: async (riderId) => {
     const response = await fetch(`${API_BASE}/admin/riders/${riderId}/selfie`, {

@@ -206,15 +206,14 @@ def delete_my_account(
             detail="You're part of an active campaign. Finish it or ask your operations manager to remove you before deleting your account.",
         )
     reason = (data.reason or "").strip() or "Deleted by rider from the app"
-    impact = das.rider_impact(db, rider)
-    if impact["can_hard_delete"]:
-        das.hard_delete_rider(db, rider, None, reason)
+    result = das.delete_rider_account(db, rider, reason)
+    if result["deleted"]:
         return {"success": True, "deleted": True, "message": "Your account and details have been deleted."}
-    das.archive_rider(db, rider, None, f"Rider requested account deletion: {reason}")
     return {
         "success": True,
         "deleted": False,
-        "message": "Your account has been deactivated. Payment and campaign records are kept as required for payouts.",
+        "message": "Your account has been deleted and your personal details (selfie, contact, payment and location data) erased. "
+        "Your name, Rider ID, phone number and past campaign and payment records are kept as required for payouts and accounts.",
     }
 
 

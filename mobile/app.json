@@ -1,20 +1,16 @@
 {
   "expo": {
     "name": "FlexRiders",
-    "slug": "super-riders",
+    "slug": "flexriders",
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
-    "splash": {
-      "resizeMode": "contain",
-      "backgroundColor": "#0B1528"
-    },
     "assetBundlePatterns": [
       "**/*"
     ],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.superriders.riderapp",
+      "bundleIdentifier": "in.flexriders.rider",
       "buildNumber": "1",
       "infoPlist": {
         "NSCameraUsageDescription": "FlexRiders uses the camera to take your daily campaign photos (Morning, Evening and Night).",
@@ -27,10 +23,11 @@
       }
     },
     "android": {
-      "package": "com.superriders.riderapp",
+      "package": "in.flexriders.rider",
       "versionCode": 1,
       "adaptiveIcon": {
-        "backgroundColor": "#0B1528"
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0A0A0A"
       },
       "permissions": [
         "CAMERA",
@@ -65,8 +62,22 @@
           "isAndroidBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true
         }
-      ]
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-logo.png",
+          "imageWidth": 220,
+          "resizeMode": "contain",
+          "backgroundColor": "#0B1528"
+        }
+      ],
+      "./plugins/withReleaseSigning"
     ],
-    "scheme": "superriders"
+    "scheme": [
+      "flexriders",
+      "superriders"
+    ],
+    "icon": "./assets/icon.png"
   }
 }

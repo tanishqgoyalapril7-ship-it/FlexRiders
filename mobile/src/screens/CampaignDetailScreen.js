@@ -26,7 +26,7 @@ const DAY_STYLES = {
 const DEV_GALLERY = __DEV__ && process.env.EXPO_PUBLIC_ALLOW_GALLERY_IN_DEV === 'true';
 
 async function takePhoto() {
-  const options = { mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.6, allowsEditing: false };
+  const options = { mediaTypes: ['images'], quality: 0.6, allowsEditing: false };
   if (DEV_GALLERY) return ImagePicker.launchImageLibraryAsync(options);
   const permission = await ImagePicker.requestCameraPermissionsAsync();
   if (!permission.granted) throw new Error('Camera access is needed to take your campaign photo. Allow it in Settings.');

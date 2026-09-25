@@ -46,6 +46,9 @@ export default function Footer() {
               <li>
                 <Link href="/terms">Terms</Link>
               </li>
+              <li>
+                <Link href="/delete-account">Delete account</Link>
+              </li>
             </ul>
           </div>
         </nav>

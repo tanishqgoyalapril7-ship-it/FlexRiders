@@ -10,6 +10,7 @@ import ReportsView from './views/ReportsView';
 import CampaignsView from './views/CampaignsView';
 import CampaignDetailView from './views/CampaignDetailView';
 import CustomerDetailView from './views/CustomerDetailView';
+import DeletionRequestsView from './views/DeletionRequestsView';
 import { JoinRequestsView } from './components/JoinRequests';
 import { AdminsView, LoginView, NotificationsView, SettingsView } from './views/AdminPages';
 import { RiderDetailModal, CreatePaymentModal } from './components/Modals';
@@ -639,6 +640,8 @@ export default function App() {
         {activeView === 'audit' && <AuditLogsView auditLogs={auditLogs} />}
 
         {activeView === 'admins' && <AdminsView currentAdmin={currentAdmin} />}
+
+        {activeView === 'deletion-requests' && <DeletionRequestsView />}
 
         {activeView === 'settings' && <SettingsView currentAdmin={currentAdmin} onDataReset={refreshAllData} />}
       </div>
