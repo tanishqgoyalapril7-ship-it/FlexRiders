@@ -84,9 +84,10 @@ def test_join_closes_when_campaign_goes_live(client, db_session, admin):
 
     assert notify_campaign_live(db_session, db_session.get(Campaign, cid)) == 0  # Never twice
 
-    # B. Live: the join button is disabled with a reason, and the API refuses new riders.
-    card = client.get(f"{API}/riders/me/campaigns/{cid}", headers=late_h).json()
-    assert card["can_join"] is False and card["join_blocked_reason"] == "Campaign has already started. New riders cannot join this campaign."
+    # B. Live: new riders no longer see it (list or direct link), and the API refuses to let them join.
+    assert cid not in [c["id"] for c in client.get(f"{API}/riders/me/campaigns", headers=late_h).json()["available"]]
+    card = client.get(f"{API}/riders/me/campaigns/{cid}", headers=late_h)
+    assert card.status_code == 404 and card.json()["detail"] == "Campaign has already started. New riders cannot join this campaign."
     res = client.post(f"{API}/riders/me/campaigns/{cid}/join", json={}, headers=late_h)
     assert res.status_code == 400 and "already started" in res.json()["detail"]
 

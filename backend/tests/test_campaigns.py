@@ -86,16 +86,22 @@ def join_and_approve(client, admin_headers, campaign_id, rider_headers, db=None)
 
 
 def test_draft_is_hidden_until_published(client, db_session, admin_headers, brand_id):
-    campaign = create_campaign(client, admin_headers, brand_id, visibility="DRAFT")
+    campaign = create_campaign(client, admin_headers, brand_id, visibility="DRAFT", start_offset=2)
     assert campaign["status"] == "DRAFT"
     _, rider_headers = make_rider(client, db_session, "9100000001")
     available = client.get(f"{API}/riders/me/campaigns", headers=rider_headers).json()["available"]
     assert campaign["id"] not in [c["id"] for c in available]
 
     published = client.post(f"{API}/campaigns/{campaign['id']}/publish", headers=admin_headers).json()
-    assert published["status"] == "ACTIVE"  # starts today
+    assert published["status"] == "OPEN"  # Starts in two days
     available = client.get(f"{API}/riders/me/campaigns", headers=rider_headers).json()["available"]
     assert campaign["id"] in [c["id"] for c in available]
+
+    # A campaign published on (or after) its start date is already live: riders don't see it.
+    today = create_campaign(client, admin_headers, brand_id, visibility="DRAFT")
+    assert client.post(f"{API}/campaigns/{today['id']}/publish", headers=admin_headers).json()["status"] == "ACTIVE"
+    available = client.get(f"{API}/riders/me/campaigns", headers=rider_headers).json()["available"]
+    assert today["id"] not in [c["id"] for c in available]
 
 
 def test_requests_do_not_consume_slots_and_full_blocks_joining(client, db_session, admin_headers, brand_id):
@@ -126,12 +132,13 @@ def test_rider_can_only_be_in_one_active_campaign(client, db_session, admin_head
     _, rider_headers = make_rider(client, db_session, "9100000004")
     join_and_approve(client, admin_headers, first["id"], rider_headers, db_session)
 
-    data = client.get(f"{API}/riders/me/campaigns", headers=rider_headers).json()
-    assert data["active"]["id"] == first["id"]
-    other = next(c for c in data["available"] if c["id"] == second["id"])
-    assert other["can_join"] is False
-    assert other["join_blocked_reason"] == "You are already assigned to an active campaign."
-    assert client.post(f"{API}/riders/me/campaigns/{second['id']}/join", headers=rider_headers).status_code == 400
+    with before_start(db_session, second["id"]):  # While `second` is still upcoming (listed)
+        data = client.get(f"{API}/riders/me/campaigns", headers=rider_headers).json()
+        assert data["active"]["id"] == first["id"]
+        other = next(c for c in data["available"] if c["id"] == second["id"])
+        assert other["can_join"] is False
+        assert other["join_blocked_reason"] == "You are already assigned to an active campaign."
+        assert client.post(f"{API}/riders/me/campaigns/{second['id']}/join", headers=rider_headers).status_code == 400
 
     # Removal frees the rider and the slot, and keeps history.
     rows = client.get(f"{API}/campaigns/{first['id']}/riders", headers=admin_headers).json()

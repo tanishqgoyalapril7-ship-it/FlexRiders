@@ -1260,15 +1260,29 @@ def rider_campaigns(rider: Rider = Depends(get_current_rider), db: Session = Dep
     }
 
 
-def _rider_visible_campaign(db: Session, campaign_id: int, rider: Rider) -> Campaign:
+def _rider_visible_campaign(db: Session, campaign_id: int, rider: Rider, joining: bool = False) -> Campaign:
+    """The campaign if this rider may see it: riders who requested or were assigned always can; everyone
+    else only sees published, upcoming campaigns (the Available list). joining: let the join endpoint give
+    its own refusal ("already started", "ended", ...) instead of "not found"."""
     campaign = _get_campaign(db, campaign_id)
     took_part = (
-        db.query(CampaignApplication)
+        db.query(CampaignApplication.id)
         .filter(CampaignApplication.campaign_id == campaign.id, CampaignApplication.rider_id == rider.id)
         .first()
+        or db.query(CampaignAssignment.id)  # Riders an admin added directly have no request
+        .filter(CampaignAssignment.campaign_id == campaign.id, CampaignAssignment.rider_id == rider.id)
+        .first()
     )
-    if campaign.visibility != CampaignVisibility.PUBLIC and not took_part:
+    if took_part:
+        return campaign
+    # Everyone else sees only what the Available list shows: published, upcoming campaigns.
+    if campaign.visibility != CampaignVisibility.PUBLIC:
         raise HTTPException(status_code=404, detail="Campaign not found")
+    svc.sync_campaign_status(db, campaign)
+    hidden = svc.rider_visibility(campaign)
+    if hidden and not joining:
+        started = hidden.startswith("Started")
+        raise HTTPException(status_code=404, detail=svc.LIVE_JOIN_CLOSED if started else "This campaign isn't open to new riders.")
     return campaign
 
 
@@ -1328,7 +1342,7 @@ def join_campaign(
     rider: Rider = Depends(get_current_rider),
     db: Session = Depends(get_db),
 ):
-    campaign = _rider_visible_campaign(db, campaign_id, rider)
+    campaign = _rider_visible_campaign(db, campaign_id, rider, joining=True)
     size = payload.tshirt_size if payload else None
     location_id = payload.pickup_location_id if payload else None
     terms_version = payload.terms_version if payload else None

@@ -206,7 +206,7 @@ def is_running(campaign: Campaign, today: Optional[date] = None) -> bool:
 def rider_visibility(campaign: Campaign, today: Optional[date] = None) -> Optional[str]:
     """Why riders can't see this campaign in their Available list, or None if they can.
 
-    Only publication and dates decide visibility. A rider's own approval, brand or current campaign
+    Only upcoming campaigns are listed. Only publication, dates and live/paused state decide visibility. A rider's own approval, brand or current campaign
     never hide a campaign; they only decide whether the rider can join (see join_eligibility).
     """
     today = today or today_ist()
@@ -218,6 +218,12 @@ def rider_visibility(campaign: Campaign, today: Optional[date] = None) -> Option
         return "Cancelled"
     if fs.effective_end_date(campaign) < today:
         return f"Ended on {fs.effective_end_date(campaign):%d %b %Y}"
+    # Riders only discover upcoming campaigns. Once a campaign has started (live, or its start date has come)
+    # or is paused, only riders already in it see it (My Campaign / History).
+    if campaign.live_at or today >= campaign.start_date:
+        return "Started: only riders already in this campaign can see it"
+    if campaign.status == CampaignStatus.PAUSED:
+        return "Paused"
     return None
 
 
