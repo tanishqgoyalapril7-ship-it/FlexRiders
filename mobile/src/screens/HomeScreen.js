@@ -20,7 +20,8 @@ const isRecent = (value) => Boolean(value) && Date.now() - new Date(value).getTi
 
 // The rider's most relevant next step, following the journey:
 // application review → approved → brand assigned → campaign active → campaign completed.
-// Returns null when the active-campaign card already tells the story.
+// Returns null when the cards below already tell the story (the Current Brand card shows the assigned brand;
+// the active-campaign card shows the campaign).
 function homeStage(rider, campaigns) {
   if (rider.status === 'PENDING' || rider.status === 'UNDER_REVIEW') {
     return { tone: 'warning', icon: 'time-outline', title: 'Application under review', text: "Our operations team is reviewing your application. You'll be notified here once it's approved." };
@@ -50,15 +51,6 @@ function homeStage(rider, campaigns) {
       title: 'Campaign request sent',
       text: `Your request to join ${campaigns.pending_request.name} is awaiting admin approval.`,
       action: { label: 'View request', campaignId: campaigns.pending_request.id },
-    };
-  }
-  if (rider.brand && isRecent(rider.assigned_at)) {
-    return {
-      tone: 'success',
-      icon: 'briefcase-outline',
-      title: 'Brand assigned',
-      text: `You've been assigned to ${rider.brand}.`,
-      action: { label: 'View brand', target: 'brand' },
     };
   }
   if (rider.status === 'APPROVED' && !rider.brand) {
