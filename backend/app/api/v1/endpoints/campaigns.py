@@ -1197,16 +1197,21 @@ def rider_campaigns(rider: Rider = Depends(get_current_rider), db: Session = Dep
     today = svc.today_ist()
     # Every non-closed campaign is checked with the same rule the admin page uses (svc.rider_visibility),
     # so the logged reasons match exactly why a campaign is hidden.
-    candidates = (
-        db.query(Campaign)
-        .filter(~Campaign.status.in_((CampaignStatus.COMPLETED, CampaignStatus.CANCELLED)))
-        .order_by(Campaign.start_date, Campaign.id)
-        .all()
+    query = db.query(Campaign).filter(
+        ~Campaign.status.in_((CampaignStatus.COMPLETED, CampaignStatus.CANCELLED)),
+        Campaign.visibility == CampaignVisibility.PUBLIC,
+        Campaign.start_date > today,  # Only upcoming campaigns are ever listed (see svc.rider_visibility)
     )
+    # Vehicle eligibility decides visibility too: only campaigns open to all vehicles or to this rider's
+    # vehicle come back from the database (the stored list is canonical codes, e.g. "AUTO,TWO_WHEELER").
+    vehicle_open = or_(Campaign.eligible_vehicle_categories.is_(None), Campaign.eligible_vehicle_categories == "")
+    if rider.vehicle_category:
+        vehicle_open = or_(vehicle_open, ("," + Campaign.eligible_vehicle_categories + ",").like(f"%,{rider.vehicle_category},%"))
+    candidates = query.filter(vehicle_open).order_by(Campaign.start_date, Campaign.id).all()
     public, hidden = [], {}
     for c in candidates:
         svc.sync_campaign_status(db, c, today)
-        reason = svc.rider_visibility(c, today)
+        reason = svc.rider_visibility(c, today) or svc.vehicle_block_reason(c, rider)
         if reason:
             hidden[c.id] = reason
         else:
@@ -1279,11 +1284,18 @@ def _rider_visible_campaign(db: Session, campaign_id: int, rider: Rider, joining
     if campaign.visibility != CampaignVisibility.PUBLIC:
         raise HTTPException(status_code=404, detail="Campaign not found")
     svc.sync_campaign_status(db, campaign)
+    if joining:
+        return campaign  # join_eligibility gives the specific refusal (vehicle, started, ended, ...)
+    if svc.vehicle_block_reason(campaign, rider):
+        raise HTTPException(status_code=404, detail=VEHICLE_HIDDEN)
     hidden = svc.rider_visibility(campaign)
-    if hidden and not joining:
+    if hidden:
         started = hidden.startswith("Started")
         raise HTTPException(status_code=404, detail=svc.LIVE_JOIN_CLOSED if started else "This campaign isn't open to new riders.")
     return campaign
+
+
+VEHICLE_HIDDEN = "This campaign is not available for your vehicle."
 
 
 @rider_router.get("/{campaign_id}")

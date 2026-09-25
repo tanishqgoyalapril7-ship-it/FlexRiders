@@ -112,8 +112,10 @@ def test_each_type_joins_only_eligible_campaigns(client, admin, category):
     mine = campaign(client, admin, [category])
     others = [c for c in ("CYCLE", "TWO_WHEELER", "AUTO", "THREE_WHEELER") if c != category]
     not_mine = campaign(client, admin, others)
-    card = client.get(f"{API}/riders/me/campaigns/{not_mine['id']}", headers=headers).json()
-    assert card["can_join"] is False and "only for" in card["join_blocked_reason"]
+    # Hidden from this rider (list and direct link); a direct join is still refused.
+    assert not_mine["id"] not in [c["id"] for c in client.get(f"{API}/riders/me/campaigns", headers=headers).json()["available"]]
+    card = client.get(f"{API}/riders/me/campaigns/{not_mine['id']}", headers=headers)
+    assert card.status_code == 404 and "not available for your vehicle" in card.json()["detail"]
     res = client.post(f"{API}/riders/me/campaigns/{not_mine['id']}/join", json={}, headers=headers)  # Direct API call
     assert res.status_code == 400 and "only for" in res.json()["detail"]
     assert client.post(f"{API}/riders/me/campaigns/{mine['id']}/join", json={}, headers=headers).status_code == 200

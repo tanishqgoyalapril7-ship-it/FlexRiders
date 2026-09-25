@@ -49,7 +49,8 @@ def test_draft_hidden_until_published_then_join_approve_flow(client, db_session,
     logging.getLogger("app.campaigns.visibility").addHandler(handler)
     available_ids(client, headers)
     logging.getLogger("app.campaigns.visibility").removeHandler(handler)
-    assert any(str(draft["id"]) in r.getMessage() and "Draft" in r.getMessage() for r in records)
+    # Drafts never leave the database for riders; the log lists what was returned and hidden per rider.
+    assert any(rider["rider_id"] in r.getMessage() and str(draft["id"]) not in r.getMessage().split("returned=")[1].split("hidden=")[0] for r in records)
 
     # Publish → visible and joinable, whatever the rider's brand/assignment situation.
     client.post(f"{API}/campaigns/{draft['id']}/publish", headers=admin)

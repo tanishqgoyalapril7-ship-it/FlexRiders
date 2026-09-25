@@ -80,7 +80,9 @@ const authedPost = async (path, body) => {
 const authedGet = async (path) => {
   const res = await fetch(`${API_BASE_URL}${path}`, { headers: { Authorization: `Bearer ${authToken}` } });
   if (!res.ok) {
-    const err = new Error(`Request failed (${res.status})`);
+    // Keep the server's message (e.g. "This campaign is not available for your vehicle.").
+    const body = await res.json().catch(() => ({}));
+    const err = new Error(typeof body.detail === 'string' ? body.detail : `Request failed (${res.status})`);
     err.status = res.status;
     throw err;
   }

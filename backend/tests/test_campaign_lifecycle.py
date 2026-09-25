@@ -177,8 +177,8 @@ def test_vehicle_category_registration_and_eligibility(client, db_session, admin
     assert campaign["eligible_vehicle_label"] == "Bike / Two Wheeler"
 
     # G. Three wheeler → rejected by the API, with the reason shown in the app.
-    card = client.get(f"{API}/riders/me/campaigns/{cid}", headers=auto_h).json()
-    assert card["can_join"] is False and "only for Bike / Two Wheeler" in card["join_blocked_reason"]
+    card = client.get(f"{API}/riders/me/campaigns/{cid}", headers=auto_h)
+    assert card.status_code == 404 and card.json()["detail"] == "This campaign is not available for your vehicle."
     res = client.post(f"{API}/riders/me/campaigns/{cid}/join", json={}, headers=auto_h)
     assert res.status_code == 400 and "Two Wheeler" in res.json()["detail"]
     assert client.post(f"{API}/campaigns/{cid}/riders", json={"rider_id": me["id"]}, headers=admin).status_code == 400

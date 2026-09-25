@@ -98,8 +98,8 @@ def test_auto_rider_sees_joins_and_shows_in_admin(client, db_session, admin):
         mine = client.get(f"{API}/riders/me/campaigns", headers=headers).json()
         card = next(c for c in mine["available"] if c["id"] == auto_campaign["id"])
         assert card["can_join"] is True and card["eligible_vehicle_label"] == "Auto"
-        bike_card = client.get(f"{API}/riders/me/campaigns/{auto_campaign['id']}", headers=bike_headers).json()
-        assert bike_card["can_join"] is False and "only for Auto" in bike_card["join_blocked_reason"]
+        bike_card = client.get(f"{API}/riders/me/campaigns/{auto_campaign['id']}", headers=bike_headers)
+        assert bike_card.status_code == 404 and bike_card.json()["detail"] == "This campaign is not available for your vehicle."
         refused = client.post(f"{API}/riders/me/campaigns/{auto_campaign['id']}/join", json={}, headers=bike_headers)
         assert refused.status_code == 400 and "only for Auto" in refused.json()["detail"]
         assert client.post(f"{API}/riders/me/campaigns/{auto_campaign['id']}/join", json={}, headers=headers).status_code == 200

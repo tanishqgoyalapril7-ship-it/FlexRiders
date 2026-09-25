@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -76,13 +76,22 @@ export default function CampaignDetailScreen({ campaignId, onBack, onChanged }) 
   const { colors } = useTheme();
   const [campaign, setCampaign] = useState(null);
   const [busy, setBusy] = useState(false);
+  const onBackRef = useRef(onBack); // Stable across App re-renders (the handler is recreated each time)
+  onBackRef.current = onBack;
 
   const load = useCallback(
     () =>
       mobileApi
         .getCampaign(campaignId)
         .then(setCampaign)
-        .catch((err) => Alert.alert('Could not load campaign', err.message)),
+        .catch((err) => {
+          if (err.status === 404) {
+            // Not for this rider (vehicle type, already started, ended…): say why and go back.
+            Alert.alert('Campaign unavailable', err.message, [{ text: 'OK', onPress: () => onBackRef.current() }]);
+          } else {
+            Alert.alert('Could not load campaign', err.message);
+          }
+        }),
     [campaignId]
   );
 
