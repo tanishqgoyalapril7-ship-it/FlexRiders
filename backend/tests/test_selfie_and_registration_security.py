@@ -71,7 +71,8 @@ def test_each_vehicle_type_registers_with_selfie(client, db_session, uploads_dir
         "/uploads/selfies/someone-elses.jpg",  # A path/reference instead of a photo
     ],
 )
-def test_registration_without_a_valid_selfie_is_refused(client, db_session, selfie):
+def test_registration_without_a_valid_selfie_is_refused(client, db_session, monkeypatch, selfie):
+    monkeypatch.setattr(settings, "REQUIRE_DRIVER_SELFIE", True)  # The production rule
     body = _body(selfie=selfie)
     if selfie is None:
         body.pop("selfie", None)
@@ -230,3 +231,38 @@ def test_admin_create_storage_failure_creates_nothing(client, db_session, admin,
     assert res.status_code == 503
     db_session.expire_all()
     assert db_session.query(User).filter(User.phone.like(f"%{body['mobile_number'][-10:]}")).first() is None
+
+
+# --------------------------------------------------------------------------- testing mode (selfie optional)
+
+def test_selfie_optional_while_testing_but_still_validated(client, db_session, monkeypatch):
+    monkeypatch.setattr(settings, "REQUIRE_DRIVER_SELFIE", False)
+    assert client.get(f"{API}/public/app-config").json() == {"selfie_required": False}
+    for missing in (None, ""):
+        body = _body(selfie=missing)
+        if missing is None:
+            body.pop("selfie", None)
+        res = client.post(f"{API}/auth/register", json=body)
+        assert res.status_code == 200, res.text
+        assert _rider(db_session, body["mobile_number"]).profile_photo is None
+    # A selfie that is sent must still be a real photo, and is stored privately as usual.
+    assert client.post(f"{API}/auth/register", json=_body(selfie="/uploads/selfies/x.jpg")).status_code == 422
+    body = _body()
+    assert client.post(f"{API}/auth/register", json=body).status_code == 200
+    assert _rider(db_session, body["mobile_number"]).profile_photo.startswith("/uploads/selfies/")
+
+
+def test_selfie_switch_on_is_enforced_and_reported(client, db_session, monkeypatch):
+    monkeypatch.setattr(settings, "REQUIRE_DRIVER_SELFIE", True)
+    assert client.get(f"{API}/public/app-config").json() == {"selfie_required": True}
+    body = _body()
+    body.pop("selfie")
+    assert client.post(f"{API}/auth/register", json=body).status_code == 422
+    assert _rider(db_session, body["mobile_number"]) is None
+
+
+def test_admin_add_rider_still_requires_selfie_while_testing(client, db_session, admin, monkeypatch):
+    monkeypatch.setattr(settings, "REQUIRE_DRIVER_SELFIE", False)
+    body = {k: v for k, v in _body().items() if k != "selfie"}
+    body["primary_city"] = "Gurugram"
+    assert client.post(f"{API}/admin/riders", json=body, headers=admin).status_code == 422

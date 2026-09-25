@@ -174,6 +174,13 @@ export const mobileApi = {
     return data;
   },
 
+  // Server-controlled switches (e.g. whether the driver selfie is required at registration).
+  getAppConfig: async () => {
+    const res = await fetch(`${API_BASE_URL}/public/app-config`, { timeoutMs: 10000 });
+    if (!res.ok) throw new Error('config');
+    return res.json();
+  },
+
   getProfile: () => authedGet('/riders/me'),
 
   getPaymentHistory: () => authedGet('/riders/me/payments'),

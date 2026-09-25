@@ -122,7 +122,8 @@ def register_new_rider(db: Session, reg: RiderRegistrationRequest) -> Rider:
     db.add(rider)
     db.flush()
 
-    store_selfie(db, rider, reg.selfie)
+    if reg.selfie:  # Required unless settings.REQUIRE_DRIVER_SELFIE is off (testing)
+        store_selfie(db, rider, reg.selfie)
 
     if referrer:
         referral_service.link_referral(db, referrer, rider)

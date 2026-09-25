@@ -207,9 +207,10 @@ class RiderRegistrationRequest(BaseModel):
     dob: Optional[str] = None
     # Required, no default: a missing password must never become a known one.
     password: str = Field(..., min_length=6, max_length=128)
-    # Required driver selfie taken with the phone camera: base64 JPEG / PNG / WebP (a data: URL prefix is fine).
-    # The server stores it privately and links it to the new rider; clients can't set a photo path themselves.
-    selfie: str = Field(..., max_length=SELFIE_MAX_BASE64)
+    # Driver selfie taken with the phone camera: base64 JPEG / PNG / WebP (a data: URL prefix is fine).
+    # Required when settings.REQUIRE_DRIVER_SELFIE is on. The server stores it privately and links it to the new
+    # rider; clients can't set a photo path themselves.
+    selfie: Optional[str] = Field(None, max_length=SELFIE_MAX_BASE64)
 
     # Step 2: Work
     current_company: Optional[str] = None
@@ -257,8 +258,22 @@ class RiderRegistrationRequest(BaseModel):
     @field_validator("selfie")
     @classmethod
     def _valid_selfie(cls, value):
+        from app.core.config import settings
+
+        if not (value or "").strip():
+            if settings.REQUIRE_DRIVER_SELFIE:
+                raise ValueError("Take a driver selfie to complete your registration.")
+            return None
         decode_selfie(value)  # Raises with a readable message; the bytes are decoded again when stored
         return value
+
+    @model_validator(mode="after")
+    def _selfie_needed(self):
+        from app.core.config import settings
+
+        if settings.REQUIRE_DRIVER_SELFIE and not self.selfie:
+            raise ValueError("Take a driver selfie to complete your registration.")
+        return self
 
 
 class AdminRiderCreate(BaseModel):

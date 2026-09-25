@@ -44,6 +44,14 @@ def _find_rider(db: Session, phone10: str) -> Optional[Rider]:
     return db.query(Rider).filter(Rider.mobile_number.like(f"%{phone10}")).order_by(Rider.id.desc()).first() if phone10 else None
 
 
+@public_router.get("/app-config")
+def app_config():
+    """Settings the rider app follows without a new build."""
+    from app.core.config import settings
+
+    return {"selfie_required": bool(settings.REQUIRE_DRIVER_SELFIE)}
+
+
 @public_router.post("/account-deletion-requests")
 def request_account_deletion(data: DeletionRequestIn, db: Session = Depends(get_db)):
     phone = _ten_digits(data.mobile_number)

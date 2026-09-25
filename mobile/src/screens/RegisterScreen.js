@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Alert,
   Image,
@@ -69,8 +69,17 @@ export default function RegisterScreen({ onBack, onRegistered, initialReferralCo
     gpay_number: '',
     referral_code: initialReferralCode,
   });
-  // Required driver selfie: { uri, base64 } from the camera.
+  // Driver selfie: { uri, base64 } from the camera. Required unless the server's switch says otherwise
+  // (it is optional while testing); if the setting can't be loaded, the selfie stays required.
   const [selfie, setSelfie] = useState(null);
+  const [selfieRequired, setSelfieRequired] = useState(true);
+  const [selfieSkipped, setSelfieSkipped] = useState(false);
+  useEffect(() => {
+    mobileApi
+      .getAppConfig()
+      .then((config) => setSelfieRequired(config.selfie_required !== false))
+      .catch(() => {});
+  }, []);
   const set = (key) => (value) => setForm((prev) => ({ ...prev, [key]: value }));
 
   const validateStep = () => {
@@ -86,7 +95,9 @@ export default function RegisterScreen({ onBack, onRegistered, initialReferralCo
       if (form.vehicle_number.trim() && !isValidVehicleNumber(form.vehicle_number)) return 'Please enter a valid vehicle number, e.g. HR26DK8337.';
       if (!form.primary_city.trim()) return 'Please enter your primary working city.';
     }
-    if (step === SELFIE_STEP && !selfie) return 'Please take your driver selfie to continue.';
+    if (step === SELFIE_STEP && !selfie && (selfieRequired || !selfieSkipped)) {
+      return selfieRequired ? 'Please take your driver selfie to continue.' : 'Take your driver selfie, or tap "Skip for now".';
+    }
     return null;
   };
 
@@ -100,7 +111,7 @@ export default function RegisterScreen({ onBack, onRegistered, initialReferralCo
   };
 
   const submit = async () => {
-    if (!selfie) {
+    if (!selfie && selfieRequired) {
       Alert.alert('Selfie required', 'Please take your driver selfie before submitting.');
       setStep(SELFIE_STEP);
       return;
@@ -109,7 +120,7 @@ export default function RegisterScreen({ onBack, onRegistered, initialReferralCo
     try {
       const trimmed = Object.fromEntries(Object.entries(form).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v]));
       trimmed.vehicle_number = trimmed.vehicle_number ? normalizeVehicleNumber(trimmed.vehicle_number) : null;
-      trimmed.selfie = selfie.base64;
+      if (selfie) trimmed.selfie = selfie.base64;
       const result = await mobileApi.register(trimmed);
       await onRegistered(result);
     } catch (err) {
@@ -262,15 +273,34 @@ export default function RegisterScreen({ onBack, onRegistered, initialReferralCo
           <>
             <Text style={styles.stepTitle}>Driver Selfie</Text>
             <Text style={[styles.hint, { marginTop: -10, marginBottom: 18 }]}>
-              Required. Take a clear photo of your face with the front camera. Only the FlexRiders team can see it.
+              {selfieRequired ? 'Required. ' : ''}Take a clear photo of your face with the front camera. Only the FlexRiders team can see it.
             </Text>
             <SelfieCapture value={selfie} onChange={setSelfie} />
+            {!selfieRequired && !selfie ? (
+              <TouchableOpacity
+                onPress={() => {
+                  setSelfieSkipped(true);
+                  setStep(SELFIE_STEP + 1);
+                }}
+                style={{ alignItems: 'center', paddingVertical: 14 }}
+              >
+                <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 14 }}>Skip for now</Text>
+              </TouchableOpacity>
+            ) : null}
           </>
         )}
 
         {step === SELFIE_STEP + 1 && (
           <>
             <Text style={styles.stepTitle}>Review your application</Text>
+            {!selfie && !selfieRequired ? (
+              <View style={styles.selfieRow}>
+                <Text style={styles.reviewValue}>No driver selfie (optional for now)</Text>
+                <TouchableOpacity onPress={() => setStep(SELFIE_STEP)}>
+                  <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 13 }}>Add selfie</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
             {selfie ? (
               <View style={styles.selfieRow}>
                 <Image source={{ uri: selfie.uri }} style={styles.selfieThumb} />
