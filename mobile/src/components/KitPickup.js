@@ -228,7 +228,7 @@ export function useJoinCampaign(campaign, onChanged) {
           campaignName={campaign.name}
           terms={campaign.terms}
           visible={termsOpen}
-          acceptLabel={needsShirtNow() ? 'Accept & Continue' : 'Accept & Join'}
+          acceptLabel={needsShirtNow() ? 'Accept & Continue' : 'Accept & Join Campaign'}
           onClose={() => setTermsOpen(false)}
           onAccept={async (version) => {
             if (needsShirtNow()) {

@@ -271,6 +271,7 @@ export const api = {
   excuseRiderDay: (id, assignmentId, day, reason) =>
     fetchWithAuth(`/campaigns/${id}/riders/${assignmentId}/excuse`, { method: 'POST', body: JSON.stringify({ day, reason }) }),
   getCampaignTerms: (id) => fetchWithAuth(`/campaigns/${id}/terms`),
+  getStandardTerms: () => fetchWithAuth('/campaigns/standard-terms'),
   publishCampaignTerms: (id, data) => fetchWithAuth(`/campaigns/${id}/terms`, { method: 'POST', body: JSON.stringify(data) }),
   markKitReturned: (id, kitId) => fetchWithAuth(`/campaigns/${id}/brand-kit/riders/${kitId}/return`, { method: 'POST' }),
   shareCampaign: (id, enabled) => fetchWithAuth(`/campaigns/${id}/share`, { method: 'POST', body: JSON.stringify({ enabled }) }),

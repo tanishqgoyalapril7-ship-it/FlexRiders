@@ -354,3 +354,85 @@ def test_new_campaign_never_inherits_old_terms(client, db_session, admin):
     published = client.post(f"{API}/campaigns/{c['id']}/terms", json={"body": TERMS_V1}, headers=admin).json()
     assert published["current"]["version"] == old + 1 and [v["version"] for v in published["versions"]] == [old + 1]  # Old rows untouched
     assert db_session.query(CampaignTerms).filter_by(campaign_id=c["id"], version=old).one().body.startswith("Old history")
+
+
+# --------------------------------------------------------------------------- FlexRiders standard terms
+
+STANDARD_TERMS_SHA256 = "d94e9c6d762ef8aa1c1ac00c5f0d31edce6342383f5ab843ce45b91792bdad43"
+
+
+def test_standard_terms_wording_is_the_approved_text():
+    """Guards the approved wording: any edit to the text fails here and needs the owner's approval."""
+    import hashlib
+
+    from app.services.standard_terms import STANDARD_TERMS
+
+    assert hashlib.sha256(STANDARD_TERMS.encode()).hexdigest() == STANDARD_TERMS_SHA256
+    assert STANDARD_TERMS.startswith("I AGREE TO THE FOLLOWING TERMS\n\nI voluntarily choose")
+    assert STANDARD_TERMS.endswith("voluntarily choose to participate in this campaign.")
+
+
+def test_standard_terms_published_as_a_version_and_accepted(client, db_session, admin):
+    from app.services.standard_terms import STANDARD_TERMS
+
+    # Never applied silently: a campaign created without the option has no terms.
+    plain = campaign(client, admin)
+    overview = client.get(f"{API}/campaigns/{plain['id']}/terms", headers=admin).json()
+    assert overview["current"] is None and overview["standard_body"] == STANDARD_TERMS  # Admin can preview it
+
+    c = campaign(client, admin, start_offset=0, publish_standard_terms=True)
+    cid = c["id"]
+    overview = client.get(f"{API}/campaigns/{cid}/terms", headers=admin).json()
+    v1 = overview["current"]["version"]
+    assert overview["current"]["body"] == STANDARD_TERMS and overview["current"]["published_at"]
+    assert c["terms_version"] == v1
+
+    rider, headers = approved_rider(client, admin, "CYCLE")
+    newcomer, newcomer_h = approved_rider(client, admin, "CYCLE")
+    join = f"{API}/riders/me/campaigns/{cid}/join"
+    with before_start(db_session, cid):
+        # The rider sees exactly the stored text, and can't join without accepting that version.
+        card = client.get(f"{API}/riders/me/campaigns/{cid}", headers=headers).json()
+        assert card["terms"]["body"] == STANDARD_TERMS and card["terms"]["needs_acceptance"] is True
+        assert client.post(join, json={}, headers=headers).status_code == 400
+        assert client.post(join, json={"terms_version": v1 + 5}, headers=headers).status_code == 400
+        assert client.post(join, json={"terms_version": v1}, headers=headers).status_code == 200
+        acc = db_session.query(CampaignTermsAcceptance).filter_by(rider_id=rider["id"], campaign_id=cid).one()
+        assert acc.terms_version == v1 and acc.accepted_at and acc.application_id and acc.campaign_id == cid
+        app_id = client.get(f"{API}/campaigns/{cid}/applications", headers=admin).json()[0]["id"]
+        assert client.post(f"{API}/campaigns/{cid}/applications/{app_id}/approve", headers=admin).status_code == 200
+        # Accepting the same version again doesn't add a second record.
+        assert client.post(f"{API}/riders/me/campaigns/{cid}/terms/accept", json={"version": v1}, headers=headers).status_code == 200
+        assert db_session.query(CampaignTermsAcceptance).filter_by(rider_id=rider["id"], campaign_id=cid).count() == 1
+
+        # An edit is a new version; the published standard version stays exactly as it was.
+        edited = STANDARD_TERMS + "\n\nPhotos must show the campaign branding clearly."
+        after = client.post(f"{API}/campaigns/{cid}/terms", json={"body": edited, "change_note": "Photo rule"}, headers=admin).json()
+        assert after["current"]["version"] == v1 + 1
+        old = next(v for v in after["versions"] if v["version"] == v1)
+        assert old["body"] == STANDARD_TERMS and old["acceptances"] == 1  # Still available for review
+        # New riders must accept the new version to join.
+        assert client.post(join, json={"terms_version": v1}, headers=newcomer_h).status_code == 400
+        assert client.post(join, json={"terms_version": v1 + 1}, headers=newcomer_h).status_code == 200
+
+    # The rider already in the campaign keeps uploading photos and can still see what they accepted.
+    up = client.post(f"{API}/riders/me/campaigns/{cid}/activity", files={"photo": ("p.jpg", b"morning", "image/jpeg")}, data={"slot": "MORNING"}, headers=headers)
+    assert up.status_code == 200, up.text
+    card = client.get(f"{API}/riders/me/campaigns/{cid}", headers=headers).json()
+    assert card["terms"]["accepted_version"] == v1 and card["terms"]["needs_acceptance"] is True
+    assert card["terms"]["accepted_terms"]["body"] == STANDARD_TERMS and card["terms"]["accepted_terms"]["version"] == v1
+
+    # The public page shows only the terms, never who accepted them.
+    slug = client.post(f"{API}/campaigns/{cid}/share", json={"enabled": True}, headers=admin).json()["slug"]
+    page = client.get(f"{API}/public/campaigns/{slug}")
+    assert set(page.json()["terms"]) == {"version", "body", "change_note", "published_at"}
+    for private in (rider["full_name"], rider["mobile_number"], newcomer["full_name"], "accepted_at", "application_id"):
+        assert private not in page.text
+
+
+def test_standard_terms_preview_is_admin_only(client, admin):
+    from app.services.standard_terms import STANDARD_TERMS
+
+    assert client.get(f"{API}/campaigns/standard-terms", headers=admin).json() == {"body": STANDARD_TERMS}
+    _, headers = approved_rider(client, admin, "CYCLE")
+    assert client.get(f"{API}/campaigns/standard-terms", headers=headers).status_code == 403

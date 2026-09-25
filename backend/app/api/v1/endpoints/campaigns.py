@@ -77,6 +77,7 @@ from app.services import storage_service as storage
 from app.services import terms_service as terms
 from app.services import campaign_service as svc
 from app.services.audit_service import log_admin_action
+from app.services.standard_terms import STANDARD_TERMS
 
 visibility_log = logging.getLogger("app.campaigns.visibility")
 if not visibility_log.handlers:  # Uvicorn doesn't configure app loggers; print these to the server console
@@ -219,7 +220,7 @@ def _vehicle_label(campaign: Campaign) -> str:
 
 def _campaign_fields(payload, only_set: bool = False) -> dict:
     """Payload → column values (vehicle categories and slot times are stored as text)."""
-    data = payload.model_dump(exclude={"visibility"})
+    data = payload.model_dump(exclude={"visibility", "publish_standard_terms"})
     if only_set:  # Fields added later are only changed when the client sends them
         for field in ("location_area", "eligible_vehicle_categories", "photo_slot_windows", "campaign_category", "public_image_approved"):
             if field not in payload.model_fields_set:
@@ -476,6 +477,12 @@ def all_join_requests(
     return [_application_dict(db, a) for a in query.order_by(CampaignApplication.requested_at.desc()).limit(500).all()]
 
 
+@router.get("/standard-terms")
+def standard_terms(admin: User = Depends(get_current_admin)):
+    """FlexRiders' standard campaign terms, for previewing before they're published on a campaign."""
+    return {"body": STANDARD_TERMS}
+
+
 @router.get("/summary")
 def campaign_summary(db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
     """Campaign figures for the admin dashboard overview card."""
@@ -527,6 +534,9 @@ def create_campaign(
     db.commit()
     db.refresh(campaign)
     log_admin_action(db=db, admin_user=admin, action="CAMPAIGN_CREATED", target_type="CAMPAIGN", target_id=str(campaign.id), details=f"{campaign.name} created")
+    if payload.publish_standard_terms:
+        # Before publishing, so riders never see the campaign without its terms.
+        terms.publish(db, campaign, STANDARD_TERMS, None, admin)
     if payload.visibility == CampaignVisibility.PUBLIC:
         _run(lambda: svc.publish_campaign(db, campaign, admin))
     return _campaign_dict(db, campaign)
@@ -631,8 +641,8 @@ def _share_dict(campaign: Campaign) -> dict:
 
 @router.get("/{campaign_id}/terms")
 def campaign_terms(campaign_id: int, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
-    """Every Terms & Conditions version with its acceptance count."""
-    return terms.admin_overview(db, _get_campaign(db, campaign_id))
+    """Every Terms & Conditions version with its acceptance count, plus the standard text to preview."""
+    return {**terms.admin_overview(db, _get_campaign(db, campaign_id)), "standard_body": STANDARD_TERMS}
 
 
 @router.post("/{campaign_id}/terms")
@@ -646,7 +656,7 @@ def publish_campaign_terms(
         terms.publish(db, campaign, payload.body, payload.change_note, admin)
     except terms.TermsError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    return terms.admin_overview(db, campaign)
+    return {**terms.admin_overview(db, campaign), "standard_body": STANDARD_TERMS}
 
 
 @router.post("/{campaign_id}/share")

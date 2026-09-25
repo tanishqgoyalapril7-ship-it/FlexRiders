@@ -173,7 +173,11 @@ def rider_status(db: Session, campaign_id: int, rider_id: int) -> Optional[Dict]
     if terms is None:
         return None
     mine = accepted_version(db, campaign_id, rider_id)
-    return {**terms_dict(terms), "accepted_version": mine, "needs_acceptance": (mine or 0) < terms.version}
+    # When a newer version is waiting, the rider can still read the version they agreed to.
+    accepted = None
+    if mine and mine < terms.version:
+        accepted = terms_dict(_terms_of(db, campaign_id).filter(CampaignTerms.version == mine).first())
+    return {**terms_dict(terms), "accepted_version": mine, "needs_acceptance": (mine or 0) < terms.version, "accepted_terms": accepted}
 
 
 def admin_overview(db: Session, campaign: Campaign) -> Dict:

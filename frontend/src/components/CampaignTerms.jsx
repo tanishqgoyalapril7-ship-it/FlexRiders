@@ -2,7 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { FileText, History, ShieldAlert } from 'lucide-react';
 import { api } from '../services/api';
 import { DangerDialog, toast } from './Feedback';
-import { EmptyState, formatDate } from './CampaignShared';
+import { EmptyState } from './CampaignShared';
+
+// Server times are UTC without a zone marker; show them in IST with the time of day.
+const formatPublished = (value) =>
+  value
+    ? `${new Date(/[zZ]|[+-]\d\d:?\d\d$/.test(value) ? value : `${value}Z`).toLocaleString('en-GB', {
+        timeZone: 'Asia/Kolkata', day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+      })} IST`
+    : '—';
 
 /** Campaign Terms & Conditions: current version, acceptance, publishing a new version, full history.
  *  The text is always exactly what an admin enters; FlexRiders never writes terms itself. */
@@ -75,7 +83,7 @@ export function TermsPanel({ campaignId }) {
           <>
             <div className="terms-meta">
               <span className="status-pill pill-open">Version {current.version}</span>
-              <span>Published {formatDate(current.published_at)}</span>
+              <span>Published {formatPublished(current.published_at)}</span>
               {current.change_note ? <span>· {current.change_note}</span> : null}
             </div>
             <div className="kpi-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', margin: '12px 0' }}>
@@ -103,6 +111,11 @@ export function TermsPanel({ campaignId }) {
                 versions and acceptances are never changed.
               </span>
             </div>
+            {data.standard_body && body.trim() !== data.standard_body ? (
+              <button type="button" className="btn-secondary" style={{ marginBottom: 12 }} onClick={() => setBody(data.standard_body)}>
+                Load FlexRiders standard terms
+              </button>
+            ) : null}
             <div className="form-group">
               <label className="form-label">Terms &amp; Conditions text *</label>
               <textarea className="form-input" rows={12} value={body} onChange={(e) => setBody(e.target.value)} placeholder="Paste the campaign’s Terms & Conditions" />
@@ -153,7 +166,7 @@ export function TermsPanel({ campaignId }) {
                       <td>
                         <strong>v{v.version}</strong> {v.version === current.version ? <span className="status-pill pill-open">Current</span> : null}
                       </td>
-                      <td>{formatDate(v.published_at)}</td>
+                      <td>{formatPublished(v.published_at)}</td>
                       <td style={{ fontSize: '0.8rem' }}>{v.published_by || '—'}</td>
                       <td style={{ fontSize: '0.8rem' }}>{v.change_note || '—'}</td>
                       <td>{v.acceptances}</td>

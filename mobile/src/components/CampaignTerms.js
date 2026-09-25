@@ -36,13 +36,14 @@ export function TermsSheet({ campaignName, terms, visible, onClose, onAccept, ac
           {campaignName} · Version {terms.version} · {formatDate(terms.published_at)}
         </Text>
         {terms.change_note && terms.accepted_version ? <Text style={styles.change}>What changed: {terms.change_note}</Text> : null}
+        {/* The checkbox sits directly above the full text it agrees to. */}
+        <TouchableOpacity style={styles.agreeRow} onPress={() => setAgreed(!agreed)} activeOpacity={0.8} accessibilityRole="checkbox" accessibilityState={{ checked: agreed }}>
+          <Ionicons name={agreed ? 'checkbox' : 'square-outline'} size={22} color={agreed ? colors.primary : colors.textMuted} />
+          <Text style={styles.agreeText}>I agree to the following terms (version {terms.version}).</Text>
+        </TouchableOpacity>
         <ScrollView style={styles.bodyBox} contentContainerStyle={{ padding: 14 }}>
           <Text style={styles.body}>{terms.body}</Text>
         </ScrollView>
-        <TouchableOpacity style={styles.agreeRow} onPress={() => setAgreed(!agreed)} activeOpacity={0.8} accessibilityRole="checkbox" accessibilityState={{ checked: agreed }}>
-          <Ionicons name={agreed ? 'checkbox' : 'square-outline'} size={22} color={agreed ? colors.primary : colors.textMuted} />
-          <Text style={styles.agreeText}>I have read and agree to these Terms & Conditions (version {terms.version}).</Text>
-        </TouchableOpacity>
         {error ? <Text style={styles.error}>{error}</Text> : null}
         <View style={styles.buttons}>
           <TouchableOpacity style={[styles.button, styles.cancel]} onPress={onClose} disabled={busy}>
@@ -63,6 +64,7 @@ export function TermsCard({ campaign, joined, onAccept }) {
   const styles = useStyles(makeStyles);
   const { colors } = useTheme();
   const [open, setOpen] = useState(false);
+  const [showAccepted, setShowAccepted] = useState(false);
   const terms = campaign.terms;
   if (!terms) return null;
   const pendingUpdate = joined && terms.needs_acceptance;
@@ -87,7 +89,13 @@ export function TermsCard({ campaign, joined, onAccept }) {
         <TouchableOpacity style={[styles.cardButton, pendingUpdate && { backgroundColor: colors.warning }]} onPress={() => setOpen(true)}>
           <Text style={styles.cardButtonText}>{pendingUpdate ? 'Review & Accept' : 'Read Terms'}</Text>
         </TouchableOpacity>
+        {pendingUpdate && terms.accepted_terms ? (
+          <TouchableOpacity onPress={() => setShowAccepted(true)} style={{ alignItems: 'center' }}>
+            <Text style={styles.link}>View version {terms.accepted_terms.version} you accepted</Text>
+          </TouchableOpacity>
+        ) : null}
       </Card>
+      {showAccepted ? <ReadOnlyTerms campaignName={campaign.name} terms={terms.accepted_terms} onClose={() => setShowAccepted(false)} /> : null}
       {open ? (
         pendingUpdate ? (
           <TermsSheet
@@ -139,7 +147,7 @@ const makeStyles = (c) =>
     change: { fontSize: 13, color: c.warning, marginTop: 8, fontWeight: '600' },
     bodyBox: { marginTop: 12, borderWidth: 1, borderColor: c.border, borderRadius: 12, backgroundColor: c.background, maxHeight: 360 },
     body: { fontSize: 14, lineHeight: 21, color: c.text },
-    agreeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 14 },
+    agreeRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 12 },
     agreeText: { flex: 1, fontSize: 13.5, color: c.text, lineHeight: 19 },
     error: { color: c.danger, fontSize: 13, marginTop: 10 },
     buttons: { flexDirection: 'row', gap: 10, marginTop: 16 },
@@ -153,4 +161,5 @@ const makeStyles = (c) =>
     cardText: { fontSize: 13, color: c.textMuted, marginTop: 3, lineHeight: 18 },
     cardButton: { backgroundColor: c.primary, borderRadius: 10, paddingVertical: 11, alignItems: 'center' },
     cardButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
+    link: { color: c.primary, fontSize: 13, fontWeight: '700', paddingVertical: 2 },
   });

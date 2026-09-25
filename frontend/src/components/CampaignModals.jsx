@@ -36,6 +36,7 @@ function emptyForm() {
     vehicle_choice: ALL_VEHICLES,
     campaign_category: 'STANDARD',
     photo_slot_windows: DEFAULT_SLOTS,
+    publish_standard_terms: true,
   };
 }
 
@@ -418,6 +419,7 @@ export function CampaignFormModal({ brands = [], campaign, onClose, onSaved, onC
                 <label className="form-label">Campaign Banner (optional)</label>
                 <input type="file" accept="image/jpeg,image/png,image/webp" className="form-input" onChange={(e) => setImageFile(e.target.files[0] || null)} />
               </div>
+              {!editing && <StandardTermsOption checked={form.publish_standard_terms} onChange={(value) => setForm((prev) => ({ ...prev, publish_standard_terms: value }))} />}
               {!editing && (
                 <div className="form-group">
                   <label className="form-label">Visibility</label>
@@ -468,6 +470,34 @@ export function CampaignFormModal({ brands = [], campaign, onClose, onSaved, onC
 }
 
 // Confirmation for destructive or irreversible actions, optionally asking for a reason.
+/** Create form: publish FlexRiders' standard terms as version 1, with the full text available to read first. */
+function StandardTermsOption({ checked, onChange }) {
+  const [body, setBody] = useState(null);
+  const [open, setOpen] = useState(false);
+  const toggle = () => {
+    if (!open && body === null) {
+      api
+        .getStandardTerms()
+        .then((res) => setBody(res.body))
+        .catch((err) => toast.error(err.message));
+    }
+    setOpen(!open);
+  };
+  return (
+    <div className="form-group">
+      <label className="form-label">Terms &amp; Conditions</label>
+      <label className="share-rights">
+        <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+        <span>Publish the FlexRiders standard terms as version 1. Riders must accept them to join. You can publish a different version later from the Terms tab.</span>
+      </label>
+      <button type="button" className="card-action-link" onClick={toggle} style={{ marginTop: 6 }}>
+        {open ? 'Hide standard terms' : 'Read standard terms'}
+      </button>
+      {open ? <div className="terms-body" style={{ marginTop: 8 }}>{body === null ? 'Loading…' : body}</div> : null}
+    </div>
+  );
+}
+
 export function ConfirmDialog({ title, message, confirmLabel = 'Confirm', danger, reasonLabel, onConfirm, onClose }) {
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);

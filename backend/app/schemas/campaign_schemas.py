@@ -56,6 +56,8 @@ class CampaignBase(BaseModel):
 
 class CampaignCreate(CampaignBase):
     visibility: str = Field("DRAFT", pattern="^(DRAFT|PUBLIC)$")
+    # Publishes FlexRiders' standard terms as version 1 when the campaign is created.
+    publish_standard_terms: bool = False
 
 
 class CampaignUpdate(CampaignBase):
