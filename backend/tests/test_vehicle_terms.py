@@ -436,3 +436,30 @@ def test_standard_terms_preview_is_admin_only(client, admin):
     assert client.get(f"{API}/campaigns/standard-terms", headers=admin).json() == {"body": STANDARD_TERMS}
     _, headers = approved_rider(client, admin, "CYCLE")
     assert client.get(f"{API}/campaigns/standard-terms", headers=headers).status_code == 403
+
+
+# --------------------------------------------------------------------------- number plate in photos
+
+@pytest.mark.parametrize("category,plate", [("CYCLE", False), ("TWO_WHEELER", False), ("AUTO", True), ("THREE_WHEELER", True)])
+def test_auto_and_three_wheeler_photos_must_show_number_plate(client, db_session, admin, category, plate):
+    rider, headers = approved_rider(client, admin, category)
+    c = campaign(client, admin, start_offset=0)
+    with before_start(db_session, c["id"]):
+        assert client.post(f"{API}/riders/me/campaigns/{c['id']}/join", json={}, headers=headers).status_code == 200
+        app_id = client.get(f"{API}/campaigns/{c['id']}/applications", headers=admin).json()[0]["id"]
+        assert client.post(f"{API}/campaigns/{c['id']}/applications/{app_id}/approve", headers=admin).status_code == 200
+
+    # The rider is told, with their registered number.
+    card = client.get(f"{API}/riders/me/campaigns/{c['id']}", headers=headers).json()
+    assert card["plate_in_photos"] is plate
+    assert card["my_vehicle_number"] == rider["vehicle_number"]
+    if plate:
+        assert rider["vehicle_number"]  # Compulsory for Auto / Three Wheeler
+
+    # The reviewer sees the number to match against the plate in the photo.
+    up = client.post(f"{API}/riders/me/campaigns/{c['id']}/activity", files={"photo": ("p.jpg", b"plate-" + category.encode(), "image/jpeg")}, data={"slot": "MORNING"}, headers=headers)
+    assert up.status_code == 200, up.text
+    photos = client.get(f"{API}/campaigns/{c['id']}/photos", headers=admin).json()
+    items = photos if isinstance(photos, list) else photos.get("items", photos.get("photos", []))
+    mine = [p for p in items if p["rider"]["id"] == rider["id"]]
+    assert mine and mine[0]["rider"]["plate_in_photos"] is plate and mine[0]["rider"]["vehicle_number"] == rider["vehicle_number"]

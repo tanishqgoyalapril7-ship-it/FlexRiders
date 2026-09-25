@@ -159,6 +159,9 @@ def _rider_brief(rider: Rider) -> dict:
         "upi_id": rider.upi_id,
         "vehicle_category": rider.vehicle_category,
         "vehicle_category_label": VehicleCategory.LABELS.get(rider.vehicle_category) if rider.vehicle_category else None,
+        "vehicle_number": rider.vehicle_number,
+        # Reviewers check the plate in each photo against this number.
+        "plate_in_photos": rider.vehicle_category in VehicleCategory.PLATE_IN_PHOTOS,
     }
 
 
@@ -1170,6 +1173,9 @@ def _rider_campaign_card(db: Session, campaign: Campaign, rider: Rider) -> dict:
             "brand_kit": _kit_dict(db, campaign, active_only=True),
             # Current Terms & Conditions and whether this rider still has to accept them.
             "terms": terms.rider_status(db, campaign.id, rider.id),
+            # Auto / Three Wheeler: each photo must show this number plate.
+            "plate_in_photos": rider.vehicle_category in VehicleCategory.PLATE_IN_PHOTOS,
+            "my_vehicle_number": rider.vehicle_number,
         }
     )
     return data

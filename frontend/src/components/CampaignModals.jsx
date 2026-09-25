@@ -470,6 +470,8 @@ export function CampaignFormModal({ brands = [], campaign, onClose, onSaved, onC
 }
 
 // Confirmation for destructive or irreversible actions, optionally asking for a reason.
+export const PLATE_NOT_VISIBLE = 'Number plate not clearly visible. Retake the photo with your number plate in view.';
+
 /** Create form: publish FlexRiders' standard terms as version 1, with the full text available to read first. */
 function StandardTermsOption({ checked, onChange }) {
   const [body, setBody] = useState(null);
@@ -498,7 +500,7 @@ function StandardTermsOption({ checked, onChange }) {
   );
 }
 
-export function ConfirmDialog({ title, message, confirmLabel = 'Confirm', danger, reasonLabel, onConfirm, onClose }) {
+export function ConfirmDialog({ title, message, confirmLabel = 'Confirm', danger, reasonLabel, reasonPresets = [], onConfirm, onClose }) {
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -529,6 +531,15 @@ export function ConfirmDialog({ title, message, confirmLabel = 'Confirm', danger
           {reasonLabel ? (
             <div className="form-group">
               <label className="form-label">{reasonLabel}</label>
+              {reasonPresets.length ? (
+                <div className="reason-presets">
+                  {reasonPresets.map((preset) => (
+                    <button type="button" key={preset} className="btn-secondary" onClick={() => setReason(preset)}>
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
               <textarea className="form-input" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} />
             </div>
           ) : null}
@@ -610,6 +621,11 @@ export function PhotoReviewCard({ campaignId, photo, riderName, onPreview, onCha
         </div>
         {riderName ? <span style={{ color: '#64748B' }}>{formatDate(photo.date)}</span> : null}
         {photo.slot_label ? <span style={{ fontWeight: 700, color: '#1D4ED8' }}>{photo.slot_label} photo</span> : null}
+        {photo.rider && photo.rider.plate_in_photos ? (
+          <span className="plate-check">
+            Check number plate: <strong>{photo.rider.vehicle_number || 'not on file'}</strong> ({photo.rider.vehicle_category_label})
+          </span>
+        ) : null}
         {photo.photos_required ? (
           <span style={{ color: photo.day_valid >= photo.photos_required ? '#047857' : '#64748B', fontWeight: 600 }}>
             Day: {Math.min(photo.day_valid, photo.photos_required)}/{photo.photos_required} valid photos
@@ -826,6 +842,7 @@ export function RiderActivityModal({ campaignId, assignmentId, onClose, onChange
           confirmLabel="Reject Proof"
           danger
           reasonLabel="Rejection reason"
+          reasonPresets={rejecting.rider && rejecting.rider.plate_in_photos ? [PLATE_NOT_VISIBLE] : []}
           onConfirm={async (reason) => {
             if (rejecting.id) await api.rejectCampaignPhoto(campaignId, rejecting.id, reason);
             else await api.rejectCampaignActivity(campaignId, rejecting.activity_id, reason);

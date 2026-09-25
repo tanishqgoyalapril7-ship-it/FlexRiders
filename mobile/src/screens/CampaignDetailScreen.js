@@ -51,6 +51,20 @@ async function shrinkPhoto(asset) {
   }
 }
 
+// Auto / Three Wheeler riders: every slot photo must show the vehicle's number plate.
+function PlateNotice({ campaign, styles, colors }) {
+  if (!campaign.plate_in_photos) return null;
+  return (
+    <View style={[styles.plateNotice, { backgroundColor: colors.warningSoft }]}>
+      <Ionicons name="car-outline" size={18} color={colors.warning} />
+      <Text style={styles.plateText}>
+        Your number plate{campaign.my_vehicle_number ? ` (${campaign.my_vehicle_number})` : ''} must be clearly visible in every Morning, Evening
+        and Night photo. Photos without a readable plate are rejected.
+      </Text>
+    </View>
+  );
+}
+
 const SLOT_ICONS = { MORNING: 'sunny-outline', EVENING: 'partly-sunny-outline', NIGHT: 'moon-outline' };
 const to12h = (t) => {
   const [h, m] = t.split(':').map(Number);
@@ -197,6 +211,7 @@ export default function CampaignDetailScreen({ campaignId, onBack, onChanged }) 
             <>
               <SectionHeader title="Today's Photos" />
               <Card style={[{ gap: 4 }, todayPhotos.completed && { borderColor: colors.success }]}>
+                <PlateNotice campaign={campaign} styles={styles} colors={colors} />
                 <View style={styles.titleRow}>
                   <View style={{ flex: 1 }}>
                     <Text style={styles.todayTitle}>
@@ -401,6 +416,7 @@ export default function CampaignDetailScreen({ campaignId, onBack, onChanged }) 
         <>
           <SectionHeader title="Daily Photo Slots" />
           <Card style={{ gap: 2 }}>
+            <PlateNotice campaign={campaign} styles={styles} colors={colors} />
             {['MORNING', 'EVENING', 'NIGHT'].map((slot, i) =>
               slotTimes[slot] ? (
                 <View key={slot} style={[styles.slotLine, i === 2 && { borderBottomWidth: 0 }]}>
@@ -475,6 +491,8 @@ export default function CampaignDetailScreen({ campaignId, onBack, onChanged }) 
 
 const makeStyles = (c) =>
   StyleSheet.create({
+    plateNotice: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', borderRadius: 10, padding: 10, marginBottom: 8 },
+    plateText: { flex: 1, fontSize: 13, lineHeight: 18, color: c.text, fontWeight: '600' },
     screen: { flex: 1, backgroundColor: c.background },
     content: { paddingHorizontal: 20, paddingBottom: 40 },
     banner: { width: '100%', height: 150, borderRadius: 16, marginBottom: 14, backgroundColor: c.surfaceAlt },

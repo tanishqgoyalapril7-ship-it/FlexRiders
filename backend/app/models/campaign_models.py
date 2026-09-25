@@ -133,6 +133,8 @@ class VehicleCategory:
     }
     # Cycles usually have no registration number; every other type must give one at registration.
     NUMBER_OPTIONAL = (CYCLE,)
+    # Every campaign photo (Morning, Evening, Night) must show the vehicle's number plate.
+    PLATE_IN_PHOTOS = (AUTO, THREE_WHEELER)
 
 
 class CampaignCategory:

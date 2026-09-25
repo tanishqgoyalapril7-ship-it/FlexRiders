@@ -1506,3 +1506,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 .terms-body { white-space: pre-wrap; font-size: 0.86rem; line-height: 1.6; color: var(--text-main); background: #F8FAFC; border: 1px solid var(--border-color); border-radius: 10px; padding: 14px 16px; max-height: 420px; overflow-y: auto; }
 .share-rights { display: flex; gap: 8px; align-items: flex-start; font-size: 0.8rem; color: var(--text-main); margin-top: 6px; }
 .share-rights input { margin-top: 2px; accent-color: var(--primary); }
+
+.plate-check { font-size: 0.78rem; color: #92400E; background: #FEF3C7; border-radius: 6px; padding: 4px 8px; }
+.reason-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.reason-presets .btn-secondary { font-size: 0.75rem; padding: 4px 10px; text-align: left; }

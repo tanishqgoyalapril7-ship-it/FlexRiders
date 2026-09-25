@@ -37,7 +37,7 @@ import { DangerDialog, toast } from '../components/Feedback';
 import { JoinRequestsTable } from '../components/JoinRequests';
 // The map (Leaflet) only loads when an admin opens a route.
 const RouteMapModal = React.lazy(() => import('../components/RouteMap').then((m) => ({ default: m.RouteMapModal })));
-import { ConfirmDialog, CampaignFormModal, PhotoLightbox, PhotoReviewCard, RiderActivityModal } from '../components/CampaignModals';
+import { ConfirmDialog, CampaignFormModal, PLATE_NOT_VISIBLE, PhotoLightbox, PhotoReviewCard, RiderActivityModal } from '../components/CampaignModals';
 import { CampaignStatusPill, EmptyState, SlotProgress, SlotStatuses, StatCard, StatusPill, VEHICLE_TYPES, formatDate, formatINR, vehicleLabel } from '../components/CampaignShared';
 import { TermsPanel } from '../components/CampaignTerms';
 import {
@@ -833,6 +833,7 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
                         confirmLabel: photo.id ? 'Reject Photo' : 'Reject Proof',
                         danger: true,
                         reasonLabel: 'Rejection reason',
+                        reasonPresets: photo.rider && photo.rider.plate_in_photos ? [PLATE_NOT_VISIBLE] : [],
                       },
                       (reason) =>
                         photo.id ? api.rejectCampaignPhoto(campaign.id, photo.id, reason) : api.rejectCampaignActivity(campaign.id, photo.activity_id, reason)
