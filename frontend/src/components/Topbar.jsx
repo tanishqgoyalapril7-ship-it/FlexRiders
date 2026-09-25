@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Search, Bell, LogOut } from 'lucide-react';
+import { Search, Bell, LogOut, Menu } from 'lucide-react';
 
 export default function Topbar({
+  onMenu,
   onSearch,
   searchValue,
   notifications = [],
@@ -14,6 +15,9 @@ export default function Topbar({
 
   return (
     <header className="topbar">
+      <button className="menu-btn" onClick={onMenu} aria-label="Open menu">
+        <Menu size={20} />
+      </button>
       {/* Global Search Bar */}
       <div className="search-container">
         <Search size={16} color="#94A3B8" />
@@ -46,7 +50,7 @@ export default function Topbar({
                 position: 'absolute',
                 top: '46px',
                 right: '0',
-                width: '320px',
+                width: 'min(320px, calc(100vw - 24px))',
                 backgroundColor: '#ffffff',
                 border: '1px solid #E2E8F0',
                 borderRadius: '12px',

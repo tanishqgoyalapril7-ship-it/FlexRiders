@@ -16,9 +16,10 @@ import {
   ChevronDown,
   ChevronRight,
   Megaphone,
+  X,
 } from 'lucide-react';
 
-export default function Sidebar({ activeView, setActiveView, riderFilter, setRiderFilter, paymentFilter, setPaymentFilter, pendingCount = 0, campaignRequestCount = 0 }) {
+export default function Sidebar({ open = false, onClose, activeView, setActiveView, riderFilter, setRiderFilter, paymentFilter, setPaymentFilter, pendingCount = 0, campaignRequestCount = 0 }) {
   const [ridersOpen, setRidersOpen] = useState(true);
   const [paymentsOpen, setPaymentsOpen] = useState(false);
 
@@ -33,7 +34,7 @@ export default function Sidebar({ activeView, setActiveView, riderFilter, setRid
   };
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${open ? 'open' : ''}`}>
       {/* Brand Header */}
       <div className="sidebar-header">
         <img src={logoLight} alt="FlexRiders" className="brand-logo-img" />
@@ -43,6 +44,9 @@ export default function Sidebar({ activeView, setActiveView, riderFilter, setRid
           </span>
           <span className="brand-subtitle">FLEET & PAYMENTS</span>
         </div>
+        <button className="sidebar-close" onClick={onClose} aria-label="Close menu">
+          <X size={20} />
+        </button>
       </div>
 
       {/* Nav List */}

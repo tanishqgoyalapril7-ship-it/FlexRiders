@@ -1021,9 +1021,6 @@ a {
 }
 
 @media (max-width: 768px) {
-  .sidebar {
-    display: none;
-  }
   .stats-grid-5 {
     grid-template-columns: 1fr 1fr;
   }
@@ -1390,3 +1387,106 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 /* FlexRiders logo (sidebar and public page) */
 .brand-logo-img { height: 30px; width: auto; flex-shrink: 0; }
 .pub-logo-img { height: 30px; width: auto; }
+
+
+/* ==========================================================
+   Responsive layout: phones and tablets
+   ========================================================== */
+.menu-btn, .sidebar-close { display: none; }
+.sidebar-overlay { display: none; }
+
+@media (max-width: 1024px) {
+  /* The sidebar becomes a slide-out menu */
+  .sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: min(280px, 85vw);
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    z-index: 60;
+    box-shadow: none;
+  }
+  .sidebar.open { transform: translateX(0); box-shadow: 0 0 40px rgba(0, 0, 0, 0.35); }
+  .sidebar-overlay {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.55);
+    z-index: 55;
+  }
+  .sidebar-close {
+    display: flex;
+    margin-left: auto;
+    color: #94A3B8;
+    padding: 6px;
+    border-radius: 8px;
+  }
+  .sidebar-close:hover { background: rgba(255, 255, 255, 0.08); color: #FFFFFF; }
+  .menu-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    color: var(--text-main);
+    background: #F8FAFC;
+    border: 1px solid #E2E8F0;
+    flex-shrink: 0;
+  }
+  .topbar { padding: 0 16px; gap: 12px; }
+  .search-container { width: auto; flex: 1; min-width: 0; }
+}
+
+@media (max-width: 768px) {
+  .topbar-actions { gap: 8px; }
+  .user-info-text { display: none; }
+  .user-profile-badge { padding: 3px; }
+  .page-container { padding: 16px; gap: 16px; }
+  .page-header-row { flex-wrap: wrap; gap: 12px; align-items: flex-start; }
+  .page-title { font-size: 1.25rem; }
+  .card { padding: 16px; }
+  .card-header-bar { flex-wrap: wrap; gap: 10px; }
+  /* Long tab rows scroll sideways instead of overflowing */
+  .tabs-header-bar { width: 100%; max-width: 100%; overflow-x: auto; flex-wrap: nowrap; scrollbar-width: none; }
+  .tabs-header-bar::-webkit-scrollbar { display: none; }
+  .tab-btn { white-space: nowrap; flex-shrink: 0; }
+  .campaign-header-card { gap: 14px; }
+  .campaign-meta-row { gap: 10px 14px; }
+  .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dcard { padding: 16px; }
+  .dtable td, .dtable th { padding-left: 8px; padding-right: 8px; }
+}
+
+@media (max-width: 640px) {
+  .search-container { padding: 8px 10px; }
+  .search-input { font-size: 16px; } /* 16px stops iOS from zooming into the field */
+  .form-input { font-size: 16px; }
+  .form-row-2, .visibility-options { grid-template-columns: minmax(0, 1fr); }
+  .wizard-steps { flex-wrap: wrap; }
+  .wizard-step span:not(.wizard-step-dot) { display: none; }
+  .modal-overlay { padding: 10px; align-items: flex-end; }
+  .modal-dialog { max-height: 92vh; border-radius: 16px; }
+  .modal-footer { flex-wrap: wrap; }
+  .modal-footer > button { flex: 1 1 auto; }
+  .row-actions { gap: 6px; }
+  .share-card { padding: 12px 14px; }
+  .share-card .row-actions { width: 100%; }
+  .dkpi { padding: 12px 14px; }
+  .dkpi-value { font-size: 1.35rem; }
+  .dpay-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dtiles { grid-template-columns: minmax(0, 1fr); }
+  .login-card { margin: 0 16px; }
+}
+
+/* Summary cards: 4 across on desktop, 2 across on tablets and phones */
+@media (max-width: 1024px) {
+  .stats-grid-4, .stats-grid-5 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+}
+@media (max-width: 640px) {
+  .stat-card { padding: 14px; }
+  .stats-grid-3 { grid-template-columns: minmax(0, 1fr); }
+  .filters-row .form-group { min-width: 0; flex: 1 1 140px; }
+}

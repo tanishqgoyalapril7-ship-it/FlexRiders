@@ -24,6 +24,7 @@ export default function App() {
   const [authed, setAuthed] = useState(Boolean(getAuthToken()));
   const [currentAdmin, setCurrentAdmin] = useState(null);
   const [activeView, setActiveView] = useState('dashboard');
+  const [navOpen, setNavOpen] = useState(false);
   const [riderFilter, setRiderFilter] = useState('ALL');
   const [paymentFilter, setPaymentFilter] = useState('ALL');
   const [globalSearch, setGlobalSearch] = useState('');
@@ -495,9 +496,16 @@ export default function App() {
 
   return (
     <div className="app-container">
+      {/* Phones and tablets: the sidebar slides in over the page (opened from the top bar's menu button). */}
+      {navOpen ? <div className="sidebar-overlay" onClick={() => setNavOpen(false)} aria-hidden="true" /> : null}
       <Sidebar
+        open={navOpen}
+        onClose={() => setNavOpen(false)}
         activeView={activeView}
-        setActiveView={setActiveView}
+        setActiveView={(view) => {
+          setActiveView(view);
+          setNavOpen(false);
+        }}
         riderFilter={riderFilter}
         setRiderFilter={setRiderFilter}
         paymentFilter={paymentFilter}
@@ -508,6 +516,7 @@ export default function App() {
 
       <div className="main-wrapper">
         <Topbar
+          onMenu={() => setNavOpen(true)}
           searchValue={globalSearch}
           onSearch={setGlobalSearch}
           notifications={notifications}
