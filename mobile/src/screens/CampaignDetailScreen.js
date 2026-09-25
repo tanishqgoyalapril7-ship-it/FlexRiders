@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { assetUrl, mobileApi } from '../services/api';
 import { useStyles, useTheme } from '../theme';
 import { Card, EmptyState, OutlineButton, PrimaryButton, ProgressBar, ScreenHeader, SectionHeader, StatusBadge, toneColors } from '../components/ui';
@@ -33,6 +34,20 @@ async function takePhoto() {
     return await ImagePicker.launchCameraAsync(options);
   } catch (err) {
     throw new Error('The camera is not available on this device. Campaign photos must be taken with a phone camera.');
+  }
+}
+
+// Phone cameras can produce photos larger than the server accepts (4.5 MB). Scale the long edge down
+// to 1600 px, which is plenty for proof review and keeps uploads small on mobile data.
+const MAX_EDGE = 1600;
+async function shrinkPhoto(asset) {
+  const { width = 0, height = 0 } = asset;
+  const resize = width >= height ? { width: Math.min(width || MAX_EDGE, MAX_EDGE) } : { height: Math.min(height, MAX_EDGE) };
+  try {
+    const small = await ImageManipulator.manipulateAsync(asset.uri, [{ resize }], { compress: 0.7, format: ImageManipulator.SaveFormat.JPEG });
+    return { uri: small.uri, fileName: 'proof.jpg', mimeType: 'image/jpeg' };
+  } catch {
+    return asset; // Upload the original; the server reports if it's too large
   }
 }
 
@@ -75,7 +90,7 @@ export default function CampaignDetailScreen({ campaignId, onBack, onChanged }) 
       const result = await takePhoto();
       if (result.canceled || !result.assets || !result.assets.length) return;
       setBusy(slot.slot);
-      const res = await mobileApi.uploadCampaignProof(campaignId, result.assets[0], slot.slot);
+      const res = await mobileApi.uploadCampaignProof(campaignId, await shrinkPhoto(result.assets[0]), slot.slot);
       const taken = (res.slots || []).filter((x) => x.status === 'PENDING' || x.status === 'APPROVED').length;
       Alert.alert(
         `${slot.label} photo saved`,

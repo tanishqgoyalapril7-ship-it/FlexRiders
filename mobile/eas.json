@@ -32,7 +32,7 @@
     "production": {
       "android": {
         "serviceAccountKeyPath": "./google-services-key.json",
-        "track": "production"
+        "track": "internal"
       },
       "ios": {
         "appleId": "developer@superriders.com",

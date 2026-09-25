@@ -5,9 +5,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // - Android Emulator: 10.0.2.2 routes to the host computer's localhost
 // - iOS Simulator: 127.0.0.1 connects to localhost
 // - Physical Devices: use your computer's local Wi-Fi IP
+// Release builds never fall back to a development address: without EXPO_PUBLIC_API_URL they use the live API.
+const PRODUCTION_API_URL = 'https://flexriders-api.vercel.app/api/v1';
 const getDefaultBaseUrl = () => {
   if (process.env.EXPO_PUBLIC_API_URL) {
     return process.env.EXPO_PUBLIC_API_URL;
+  }
+  if (!__DEV__) {
+    return PRODUCTION_API_URL;
   }
   if (Platform.OS === 'android') {
     return 'http://10.0.2.2:8000/api/v1';
@@ -203,6 +208,7 @@ export const mobileApi = {
       headers: { Authorization: `Bearer ${authToken}` },
       body: form,
     });
+    if (res.status === 413) throw new Error('This photo is too large to upload. Please take it again.');
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(formatError(err, 'Could not upload your photo'));

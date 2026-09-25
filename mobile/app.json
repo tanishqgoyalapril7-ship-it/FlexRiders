@@ -39,10 +39,24 @@
         "ACCESS_BACKGROUND_LOCATION",
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_LOCATION"
+      ],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.SYSTEM_ALERT_WINDOW"
       ]
     },
     "plugins": [
       "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "FlexRiders uses the camera to take your daily campaign photos (Morning, Evening and Night).",
+          "photosPermission": false,
+          "microphonePermission": false
+        }
+      ],
       [
         "expo-location",
         {

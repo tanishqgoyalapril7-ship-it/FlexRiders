@@ -37,9 +37,19 @@ export async function getRouteState() {
   }
 }
 
+// A damaged queue is dropped rather than breaking every later location update.
+async function readQueue() {
+  try {
+    const queue = JSON.parse((await AsyncStorage.getItem(QUEUE_KEY)) || '[]');
+    return Array.isArray(queue) ? queue : [];
+  } catch {
+    return [];
+  }
+}
+
 async function enqueue(points) {
   if (!points.length) return;
-  const queue = JSON.parse((await AsyncStorage.getItem(QUEUE_KEY)) || '[]');
+  const queue = await readQueue();
   const next = queue.concat(points).slice(-MAX_QUEUE);
   await AsyncStorage.setItem(QUEUE_KEY, JSON.stringify(next));
 }
@@ -57,8 +67,12 @@ async function handleLocations(locations) {
 // Background updates arrive here even when the app isn't on screen.
 TaskManager.defineTask(TASK_NAME, async ({ data, error }) => {
   if (error || !data || !data.locations) return;
-  await handleLocations(data.locations);
-  await flushRoute();
+  try {
+    await handleLocations(data.locations);
+    await flushRoute();
+  } catch {
+    // Storage full or unavailable: skip this batch, the next update tries again
+  }
 });
 
 /** Uploads queued points. Returns false if the server says this rider can't record (route is stopped). */
@@ -67,7 +81,7 @@ export async function flushRoute() {
   flushing = true;
   try {
     const state = await getRouteState();
-    let queue = JSON.parse((await AsyncStorage.getItem(QUEUE_KEY)) || '[]');
+    let queue = await readQueue();
     const campaignId = state ? state.campaignId : null;
     if (!campaignId || !queue.length) return true;
     const token = getAuthToken() || (await loadStoredToken());

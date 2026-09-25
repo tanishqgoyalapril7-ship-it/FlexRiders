@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Linking, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, BackHandler, Linking, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { registerRootComponent } from 'expo';
 import { Ionicons } from '@expo/vector-icons';
@@ -100,11 +100,11 @@ const toEarnings = (e) => ({
   total: e.total_earnings,
   paid: e.paid_earnings,
   pending: e.pending_earnings,
-  lastSevenDays: e.last_seven_days.map((d) => ({
+  lastSevenDays: (e.last_seven_days || []).map((d) => ({
     label: new Date(`${d.date}T00:00:00`).toLocaleDateString('en-GB', { weekday: 'short' }).slice(0, 2),
     amount: d.amount,
   })),
-  campaigns: e.campaigns,
+  campaigns: e.campaigns || [],
 });
 
 const toPayment = (p) => ({
@@ -197,7 +197,7 @@ function RiderApp() {
     ]);
     if (earningsData) setEarnings(toEarnings(earningsData));
     if (paymentData) setPayments((paymentData.payments || []).map(toPayment));
-    if (notificationData) setNotifications(notificationData.map(toNotification));
+    if (Array.isArray(notificationData)) setNotifications(notificationData.map(toNotification));
     if (campaignData) setCampaigns(campaignData);
     return true;
   }, [logout]);
@@ -223,10 +223,11 @@ function RiderApp() {
 
   // Restore a saved login on launch.
   useEffect(() => {
-    loadStoredToken().then(async (token) => {
-      if (token) await refreshData();
-      setScreen(getAuthToken() ? 'main' : 'splash');
-    });
+    loadStoredToken()
+      .then(async (token) => {
+        if (token) await refreshData().catch(() => null); // Offline or a bad response: open the app anyway, polling retries
+      })
+      .finally(() => setScreen(getAuthToken() ? 'main' : 'splash'));
   }, [refreshData]);
 
   useEffect(() => {
@@ -295,6 +296,22 @@ function RiderApp() {
       setLinkedCampaign(null);
     }
   }, [screen, linkedCampaign]);
+
+  // Android back button: go to the previous screen instead of closing the app; on Home (or the splash) it exits as usual.
+  useEffect(() => {
+    const onBack = () => {
+      if (screen === 'login' || screen === 'register') {
+        setScreen('splash');
+        return true;
+      }
+      if (screen !== 'main' || tab === 'home') return false;
+      const parent = { campaign: 'campaigns', payments: 'earnings', refer: 'profile', notifications: notificationsBack }[tab];
+      setTab(parent || 'home');
+      return true;
+    };
+    const sub = BackHandler.addEventListener('hardwareBackPress', onBack);
+    return () => sub.remove();
+  }, [screen, tab, notificationsBack]);
 
   const unreadCount = notifications.filter((n) => n.unread).length;
 

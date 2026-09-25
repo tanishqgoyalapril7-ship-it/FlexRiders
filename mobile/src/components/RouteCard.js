@@ -13,7 +13,9 @@ export default function RouteCard({ campaignId }) {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    resumeRoute().then((s) => setState(s && s.campaignId === campaignId ? s : s ? { other: true } : null));
+    resumeRoute()
+      .then((s) => setState(s && s.campaignId === campaignId ? s : s ? { other: true } : null))
+      .catch(() => getRouteState().then((s) => setState(s && s.campaignId === campaignId ? s : s ? { other: true } : null))); // e.g. location turned off since
   }, [campaignId]);
 
   // Upload queued points every 30 s while this screen is open.
@@ -48,7 +50,7 @@ export default function RouteCard({ campaignId }) {
         style: 'destructive',
         onPress: async () => {
           setBusy(true);
-          await stopRoute();
+          await stopRoute().catch(() => {});
           setState(null);
           setBusy(false);
         },
