@@ -43,6 +43,7 @@ def test_auth_and_registration_flow(client, db_session):
     reg_payload = {
         "full_name": "Kavita Rao",
         "mobile_number": "+919811002233",
+        "password": "kavitaPass1",
         "email": "kavita@example.com",
         "dob": "10-02-1999",
         "current_company": "LogiExpress",

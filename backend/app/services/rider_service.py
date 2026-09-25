@@ -36,23 +36,7 @@ def generate_next_rider_id(db: Session) -> str:
 def register_new_rider(db: Session, reg: RiderRegistrationRequest) -> Rider:
     """Registers a new rider in PENDING status and sends admin notification"""
     # 1. Create or get user
-    user = db.query(User).filter(User.phone == reg.mobile_number).first()
-    if not user:
-        user = User(
-            phone=reg.mobile_number,
-            email=reg.email,
-            hashed_password=get_password_hash(reg.password or "Rider@123"),
-            role=UserRole.RIDER,
-            is_active=True,
-        )
-        db.add(user)
-        db.flush()
-    else:
-        # Check if already has rider profile
-        existing_rider = db.query(Rider).filter(Rider.user_id == user.id).first()
-        if existing_rider:
-            return existing_rider
-
+    # Every check runs before anything is created, so a refused registration leaves nothing behind.
     from app.services import referral_service  # Local import avoids a circular import
 
     try:
@@ -61,6 +45,20 @@ def register_new_rider(db: Session, reg: RiderRegistrationRequest) -> Rider:
         raise HTTPException(status_code=400, detail=str(e))
     if reg.vehicle_number and db.query(Rider.id).filter(Rider.vehicle_number == reg.vehicle_number).first():
         raise HTTPException(status_code=400, detail=f"Vehicle {reg.vehicle_number} is already registered to another rider.")
+
+    # Registration only ever creates a NEW account. A number that already has one (a rider, or an admin)
+    # must log in with its password: registration never returns, reuses or attaches to an existing account.
+    if db.query(User.id).filter(User.phone == reg.mobile_number).first():
+        raise HTTPException(status_code=400, detail="This mobile number is already registered. Please log in instead.")
+    user = User(
+        phone=reg.mobile_number,
+        email=reg.email,
+        hashed_password=get_password_hash(reg.password),
+        role=UserRole.RIDER,
+        is_active=True,
+    )
+    db.add(user)
+    db.flush()
 
     # 2. Generate unique Rider ID
     sr_id = generate_next_rider_id(db)

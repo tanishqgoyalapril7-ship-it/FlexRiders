@@ -176,7 +176,8 @@ class RiderRegistrationRequest(BaseModel):
     email: Optional[str] = None
     dob: Optional[str] = None
     profile_photo: Optional[str] = None
-    password: Optional[str] = "Rider@123"
+    # Required, no default: a missing password must never become a known one.
+    password: str = Field(..., min_length=6, max_length=128)
 
     # Step 2: Work
     current_company: Optional[str] = None
