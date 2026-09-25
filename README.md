@@ -1,14 +1,15 @@
-# Super Riders — Rider Management & Brand Campaign Platform
+# FlexRiders — Rider Management & Brand Campaign Platform
 
-Super Riders manages delivery riders end to end: registration and verification, brand assignment, paid brand campaigns tracked through daily photo proof, T-shirt / brand-kit pickup, payouts, and the admin tooling around all of it.
+FlexRiders manages delivery riders end to end: registration and verification, brand assignment, paid brand campaigns tracked through daily photo proof, T-shirt / brand-kit pickup and return, payouts, and the admin tooling around all of it.
 
-It has three parts that share one backend:
+**Live:** https://flexriders.in (website) · https://flexriders.in/admin (admin dashboard). Everything runs in the cloud (Vercel + Supabase Mumbai); see [DEPLOY.md](DEPLOY.md).
 
-| Part | Stack | Folder |
-|---|---|---|
-| **Backend API** | FastAPI, SQLAlchemy 2, Pydantic v2, PostgreSQL (Supabase) or SQLite | `backend/` |
-| **Admin dashboard** (web) | React 18, Vite 5, lucide-react | `frontend/` |
-| **Rider app** (iOS & Android) | React Native 0.74, Expo SDK 51 | `mobile/` |
+| Part | Stack | Folder | Hosted |
+|---|---|---|---|
+| **Website** (landing page) | Next.js 15 | `landing/` | Vercel → flexriders.in |
+| **Admin dashboard** (web, works on phones and tablets) | React 18, Vite 5, lucide-react | `frontend/` | Vercel → flexriders.in/admin |
+| **Backend API** | FastAPI, SQLAlchemy 2, Pydantic v2, PostgreSQL (Supabase) or SQLite | `backend/` | Vercel (Mumbai) + Supabase Mumbai |
+| **Rider app** (iOS & Android) | React Native 0.74, Expo SDK 51 | `mobile/` | Expo builds (`mobile/eas.json`) |
 
 ---
 
@@ -150,7 +151,7 @@ EXPO_PUBLIC_API_URL=http://192.168.1.20:8000/api/v1 npx expo start
 
 ## Admin dashboard features
 
-Sign-in is required. The session is stored in the browser, and an expired session returns to the login screen.
+Sign-in is required. The session is stored in the browser, and an expired session returns to the login screen. The dashboard works on phones and tablets: below tablet width the sidebar becomes a slide-out menu (☰ in the top bar).
 
 ### Dashboard
 - **KPIs**: total riders, active riders, pending review, suspended, live campaigns (with join requests), pending payout and total paid.
@@ -201,7 +202,7 @@ Sign-in is required. The session is stored in the browser, and an expired sessio
 - Riders and payments CSV exports.
 
 ### Admins & Settings
-- **Admin accounts**: add, edit role or password, deactivate. You can't lock yourself out, and there is always at least one active super admin. Accounts are never deleted, because the audit log refers to them.
+- **Admin accounts**: add, edit role or password, deactivate. You can't lock yourself out, and there is always at least one active super admin. Accounts are never deleted from the dashboard, because the audit log refers to them. There are no built-in admin accounts: the first one is created with `backend/create_admin.py`.
 - **Settings**: the operating rules currently in effect (read-only), and **Reset Data** (super admin only; see below).
 
 UX conventions: every destructive action uses a confirmation dialog that shows linked records, needs a reason or a typed confirmation, and shows loading and errors inside the dialog. Results appear as toast messages; there are no browser alert pop-ups.
@@ -253,7 +254,7 @@ A join request is **never** an active campaign rider.
 - **Vehicle eligibility**: riders register as *Two Wheeler* or *Three Wheeler* (`riders.vehicle_category`). Campaigns set *Eligible Vehicle Type* (Two, Three or Both). Joining and approval check the rider's stored category on the server. Riders registered earlier can set their type once from Edit Profile; after that only an admin changes it. New categories are added in `VehicleCategory` (backend).
 
 ### Shareable public campaign page
-Campaign detail → **Share Campaign** → *Create Public Link* gives a page at `/campaign/<slug>` (e.g. `/campaign/sector-57-promotion`) with Copy Link / Share Link / Open Public Page. It needs no login and shows only public details: brand and logo, name, description, area, dates, eligible vehicles, requirements, photo schedule, T-shirt info and status, plus a "Join in the Super Riders app" link (`superriders://campaign/<id>`). Rider, admin, payout, rate and analytics data are never included. It reads the same campaign record (no copy). Turning the link off makes the page return "not available". When hosting the dashboard, rewrite `/campaign/*` to `index.html` (a single-page app); set `PUBLIC_CAMPAIGN_BASE_URL` to use another domain.
+Campaign detail → **Share Campaign** → *Create Public Link* gives a page at `/campaign/<slug>` (e.g. `/campaign/sector-57-promotion`) with Copy Link / Share Link / Open Public Page. It needs no login and shows only public details: brand and logo, name, description, area, dates, eligible vehicles, requirements, photo schedule, T-shirt info and status, plus a "Join in the FlexRiders app" link (`superriders://campaign/<id>`). Rider, admin, payout, rate and analytics data are never included. It reads the same campaign record (no copy). Turning the link off makes the page return "not available". When hosting the dashboard, rewrite `/campaign/*` to `index.html` (a single-page app); set `PUBLIC_CAMPAIGN_BASE_URL` to use another domain.
 
 ### What riders see
 A campaign is visible in the rider app when it is **published**, not completed or cancelled, and hasn't ended (including extensions). A rider's approval status, brand or current campaign never hides a campaign; they only decide whether the rider can join. Set `CAMPAIGN_VISIBILITY_LOG=true` to log the reason each campaign is hidden.
@@ -294,8 +295,11 @@ A campaign is visible in the rider app when it is **published**, not completed o
 - Admin accounts can **never** log in with OTP; deactivated or archived accounts can't log in.
 - Notifications are scoped to their owner.
 - On Supabase, row-level security is enabled on all tables (no public REST access).
-- Rider photo uploads: image type and size are checked, and a SHA-256 hash is used for duplicate detection.
-- `backend/.env` holds the database password and is gitignored. Never commit it.
+- Rider photo uploads: image type and size are checked, and a SHA-256 hash is used for duplicate detection. Hosted, photos are in a **private** Supabase Storage bucket and are only reachable through 1-hour signed links.
+- **No built-in admin accounts or passwords** in code or docs; admins are created with `create_admin.py` or the Admin Users page.
+- **Production switches the development OTP off** (`ENABLE_OTP_LOGIN=false`): the fixed code can't log anyone in.
+- CORS allows only listed origins; the scheduled reminder endpoint needs a secret header (`CRON_SECRET`).
+- `backend/.env` and `backend/.env.mumbai` hold the database password and keys and are gitignored. Never commit them. Server secrets live only in the Vercel backend project's settings, never in the website, dashboard or app.
 
 ---
 
@@ -403,7 +407,7 @@ landing/
 ```bash
 cd backend
 source venv/bin/activate
-python -m pytest -q          # 75 tests
+python -m pytest -q          # 87 tests
 ```
 
 The suite always uses a throwaway SQLite database. It covers:
@@ -417,7 +421,9 @@ The suite always uses a throwaway SQLite database. It covers:
 - the T-shirt pickup and join-request flow;
 - rider visibility;
 - CRUD, archive and permission rules;
-- data reset.
+- data reset;
+- campaign go-live, vehicle eligibility, slot reminders, the public page and the T-shirt return incentive;
+- hosting: photo storage, the scheduled reminder endpoint (idempotent) and OTP lockout.
 
 Build checks:
 ```bash
@@ -428,13 +434,14 @@ cd mobile && npx expo start    # then open the iOS/Android bundle; Metro reports
 ---
 
 ## Known limitations
-- **OTP login** uses a fixed development code, and there is no SMS provider. It is disabled for admin accounts, but a real SMS/OTP service is needed before production.
+- **OTP login** uses a fixed development code and there is no SMS provider, so it is switched off in production (riders log in with their password). A real SMS/OTP service is needed to offer OTP login.
 - **No payment gateway**: "Mark Paid" records a payment made outside the app.
 - **Rider documents** (licence, Aadhaar, RC) are verified offline; in-app document upload isn't built yet.
 - **Profile photo upload, Terms & Conditions and Privacy Policy** pages aren't built yet.
 - The rider app's **Support** screen is informational ("coming soon").
 - **Operating rules** are set in `backend/.env`, not from the dashboard.
-- **Performance**: the dashboard refreshes the open page every 15 s (paused in background tabs). With Supabase in a distant region each query takes about 190 ms, so a nearer region (Mumbai) or Supabase's transaction pooler is recommended as data grows.
+- **Performance**: the dashboard refreshes the open page every 15 s (paused in background tabs). The backend and database both run in Mumbai.
+- **Hosting plan**: Vercel's free Hobby plan is for non-commercial use; move to Pro once FlexRiders is a paying business.
 - **No push notifications**: slot reminders and campaign updates are in-app notifications, seen when the rider opens the app. Push (Expo push tokens + a sender) would be needed to alert riders while the app is closed.
 - All campaign times (slots, reminders, day boundaries) use **IST**; there is no per-campaign timezone.
 

@@ -3,7 +3,7 @@
 Everything below runs without your laptop.
 
 ```
-flexriders.in (GoDaddy domain, once connected)
+flexriders.in (GoDaddy domain, connected; HTTPS by Vercel / Let's Encrypt)
         │
         ▼
 Vercel: flexriders-landing  (root: landing/)          https://flexriders-landing.vercel.app
@@ -36,16 +36,21 @@ Secrets never go into the landing page, the dashboard or the app. Local copies l
 - **Reminders:** `pg_cron` job `flexriders-slot-reminders` runs every minute and calls the backend with the `CRON_SECRET` header via `pg_net`. Check runs in `cron.job_run_details` and responses in `net._http_response`. Reminders are de-duplicated in the database, so extra runs never send twice.
 
 ## Rider app
-`mobile/eas.json` points preview and production builds at `https://flexriders-api.vercel.app/api/v1`. Build with `eas build --profile preview` (APK) or `--profile production` (Play Store bundle). Once flexriders.in is connected you can switch it to `https://flexriders.in/api/v1`.
+`mobile/eas.json` points preview and production builds straight at the backend, `https://flexriders-api.vercel.app/api/v1` (one hop shorter than going through flexriders.in, and no size limit on photo uploads). Build with `eas build --profile preview` (APK) or `--profile production` (Play Store bundle).
 
-## Connecting flexriders.in (GoDaddy)
-1. GoDaddy → flexriders.in → **Validate** the WHOIS banner and confirm the email. Until then the domain is on *clientHold* and can't be used.
-2. Vercel → `flexriders-landing` → **Settings → Domains** → add `flexriders.in` and `www.flexriders.in`.
-3. GoDaddy → **DNS**: remove the "Parked" `A` record and add exactly the records Vercel shows.
-4. Optional: add `admin.flexriders.in` to the same project as a redirect to `https://flexriders.in/admin`.
+## Domain (GoDaddy → Vercel), connected
+`flexriders.in` and `www.flexriders.in` (redirects to flexriders.in) are attached to the `flexriders-landing` project. GoDaddy DNS:
+
+| Type | Name | Value |
+|---|---|---|
+| A | @ | 216.198.79.1 |
+| A | @ | 64.29.17.1 |
+| CNAME | www | 66ccd2c4f64c5dfd.vercel-dns-017.com |
+
+Leave GoDaddy's NS, SOA, `_domainconnect` and `_dmarc` records as they are. Optional later: add `admin.flexriders.in` to the same project as a redirect to `https://flexriders.in/admin`.
 
 ## Before real riders use it
-- Change the Super Admin's default password (Admin Users → Edit).
+- Create your own Super Admin (Admin Users → Add Admin, or `backend/create_admin.py`), then remove the old default account `admin@superriders.com` (its password was published in earlier versions of this repo).
 - Reset the Supabase database password (it was shared in chat), then update `DATABASE_URL` in `backend/.env`, `backend/.env.mumbai` and the `flexriders-api` project.
 - Vercel's Hobby plan is for non-commercial use; move to Pro once FlexRiders is a paying business.
 
