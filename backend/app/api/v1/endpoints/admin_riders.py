@@ -464,6 +464,14 @@ def update_rider(id: int, data: AdminRiderUpdate, db: Session = Depends(get_db),
             if getattr(rider, field) != value:
                 setattr(rider, field, value)
                 changed.append(field)
+    # The result must still be valid: Bike / Auto / Three Wheeler always need a registration number
+    # (e.g. Cycle → Bike without a number, or clearing a Bike's number, is refused). Only Cycle may be blank.
+    from app.schemas.all_schemas import vehicle_number_problem
+
+    problem = vehicle_number_problem(rider.vehicle_category, rider.vehicle_number)
+    if problem:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=problem)
     if mobile and mobile != rider.mobile_number:
         rider.mobile_number = mobile
         if rider.user:

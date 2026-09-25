@@ -29,7 +29,7 @@ def admin(client, db_session):
 
 
 def rider_payload(**extra):
-    return {"full_name": "Crud Rider", "mobile_number": _phone(), "password": "riderPass1", "primary_city": "Gurugram", "vehicle_category": "TWO_WHEELER", **extra}
+    return {"full_name": "Crud Rider", "mobile_number": _phone(), "password": "riderPass1", "primary_city": "Gurugram", "vehicle_category": "CYCLE", **extra}
 
 
 def login(client, phone, password="riderPass1"):

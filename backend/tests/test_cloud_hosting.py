@@ -129,3 +129,35 @@ def test_otp_login_is_refused_when_disabled(client, monkeypatch):
     assert client.post(f"{API}/auth/otp/send", json={"phone": "+919811009999"}).status_code == 403
     for code in (settings.MOCK_OTP_CODE, "000000"):
         assert client.post(f"{API}/auth/otp/verify", json={"phone": "+919811009999", "otp": code}).status_code == 403
+
+
+def test_hosted_server_refuses_published_default_secret_key():
+    """On Vercel, starting with the default (published) SECRET_KEY must fail instead of signing forgeable tokens."""
+    import os
+    import subprocess
+    import sys
+
+    base = {**os.environ, "VERCEL": "1", "DATABASE_URL": "sqlite://", "SUPABASE_URL": "", "SUPABASE_SECRET_KEY": ""}
+    code = "import app.core.config"
+    bad = subprocess.run([sys.executable, "-c", code], env={**base, "SECRET_KEY": "super-riders-secret-key-production-change-this-in-prod"},
+                         capture_output=True, text=True, cwd=os.path.dirname(os.path.dirname(__file__)))
+    assert bad.returncode != 0 and "SECRET_KEY is not set" in bad.stderr
+    good = subprocess.run([sys.executable, "-c", code], env={**base, "SECRET_KEY": "x" * 48},
+                          capture_output=True, text=True, cwd=os.path.dirname(os.path.dirname(__file__)))
+    assert good.returncode == 0, good.stderr
+
+
+def test_otp_always_off_on_hosted_server(client, monkeypatch):
+    monkeypatch.setattr(settings, "ENABLE_OTP_LOGIN", True)
+    monkeypatch.setattr(settings, "VERCEL", "1")
+    assert client.post(f"{API}/auth/otp/verify", json={"phone": "+919811007777", "otp": settings.MOCK_OTP_CODE}).status_code == 403
+
+
+def test_login_does_not_reveal_which_numbers_exist(client, db_session):
+    make_admin(client, db_session)
+    unknown = client.post(f"{API}/auth/login", json={"phone": "+919000009999", "password": "whatever123"})
+    body = rider_payload()
+    client.post(f"{API}/auth/register", json={**body, "vehicle_category": "CYCLE"})
+    wrong = client.post(f"{API}/auth/login", json={"phone": body["mobile_number"], "password": "wrongPass999"})
+    assert unknown.status_code == wrong.status_code == 401
+    assert unknown.json()["detail"] == wrong.json()["detail"] == "Incorrect phone number or password"

@@ -41,7 +41,6 @@ from app.models.campaign_models import (
     CampaignFulfillmentSnapshot,
     CampaignPayout,
     CampaignPickupLocation,
-    CampaignTerms,
     CampaignTermsAcceptance,
     CampaignStatus,
     FinancialAdjustment,
@@ -252,7 +251,8 @@ def hard_delete_campaign(db: Session, campaign: Campaign, admin: User) -> None:
             raise DataAdminError("Only draft or cancelled campaigns can be deleted. Cancel the campaign first.")
         raise DataAdminError("This campaign has riders, activity or money records. Cancel it instead to keep that history.")
     cid, name = campaign.id, campaign.name
-    for model in (CampaignTermsAcceptance, CampaignTerms, CampaignFulfillmentSnapshot, CampaignApplication, CampaignExtension, CampaignBrandKit, CampaignPickupLocation):
+    # Terms versions and acceptances are permanent consent history and are deliberately NOT deleted.
+    for model in (CampaignFulfillmentSnapshot, CampaignApplication, CampaignExtension, CampaignBrandKit, CampaignPickupLocation):
         db.query(model).filter(model.campaign_id == cid).delete(synchronize_session=False)
     image = campaign.image_url
     db.delete(campaign)
@@ -292,6 +292,10 @@ def _delete_all(db: Session, *models) -> Dict[str, int]:
     return {m.__tablename__: db.query(m).delete(synchronize_session=False) for m in models}
 
 
+# Never deleted by any reset or deletion here: CampaignTerms and CampaignTermsAcceptance (permanent
+# consent history; they don't reference campaigns or riders by foreign key, so nothing blocks either).
+
+
 def _reset_activity(db: Session) -> Dict[str, int]:
     """Photos, rider-days, corrections and snapshots; payouts back to zero and their payments removed."""
     removed = _delete_all(db, ActivityChangeLog, CampaignActivityPhoto, FinancialAdjustment, CampaignFulfillmentSnapshot, CampaignDailyActivity, RoutePoint)
@@ -326,7 +330,7 @@ def _reset_campaigns(db: Session) -> Dict[str, int]:
     removed["payments"] += payout_payments
     removed.update(
         _delete_all(
-            db, CampaignTermsAcceptance, CampaignTerms, CampaignPayout, CampaignAssignment, CampaignApplication,
+            db, CampaignPayout, CampaignAssignment, CampaignApplication,
             BrandPaymentRecord, CampaignExtension, CampaignBrandKit, CampaignPickupLocation, Campaign,
         )
     )
@@ -339,7 +343,7 @@ def _reset_riders(db: Session) -> Dict[str, int]:
     payout_payments = removed["payments"]
     removed.update(_delete_rider_kits(db))
     removed["payments"] += payout_payments
-    removed.update(_delete_all(db, CampaignTermsAcceptance, CampaignPayout, CampaignAssignment, CampaignApplication))
+    removed.update(_delete_all(db, CampaignPayout, CampaignAssignment, CampaignApplication))
     rider_user_ids = [uid for (uid,) in db.query(Rider.user_id).filter(Rider.user_id.isnot(None))]
     removed.update(_delete_all(db, RiderReferral, Payment, RiderBrandAssignment, RiderDocument, SupportTicket, Rider))
     removed["notifications"] = (

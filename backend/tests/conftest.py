@@ -12,6 +12,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # before it is imported, since importing it creates and migrates tables.
 os.environ["DATABASE_URL"] = "sqlite:///./test_super_riders.db"
 os.environ["SLOT_NOTIFICATIONS_ENABLED"] = "false"  # Tests call the reminder service directly
+# Never reach production services from tests, whatever backend/.env contains: photo storage stays on a
+# temporary local folder, and no production secrets are used.
+os.environ["SUPABASE_URL"] = ""
+os.environ["SUPABASE_SECRET_KEY"] = ""
+os.environ["CRON_SECRET"] = ""
+os.environ["SECRET_KEY"] = "test-only-secret-key"
 
 from app.main import app
 from app.core.database import Base, get_db

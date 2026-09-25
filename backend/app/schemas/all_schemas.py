@@ -153,12 +153,20 @@ def normalize_vehicle_category(value: Optional[str]) -> Optional[str]:
     return cleaned
 
 
-def _vehicle_number_rule(category: Optional[str], number: Optional[str]) -> None:
-    """A registration number is required for every vehicle type except Cycle."""
+def vehicle_number_problem(category: Optional[str], number: Optional[str]) -> Optional[str]:
+    """Why this vehicle type / number combination isn't allowed, or None. Cycle is the only type that
+    may have no registration number. Used on every path that sets either field."""
     from app.models.campaign_models import VehicleCategory
 
     if category and category not in VehicleCategory.NUMBER_OPTIONAL and not number:
-        raise ValueError(f"Enter your vehicle registration number ({VehicleCategory.LABELS[category]}).")
+        return f"A vehicle registration number is required for {VehicleCategory.LABELS[category]}."
+    return None
+
+
+def _vehicle_number_rule(category: Optional[str], number: Optional[str]) -> None:
+    problem = vehicle_number_problem(category, number)
+    if problem:
+        raise ValueError(problem)
 
 
 class RiderRegistrationRequest(BaseModel):
@@ -249,6 +257,11 @@ class AdminRiderCreate(BaseModel):
     @classmethod
     def _valid_vehicle_number(cls, value):
         return normalize_vehicle_number(value)
+
+    @model_validator(mode="after")
+    def _vehicle_number_needed(self):
+        _vehicle_number_rule(self.vehicle_category, self.vehicle_number)
+        return self
 
 
 class AdminRiderUpdate(BaseModel):

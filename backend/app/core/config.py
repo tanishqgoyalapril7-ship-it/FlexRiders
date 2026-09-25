@@ -7,7 +7,7 @@ import os
 class Settings(BaseSettings):
     PROJECT_NAME: str = "FlexRiders API"
     API_V1_STR: str = "/api/v1"
-    SECRET_KEY: str = "super-riders-secret-key-production-change-this-in-prod"
+    SECRET_KEY: str = "super-riders-secret-key-production-change-this-in-prod"  # Development only; hosted servers refuse it
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
     ALGORITHM: str = "HS256"
 
@@ -89,6 +89,10 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+DEFAULT_SECRET_KEY = "super-riders-secret-key-production-change-this-in-prod"
+if settings.VERCEL and settings.SECRET_KEY == DEFAULT_SECRET_KEY:
+    # The default key is published in this repository: anyone could sign valid login tokens with it.
+    raise RuntimeError("SECRET_KEY is not set for this deployment. Set a long random SECRET_KEY in the hosting settings.")
 if not (settings.SUPABASE_URL and settings.SUPABASE_SECRET_KEY):
     try:
         os.makedirs(settings.UPLOAD_DIR, exist_ok=True)  # Local storage only

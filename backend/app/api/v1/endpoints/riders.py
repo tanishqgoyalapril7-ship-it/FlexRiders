@@ -120,6 +120,14 @@ def update_rider_profile(
     if category:
         if rider.vehicle_category and rider.vehicle_category != category:
             raise HTTPException(status_code=400, detail="Your vehicle type is already set. Contact support to change it.")
+        from app.schemas.all_schemas import vehicle_number_problem
+
+        if vehicle_number_problem(category, rider.vehicle_number):
+            # Riders can't enter a registration number themselves (it's verified by operations).
+            raise HTTPException(
+                status_code=400,
+                detail="This vehicle type needs your registration number on file. Ask your operations manager to add it, then choose your vehicle type.",
+            )
         rider.vehicle_category = category
     for field, value in changes.items():
         if value is None:

@@ -109,6 +109,8 @@ export function RiderFormModal({ rider, onClose, onSaved }) {
     if (!form.primary_city.trim()) return setError('Enter the primary working city.');
     if (!vehicleOk) return setError('Enter a valid vehicle number, e.g. HR26DK8337.');
     if (!form.vehicle_category) return setError('Select the rider’s vehicle type.');
+    if (form.vehicle_category !== 'CYCLE' && !form.vehicle_number.trim())
+      return setError('Enter the vehicle registration number (only Cycle may be left blank).');
     if (!editing && form.password.length < 6) return setError('Set a password of at least 6 characters for the rider’s login.');
     setSaving(true);
     setError('');

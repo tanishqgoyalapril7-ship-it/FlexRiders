@@ -15,18 +15,11 @@ router = APIRouter()
 def login(request: LoginRequest, db: Session = Depends(get_db)):
     """Authenticate user with phone + password, returns JWT token with role"""
     user = db.query(User).filter(User.phone == request.phone.strip()).first()
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Account with this phone number not found",
-        )
-
+    # One message for an unknown number and a wrong password, so login can't be used to find accounts.
+    bad_login = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect phone number or password")
     if request.password:
-        if not verify_password(request.password, user.hashed_password):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect password",
-            )
+        if not user or not verify_password(request.password, user.hashed_password):
+            raise bad_login
     else:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -58,7 +51,8 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
 def _require_otp_enabled() -> None:
     # There is no SMS provider yet: the "OTP" is a fixed development code. It must be switched off
     # (ENABLE_OTP_LOGIN=false) wherever real riders use the system, or anyone could log in as them.
-    if not settings.ENABLE_OTP_LOGIN:
+    # Hosted servers never allow it: there is no SMS provider, only a fixed development code.
+    if not settings.ENABLE_OTP_LOGIN or settings.VERCEL:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="OTP login is not available. Please log in with your password.")
 
 

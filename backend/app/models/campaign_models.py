@@ -582,36 +582,45 @@ class RoutePoint(Base):
 
 
 class CampaignTerms(Base):
-    """One published version of a campaign's Terms & Conditions. Versions are never edited or deleted
-    (a change is a new version), so every acceptance keeps pointing at the exact text accepted."""
+    """One published version of a campaign's Terms & Conditions: a permanent history record.
+
+    Versions are never edited or deleted (a change is a new version). The row does not depend on the
+    campaign or publisher still existing: campaign_id / published_by_id are plain ids (no foreign key)
+    with a snapshot of their names, so resets and deletions elsewhere can never remove or block it."""
 
     __tablename__ = "campaign_terms"
 
     id = Column(Integer, primary_key=True, index=True)
-    campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=False, index=True)
+    campaign_id = Column(Integer, nullable=False, index=True)  # No FK on purpose: the record outlives the campaign
+    campaign_name = Column(String(150), nullable=True)  # Snapshot at publish time
     version = Column(Integer, nullable=False)
     body = Column(Text, nullable=False)
     change_note = Column(String(500), nullable=True)
     published_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    published_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-
-    published_by = relationship("User")
+    published_by_id = Column(Integer, nullable=True)  # No FK on purpose
+    published_by_email = Column(String(120), nullable=True)  # Snapshot
 
     __table_args__ = (UniqueConstraint("campaign_id", "version", name="uq_campaign_terms_version"),)
 
 
 class CampaignTermsAcceptance(Base):
-    """A rider accepting one terms version. Append-only: accepting a newer version adds a row."""
+    """A rider accepting one terms version: a permanent consent record. Append-only (accepting a newer
+    version adds a row), and independent of the campaign, rider and join request rows: those are kept
+    as plain ids plus a snapshot of who/what, so no reset or deletion removes or blocks it. The only
+    foreign key is to the terms version, which is itself permanent."""
 
     __tablename__ = "campaign_terms_acceptances"
 
     id = Column(Integer, primary_key=True, index=True)
-    campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=False, index=True)
-    rider_id = Column(Integer, ForeignKey("riders.id"), nullable=False, index=True)
+    campaign_id = Column(Integer, nullable=False, index=True)  # No FK on purpose
+    campaign_name = Column(String(150), nullable=True)  # Snapshot
+    rider_id = Column(Integer, nullable=False, index=True)  # No FK on purpose
+    rider_code = Column(String(20), nullable=True)  # Snapshot, e.g. SR-000123
+    rider_name = Column(String(120), nullable=True)  # Snapshot
     terms_id = Column(Integer, ForeignKey("campaign_terms.id"), nullable=False)
     terms_version = Column(Integer, nullable=False)
     accepted_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    application_id = Column(Integer, ForeignKey("campaign_applications.id"), nullable=True)  # Set when accepted while joining
+    application_id = Column(Integer, nullable=True)  # The join request, if accepted while joining (no FK on purpose)
     source = Column(String(20), nullable=False, default="JOIN")  # JOIN or UPDATE (a newer version accepted later)
 
     terms = relationship("CampaignTerms")

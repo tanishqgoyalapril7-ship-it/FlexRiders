@@ -8,6 +8,8 @@ Rules:
 - Riders already in a campaign are NOT blocked from their daily photos when a new version is
   published; they get a notification and a reminder until they accept.
 - FlexRiders never writes terms itself: the text is exactly what an admin publishes.
+- Retention: versions and acceptances are permanent. No reset, campaign/rider deletion or other admin
+  cleanup removes them (they hold ids + name snapshots rather than foreign keys to those rows).
 """
 from datetime import datetime
 from typing import Dict, Optional
@@ -34,20 +36,29 @@ class TermsError(ValueError):
     """Shown to the user as-is (400)."""
 
 
+def _terms_of(db: Session, campaign_id: int):
+    """This campaign's versions. Records are kept forever and hold plain ids, so on a database that
+    reuses deleted ids (e.g. SQLite) an old campaign's history must never attach to a new campaign:
+    only versions published after this campaign was created count."""
+    query = db.query(CampaignTerms).filter(CampaignTerms.campaign_id == campaign_id)
+    campaign = db.get(Campaign, campaign_id)
+    if campaign is not None and campaign.created_at is not None:
+        query = query.filter(CampaignTerms.published_at >= campaign.created_at)
+    return query
+
+
 def current_terms(db: Session, campaign_id: int) -> Optional[CampaignTerms]:
-    return (
-        db.query(CampaignTerms)
-        .filter(CampaignTerms.campaign_id == campaign_id)
-        .order_by(CampaignTerms.version.desc())
-        .first()
-    )
+    return _terms_of(db, campaign_id).order_by(CampaignTerms.version.desc()).first()
 
 
 def accepted_version(db: Session, campaign_id: int, rider_id: int) -> Optional[int]:
-    """The newest version this rider accepted for this campaign, or None."""
+    """The newest version of THIS campaign's terms this rider accepted, or None."""
+    term_ids = [t.id for t in _terms_of(db, campaign_id).with_entities(CampaignTerms.id)]
+    if not term_ids:
+        return None
     return (
         db.query(func.max(CampaignTermsAcceptance.terms_version))
-        .filter(CampaignTermsAcceptance.campaign_id == campaign_id, CampaignTermsAcceptance.rider_id == rider_id)
+        .filter(CampaignTermsAcceptance.terms_id.in_(term_ids), CampaignTermsAcceptance.rider_id == rider_id)
         .scalar()
     )
 
@@ -69,10 +80,13 @@ def publish(db: Session, campaign: Campaign, body: str, change_note: Optional[st
         raise TermsError("This text is the same as the current version. Change the text to publish a new version.")
     terms = CampaignTerms(
         campaign_id=campaign.id,
-        version=(previous.version + 1) if previous else 1,
+        campaign_name=campaign.name,
+        # Next number after every version ever stored under this id (history is never reused or overwritten).
+        version=(db.query(func.max(CampaignTerms.version)).filter(CampaignTerms.campaign_id == campaign.id).scalar() or 0) + 1,
         body=text,
         change_note=(change_note or "").strip() or None,
         published_by_id=admin.id,
+        published_by_email=admin.email,
     )
     db.add(terms)
     try:
@@ -129,7 +143,8 @@ def accept(
             db.commit()
         return existing
     acceptance = CampaignTermsAcceptance(
-        campaign_id=campaign.id, rider_id=rider.id, terms_id=terms.id, terms_version=terms.version,
+        campaign_id=campaign.id, campaign_name=campaign.name, rider_id=rider.id, rider_code=rider.rider_id, rider_name=rider.full_name,
+        terms_id=terms.id, terms_version=terms.version,
         application_id=application_id, source=source, accepted_at=datetime.utcnow(),
     )
     db.add(acceptance)
@@ -163,13 +178,11 @@ def rider_status(db: Session, campaign_id: int, rider_id: int) -> Optional[Dict]
 
 def admin_overview(db: Session, campaign: Campaign) -> Dict:
     """Every version with its acceptance count, and how many current riders accepted the latest one."""
-    versions = (
-        db.query(CampaignTerms).filter(CampaignTerms.campaign_id == campaign.id).order_by(CampaignTerms.version.desc()).all()
-    )
+    versions = _terms_of(db, campaign.id).order_by(CampaignTerms.version.desc()).all()
     counts = dict(
-        db.query(CampaignTermsAcceptance.terms_version, func.count(CampaignTermsAcceptance.id))
-        .filter(CampaignTermsAcceptance.campaign_id == campaign.id)
-        .group_by(CampaignTermsAcceptance.terms_version)
+        db.query(CampaignTermsAcceptance.terms_id, func.count(CampaignTermsAcceptance.id))
+        .filter(CampaignTermsAcceptance.terms_id.in_([t.id for t in versions] or [0]))
+        .group_by(CampaignTermsAcceptance.terms_id)
         .all()
     )
     current = versions[0] if versions else None
@@ -191,7 +204,7 @@ def admin_overview(db: Session, campaign: Campaign) -> Dict:
         "current_riders": len(current_riders),
         "current_riders_accepted": accepted_current,
         "versions": [
-            {**terms_dict(t), "published_by": t.published_by.email if t.published_by else None, "acceptances": counts.get(t.version, 0)}
+            {**terms_dict(t), "published_by": t.published_by_email, "acceptances": counts.get(t.id, 0)}
             for t in versions
         ],
     }

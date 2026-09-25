@@ -94,7 +94,8 @@ def test_registration_vehicle_rules(client):
 def test_rider_cannot_change_vehicle_type_and_admin_change_is_audited(client, db_session, admin):
     me, headers = approved_rider(client, admin, "CYCLE")
     assert client.patch(f"{API}/riders/me", json={"vehicle_category": "TWO_WHEELER"}, headers=headers).status_code == 400
-    assert client.put(f"{API}/admin/riders/{me['id']}", json={"vehicle_category": "AUTO"}, headers=admin).status_code == 200
+    assert client.put(f"{API}/admin/riders/{me['id']}", json={"vehicle_category": "AUTO"}, headers=admin).status_code == 400  # No number yet
+    assert client.put(f"{API}/admin/riders/{me['id']}", json={"vehicle_category": "AUTO", "vehicle_number": "DL1RA" + _phone()[-4:]}, headers=admin).status_code == 200
     logs = client.get(f"{API}/audit-logs", headers=admin).json()
     rows = logs if isinstance(logs, list) else logs.get("items", logs.get("logs", []))
     assert any(r.get("action") == "RIDER_VEHICLE_TYPE_CHANGED" and "Cycle → Auto" in (r.get("details") or "") for r in rows)
@@ -253,3 +254,103 @@ def test_public_page_hides_unapproved_assets_and_private_data(client, admin):
     logs = client.get(f"{API}/audit-logs", headers=admin).json()
     rows = logs if isinstance(logs, list) else logs.get("items", logs.get("logs", []))
     assert any(r.get("action") == "BRAND_PUBLIC_ASSETS_APPROVED" for r in rows)
+
+
+# --------------------------------------------------------------------------- admin vehicle-number rules
+
+def _admin_create(client, admin, category, number=None):
+    body = {"full_name": "Admin Made", "mobile_number": _phone(), "password": "riderPass1", "primary_city": "Gurugram",
+            "vehicle_category": category, "status": "APPROVED", **({"vehicle_number": number} if number else {})}
+    return client.post(f"{API}/admin/riders", json=body, headers=admin)
+
+
+@pytest.mark.parametrize("category", ["TWO_WHEELER", "AUTO", "THREE_WHEELER"])
+def test_admin_create_requires_number_except_cycle(client, admin, category):
+    res = _admin_create(client, admin, category)
+    assert res.status_code == 422 and "registration number is required" in res.text
+    ok = _admin_create(client, admin, category, "mh 12 ld " + _phone()[-4:])
+    assert ok.status_code == 200 and ok.json()["vehicle_number"].startswith("MH12LD")  # Existing normalisation unchanged
+    assert _admin_create(client, admin, category, "12345").status_code == 422  # Existing format validation unchanged
+
+
+def test_admin_create_cycle_without_number(client, admin):
+    res = _admin_create(client, admin, "CYCLE")
+    assert res.status_code == 200 and res.json()["vehicle_number"] is None
+
+
+@pytest.mark.parametrize("target", ["TWO_WHEELER", "AUTO", "THREE_WHEELER"])
+def test_admin_edit_vehicle_type_and_number_rules(client, admin, target):
+    rider = _admin_create(client, admin, "CYCLE").json()
+    url = f"{API}/admin/riders/{rider['id']}"
+    # Cycle → motor vehicle without a (valid) number: refused, nothing saved.
+    assert client.put(url, json={"vehicle_category": target}, headers=admin).status_code == 400
+    assert client.put(url, json={"vehicle_category": target, "vehicle_number": "ABC"}, headers=admin).status_code == 422
+    assert client.get(url, headers=admin).json()["vehicle_category"] == "CYCLE"
+    number = "KA05MN" + _phone()[-4:]
+    changed = client.put(url, json={"vehicle_category": target, "vehicle_number": number}, headers=admin)
+    assert changed.status_code == 200 and changed.json()["vehicle_category"] == target and changed.json()["vehicle_number"] == number
+    # Clearing the number of a motor vehicle is refused.
+    assert client.put(url, json={"vehicle_number": ""}, headers=admin).status_code == 400
+    assert client.get(url, headers=admin).json()["vehicle_number"] == number
+    # Motor vehicle → Cycle: allowed, and the number may then be cleared.
+    assert client.put(url, json={"vehicle_category": "CYCLE"}, headers=admin).status_code == 200
+    assert client.put(url, json={"vehicle_number": ""}, headers=admin).json()["vehicle_number"] is None
+
+
+def test_rider_profile_cannot_pick_motor_vehicle_without_number(client, db_session, admin):
+    me, headers = approved_rider(client, admin, "CYCLE")
+    legacy = db_session.get(Rider, me["id"])
+    legacy.vehicle_category = None  # A rider from before vehicle types were required
+    db_session.commit()
+    res = client.patch(f"{API}/riders/me", json={"vehicle_category": "AUTO"}, headers=headers)
+    assert res.status_code == 400 and "registration number" in res.json()["detail"]
+    assert client.patch(f"{API}/riders/me", json={"vehicle_category": "CYCLE"}, headers=headers).status_code == 200
+
+
+# --------------------------------------------------------------------------- terms retention (delete / archive)
+
+def test_campaign_delete_and_rider_archive_keep_terms_history(client, db_session, admin):
+    c = campaign(client, admin)
+    client.post(f"{API}/campaigns/{c['id']}/terms", json={"body": TERMS_V1}, headers=admin)
+    rider, headers = approved_rider(client, admin, "CYCLE")
+    assert client.post(f"{API}/riders/me/campaigns/{c['id']}/join", json={"terms_version": 1}, headers=headers).status_code == 200
+    acceptance = lambda: db_session.query(CampaignTermsAcceptance).filter_by(rider_id=rider["id"], campaign_id=c["id"]).one()
+
+    # Cancel (rejects the pending request) and permanently delete the campaign: consent history stays.
+    assert client.post(f"{API}/campaigns/{c['id']}/cancel", headers=admin).status_code == 200
+    assert client.delete(f"{API}/campaigns/{c['id']}", headers=admin).status_code == 200
+    db_session.expire_all()
+    kept = acceptance()
+    assert kept.terms_version == 1 and kept.campaign_name == c["name"] and kept.rider_code == rider["rider_id"]
+    from app.models.campaign_models import CampaignTerms
+
+    assert db_session.query(CampaignTerms).filter_by(campaign_id=c["id"], version=1).one().body == TERMS_V1
+
+    # Archiving the rider keeps it too; a rider with consent history can't be hard-deleted (archive instead).
+    assert client.post(f"{API}/admin/riders/{rider['id']}/archive", json={"reason": "Left the program"}, headers=admin).status_code == 200
+    db_session.expire_all()
+    assert acceptance().terms_version == 1
+    impact = client.get(f"{API}/admin/riders/{rider['id']}/delete-impact", headers=admin).json()
+    assert impact["can_hard_delete"] is False and "terms_acceptances" in impact["blocked_by"]
+
+
+def test_new_campaign_never_inherits_old_terms(client, db_session, admin):
+    """History is kept by plain id; a campaign only sees versions published after it was created."""
+    from datetime import datetime
+
+    from app.models.campaign_models import CampaignTerms
+
+    from sqlalchemy import func
+
+    c = campaign(client, admin)
+    # Old history stored under the same id (e.g. a deleted campaign whose id a test database reused).
+    old = (db_session.query(func.max(CampaignTerms.version)).filter(CampaignTerms.campaign_id == c["id"]).scalar() or 0) + 1
+    db_session.add(CampaignTerms(campaign_id=c["id"], version=old, body="Old history from a deleted campaign that had this id.",
+                                 published_at=datetime(2020, 1, 1)))
+    db_session.commit()
+    _, headers = approved_rider(client, admin, "CYCLE")
+    assert client.get(f"{API}/riders/me/campaigns/{c['id']}", headers=headers).json()["terms"] is None
+    assert client.post(f"{API}/riders/me/campaigns/{c['id']}/join", json={}, headers=headers).status_code == 200
+    published = client.post(f"{API}/campaigns/{c['id']}/terms", json={"body": TERMS_V1}, headers=admin).json()
+    assert published["current"]["version"] == old + 1 and [v["version"] for v in published["versions"]] == [old + 1]  # Old rows untouched
+    assert db_session.query(CampaignTerms).filter_by(campaign_id=c["id"], version=old).one().body.startswith("Old history")
