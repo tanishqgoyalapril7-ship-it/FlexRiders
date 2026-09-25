@@ -1,5 +1,6 @@
 import Footer from "@/components/Footer";
 import Navbar from "@/components/Navbar";
+import Advertising from "@/sections/Advertising";
 import Approvals from "@/sections/Approvals";
 import Brands from "@/sections/Brands";
 import Ecosystem from "@/sections/Ecosystem";
@@ -31,6 +32,7 @@ export default function Home() {
         <Operations />
         <Approvals />
         <Brands />
+        <Advertising />
         <Payments />
         <Profile />
         <Scale />

@@ -106,6 +106,7 @@ export default function Hero() {
           <motion.ul {...enter(0.85, 10, 4)} className={s.audiences} aria-label="Built for">
             <li>Rider experience</li>
             <li>Operations management</li>
+            <li>Brand advertising</li>
           </motion.ul>
         </motion.div>
 

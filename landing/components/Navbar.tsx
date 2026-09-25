@@ -99,7 +99,7 @@ export default function Navbar() {
   }, [open]);
 
   useEffect(() => {
-    const mq = window.matchMedia("(min-width: 900px)");
+    const mq = window.matchMedia("(min-width: 1061px)");
     const onChange = () => mq.matches && setOpen(false);
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);

@@ -17,10 +17,10 @@ import { IconCheck, IconClose } from "./Icons";
 import MagneticButton from "./MagneticButton";
 import styles from "./Contact.module.css";
 
-export type Intent = "start" | "talk" | "support";
-type Role = "business" | "rider";
+export type Intent = "start" | "talk" | "support" | "advertise";
+export type Role = "business" | "rider" | "driver";
 
-const ContactCtx = createContext<(intent?: Intent) => void>(() => {});
+const ContactCtx = createContext<(intent?: Intent, role?: Role) => void>(() => {});
 export const useContact = () => useContext(ContactCtx);
 
 const copy: Record<Intent, { title: string; sub: string }> = {
@@ -31,6 +31,10 @@ const copy: Record<Intent, { title: string; sub: string }> = {
   talk: {
     title: "Talk to us",
     sub: "Questions about running riders on Flex Riders? We'd love to hear from you.",
+  },
+  advertise: {
+    title: "Advertise with Flex Riders",
+    sub: "Tell us about your brand and where you'd like to be seen. We'll help plan your campaign.",
   },
   support: {
     title: "Get support",
@@ -51,9 +55,9 @@ export function ContactProvider({ children }: { children: ReactNode }) {
   const titleId = useId();
   const descId = useId();
 
-  const openDialog = useCallback((next: Intent = "start") => {
+  const openDialog = useCallback((next: Intent = "start", nextRole: Role = "business") => {
     setIntent(next);
-    setRole("business");
+    setRole(nextRole);
     setStatus("idle");
     setError("");
     const d = dialogRef.current;
@@ -160,8 +164,9 @@ export function ContactProvider({ children }: { children: ReactNode }) {
                     <legend className="sr-only">I am</legend>
                     {(
                       [
-                        ["business", "I manage riders"],
-                        ["rider", "I'm a rider"],
+                        ["business", "Business / brand"],
+                        ["rider", "Rider"],
+                        ["driver", "Auto driver"],
                       ] as const
                     ).map(([value, label]) => (
                       <label key={value} className={role === value ? styles.segOn : undefined}>
@@ -192,7 +197,7 @@ export function ContactProvider({ children }: { children: ReactNode }) {
                         name="phone"
                         type="tel"
                         autoComplete="tel"
-                        required={role === "rider"}
+                        required={role !== "business"}
                         maxLength={24}
                       />
                     </label>
@@ -236,6 +241,7 @@ export function ContactProvider({ children }: { children: ReactNode }) {
 /** Any button that opens the contact dialog. */
 export function ContactButton({
   intent = "start",
+  role,
   children,
   variant = "primary",
   size,
@@ -243,6 +249,7 @@ export function ContactButton({
   className,
 }: {
   intent?: Intent;
+  role?: Role;
   children: ReactNode;
   variant?: "primary" | "ghost" | "link";
   size?: "md" | "sm";
@@ -256,7 +263,7 @@ export function ContactButton({
       size={size}
       arrow={arrow}
       className={className}
-      onClick={() => open(intent)}
+      onClick={() => open(intent, role)}
     >
       {children}
     </MagneticButton>

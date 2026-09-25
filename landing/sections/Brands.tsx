@@ -25,7 +25,7 @@ const history = [
 
 export default function Brands() {
   return (
-    <section className={`section theme-light ${s.brands}`} aria-labelledby="brands-title">
+    <section className={`section theme-light theme-paper ${s.brands}`} aria-labelledby="brands-title">
       <div className="container">
         <div className="section-head center">
           <Reveal>

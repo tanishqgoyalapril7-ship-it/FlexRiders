@@ -1,0 +1,227 @@
+.ads {
+  overflow: hidden;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  align-items: center;
+  gap: clamp(32px, 6vw, 96px);
+  margin-top: clamp(48px, 7vw, 96px);
+}
+
+/* ---- Photo ---- */
+.visual {
+  position: relative;
+}
+.imgWrap {
+  position: relative;
+  will-change: transform;
+}
+.img {
+  width: 100%;
+  height: auto;
+}
+
+.chip {
+  position: absolute;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px 10px 10px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.06), 0 20px 44px -20px rgba(0, 0, 0, 0.35);
+  font-size: 13px;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.chip b {
+  display: block;
+  font-weight: 600;
+}
+.chip em {
+  display: block;
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--muted-strong);
+}
+.chip :global(.pill) {
+  font-size: 10.5px;
+  margin-left: 4px;
+}
+.chipCampaign {
+  right: -2%;
+  top: 4%;
+}
+.chipDriver {
+  left: -2%;
+  top: 52%;
+}
+.chipCity {
+  right: 2%;
+  bottom: 8%;
+}
+.okIcon,
+.pinIcon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+}
+.okIcon {
+  color: #fff;
+  background: var(--accent);
+}
+.pinIcon {
+  color: var(--accent);
+  background: rgba(0, 104, 216, 0.1);
+}
+
+/* ---- Copy ---- */
+.channels {
+  display: grid;
+  gap: 28px;
+}
+.channels li {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  gap: 18px;
+  padding-top: 24px;
+  border-top: 1px solid var(--hair-light);
+}
+.chIcon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 14px;
+  color: var(--accent);
+  background: rgba(0, 104, 216, 0.08);
+}
+.chNo {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--muted-strong);
+  font-variant-numeric: tabular-nums;
+}
+.channels h3 {
+  margin-top: 2px;
+  font-size: clamp(22px, 2vw, 26px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+.chText {
+  margin-top: 6px;
+  font-size: 16.5px;
+  line-height: 1.5;
+  color: var(--muted-strong);
+}
+
+.drivers {
+  margin-top: 36px;
+  padding: 24px;
+  border-radius: 22px;
+  background: var(--paper);
+}
+.drivers h3 {
+  font-size: 19px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+.drivers > p {
+  margin-top: 6px;
+  font-size: 15.5px;
+  line-height: 1.5;
+  color: var(--muted-strong);
+}
+.flow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+.flow li {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 12px 6px 6px;
+  border-radius: 999px;
+  background: #fff;
+  font-size: 13.5px;
+  font-weight: 550;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.05);
+}
+.flow span {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--accent);
+}
+
+.ctas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 32px;
+}
+
+@media (max-width: 1023px) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .visual {
+    width: min(100%, 560px);
+    justify-self: center;
+  }
+}
+
+@media (max-width: 767px) {
+  .chip {
+    font-size: 11.5px;
+    padding: 7px 10px 7px 7px;
+    gap: 7px;
+    border-radius: 13px;
+  }
+  .chip em {
+    font-size: 10px;
+  }
+  .okIcon,
+  .pinIcon {
+    width: 24px;
+    height: 24px;
+  }
+  .chipCampaign {
+    right: 0;
+    top: 0;
+  }
+  .chipDriver {
+    left: 0;
+  }
+  .chipCity {
+    right: 0;
+    bottom: 2%;
+  }
+  .channels li {
+    grid-template-columns: 40px 1fr;
+    gap: 14px;
+  }
+  .chIcon {
+    width: 40px;
+    height: 40px;
+  }
+  .drivers {
+    padding: 18px;
+  }
+  .ctas {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

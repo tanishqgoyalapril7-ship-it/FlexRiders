@@ -151,7 +151,7 @@
   display: grid;
 }
 
-@media (max-width: 899px) {
+@media (max-width: 1060px) {
   .links {
     display: none;
   }

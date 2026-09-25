@@ -2,7 +2,7 @@ export const site = {
   name: "Flex Riders",
   title: "Flex Riders — Rider Management & Payment Platform",
   description:
-    "Flex Riders helps organizations manage rider registration, approvals, brand assignments and payment tracking from one connected platform.",
+    "Flex Riders helps organizations manage rider registration, approvals, brand assignments and payment tracking from one connected platform — plus brand advertising through riders and auto-rickshaws.",
   // Set NEXT_PUBLIC_SITE_URL in production so Open Graph URLs resolve absolutely.
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
   // Admin dashboard (its login screen): flexriders.in/admin in production, the dashboard's dev server locally.
@@ -17,6 +17,7 @@ export const navLinks: NavLink[] = [
   { label: "Product", href: "#product" },
   { label: "For Riders", href: "#riders" },
   { label: "For Businesses", href: "#operations" },
+  { label: "Advertising", href: "#advertising" },
   { label: "How It Works", href: "#how-it-works" },
   { label: "Payments", href: "#payments" },
 ];

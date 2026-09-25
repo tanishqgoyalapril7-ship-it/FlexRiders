@@ -22,7 +22,7 @@ export async function POST(req: Request) {
 
   const enquiry = {
     intent: str(body.intent, 16) || "start",
-    role: str(body.role, 16) === "rider" ? "rider" : "business",
+    role: ["rider", "driver"].includes(str(body.role, 16)) ? str(body.role, 16) : "business",
     name: str(body.name, 120),
     email: str(body.email, 160),
     phone: str(body.phone, 24),
