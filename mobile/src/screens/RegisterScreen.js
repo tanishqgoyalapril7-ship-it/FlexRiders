@@ -73,7 +73,6 @@ export default function RegisterScreen({ onBack, onRegistered, initialReferralCo
   // (it is optional while testing); if the setting can't be loaded, the selfie stays required.
   const [selfie, setSelfie] = useState(null);
   const [selfieRequired, setSelfieRequired] = useState(true);
-  const [selfieSkipped, setSelfieSkipped] = useState(false);
   useEffect(() => {
     mobileApi
       .getAppConfig()
@@ -95,9 +94,7 @@ export default function RegisterScreen({ onBack, onRegistered, initialReferralCo
       if (form.vehicle_number.trim() && !isValidVehicleNumber(form.vehicle_number)) return 'Please enter a valid vehicle number, e.g. HR26DK8337.';
       if (!form.primary_city.trim()) return 'Please enter your primary working city.';
     }
-    if (step === SELFIE_STEP && !selfie && (selfieRequired || !selfieSkipped)) {
-      return selfieRequired ? 'Please take your driver selfie to continue.' : 'Take your driver selfie, or tap "Skip for now".';
-    }
+    if (step === SELFIE_STEP && !selfie && selfieRequired) return 'Please take your driver selfie to continue.';
     return null;
   };
 
@@ -273,15 +270,14 @@ export default function RegisterScreen({ onBack, onRegistered, initialReferralCo
           <>
             <Text style={styles.stepTitle}>Driver Selfie</Text>
             <Text style={[styles.hint, { marginTop: -10, marginBottom: 18 }]}>
-              {selfieRequired ? 'Required. ' : ''}Take a clear photo of your face with the front camera. Only the FlexRiders team can see it.
+              {selfieRequired
+                ? 'Required. Take a clear photo of your face with the front camera. Only the FlexRiders team can see it.'
+                : 'Optional for now: tap Continue to skip. If you take one, only the FlexRiders team can see it.'}
             </Text>
             <SelfieCapture value={selfie} onChange={setSelfie} />
             {!selfieRequired && !selfie ? (
               <TouchableOpacity
-                onPress={() => {
-                  setSelfieSkipped(true);
-                  setStep(SELFIE_STEP + 1);
-                }}
+                onPress={() => setStep(SELFIE_STEP + 1)}
                 style={{ alignItems: 'center', paddingVertical: 14 }}
               >
                 <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 14 }}>Skip for now</Text>
