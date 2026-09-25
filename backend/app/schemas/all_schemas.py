@@ -1,6 +1,6 @@
 import re
 
-from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator
+from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator, model_validator
 from typing import Optional, List, Dict, Any
 from datetime import date, datetime
 
@@ -66,6 +66,7 @@ class BrandBase(BaseModel):
     contact_person: Optional[str] = None
     contact_number: Optional[str] = None
     is_active: bool = True
+    public_assets_approved: bool = False  # Logo may be shown on public pages (rights confirmed)
 
 
 class BrandCreate(BrandBase):
@@ -80,6 +81,7 @@ class BrandUpdate(BaseModel):
     contact_person: Optional[str] = None
     contact_number: Optional[str] = None
     is_active: Optional[bool] = None
+    public_assets_approved: Optional[bool] = None
 
 
 class BrandResponse(BrandBase):
@@ -130,8 +132,14 @@ def normalize_vehicle_number(value: Optional[str]) -> Optional[str]:
     return cleaned
 
 
+VEHICLE_ALIASES = {
+    "BIKE": "TWO_WHEELER", "BIKE_/_TWO_WHEELER": "TWO_WHEELER", "BICYCLE": "CYCLE", "PEDAL": "CYCLE",
+    "AUTO_RICKSHAW": "AUTO", "AUTORICKSHAW": "AUTO",
+}
+
+
 def normalize_vehicle_category(value: Optional[str]) -> Optional[str]:
-    """TWO_WHEELER / THREE_WHEELER (also accepts the labels, e.g. "Two Wheeler"); "" means clear."""
+    """CYCLE / TWO_WHEELER / AUTO / THREE_WHEELER (the labels, e.g. "Bike / Two Wheeler", work too); "" means clear."""
     from app.models.campaign_models import VehicleCategory
 
     if value is None:
@@ -139,9 +147,18 @@ def normalize_vehicle_category(value: Optional[str]) -> Optional[str]:
     cleaned = value.strip().upper().replace("-", "_").replace(" ", "_")
     if not cleaned:
         return ""
+    cleaned = VEHICLE_ALIASES.get(cleaned, cleaned)
     if cleaned not in VehicleCategory.ALL:
         raise ValueError(f"Vehicle type must be one of: {', '.join(VehicleCategory.LABELS.values())}")
     return cleaned
+
+
+def _vehicle_number_rule(category: Optional[str], number: Optional[str]) -> None:
+    """A registration number is required for every vehicle type except Cycle."""
+    from app.models.campaign_models import VehicleCategory
+
+    if category and category not in VehicleCategory.NUMBER_OPTIONAL and not number:
+        raise ValueError(f"Enter your vehicle registration number ({VehicleCategory.LABELS[category]}).")
 
 
 class RiderRegistrationRequest(BaseModel):
@@ -160,7 +177,7 @@ class RiderRegistrationRequest(BaseModel):
     experience_months: Optional[int] = 0
     vehicle_type: Optional[str] = "Bike"
     vehicle_number: Optional[str] = None
-    vehicle_category: Optional[str] = None  # TWO_WHEELER / THREE_WHEELER, used for campaign eligibility
+    vehicle_category: str  # Required: CYCLE / TWO_WHEELER / AUTO / THREE_WHEELER (campaign eligibility)
     referral_code: Optional[str] = None  # A friend's Refer & Earn code
 
     # Step 3: Location
@@ -186,7 +203,15 @@ class RiderRegistrationRequest(BaseModel):
     @field_validator("vehicle_category")
     @classmethod
     def _valid_vehicle_category(cls, value):
-        return normalize_vehicle_category(value) or None
+        category = normalize_vehicle_category(value)
+        if not category:
+            raise ValueError("Select your vehicle type: Cycle, Bike / Two Wheeler, Auto or Three Wheeler.")
+        return category
+
+    @model_validator(mode="after")
+    def _vehicle_number_needed(self):
+        _vehicle_number_rule(self.vehicle_category, self.vehicle_number)
+        return self
 
 
 class AdminRiderCreate(BaseModel):
@@ -200,7 +225,7 @@ class AdminRiderCreate(BaseModel):
     current_role: Optional[str] = "Rider"
     vehicle_type: Optional[str] = None
     vehicle_number: Optional[str] = None
-    vehicle_category: Optional[str] = None
+    vehicle_category: str  # Required; the vehicle number can be added later by an admin
     primary_city: str = Field(..., min_length=2, max_length=80)
     primary_area: Optional[str] = None
     upi_id: Optional[str] = None
@@ -215,7 +240,10 @@ class AdminRiderCreate(BaseModel):
     @field_validator("vehicle_category")
     @classmethod
     def _valid_vehicle_category(cls, value):
-        return normalize_vehicle_category(value) or None
+        category = normalize_vehicle_category(value)
+        if not category:
+            raise ValueError("Select the rider's vehicle type.")
+        return category
 
     @field_validator("vehicle_number")
     @classmethod

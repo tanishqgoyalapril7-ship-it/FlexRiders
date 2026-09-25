@@ -182,11 +182,14 @@ export const mobileApi = {
 
   getCampaign: (campaignId) => authedGet(`/riders/me/campaigns/${campaignId}`),
 
-  joinCampaign: (campaignId, tshirtSize, pickupLocationId) =>
-    authedPost(
-      `/riders/me/campaigns/${campaignId}/join`,
-      tshirtSize ? { tshirt_size: tshirtSize, pickup_location_id: pickupLocationId || null } : undefined
-    ),
+  // termsVersion: the campaign Terms & Conditions version the rider just read and accepted (if the campaign has terms).
+  joinCampaign: (campaignId, tshirtSize, pickupLocationId, termsVersion) =>
+    authedPost(`/riders/me/campaigns/${campaignId}/join`, {
+      ...(tshirtSize ? { tshirt_size: tshirtSize, pickup_location_id: pickupLocationId || null } : {}),
+      ...(termsVersion ? { terms_version: termsVersion } : {}),
+    }),
+
+  acceptCampaignTerms: (campaignId, version) => authedPost(`/riders/me/campaigns/${campaignId}/terms/accept`, { version }),
 
   withdrawCampaignRequest: (campaignId) => authedPost(`/riders/me/campaigns/${campaignId}/withdraw`),
 

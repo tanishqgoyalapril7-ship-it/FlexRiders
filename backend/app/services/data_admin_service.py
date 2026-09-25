@@ -41,6 +41,8 @@ from app.models.campaign_models import (
     CampaignFulfillmentSnapshot,
     CampaignPayout,
     CampaignPickupLocation,
+    CampaignTerms,
+    CampaignTermsAcceptance,
     CampaignStatus,
     FinancialAdjustment,
     PayoutStatus,
@@ -71,10 +73,12 @@ def rider_impact(db: Session, rider: Rider) -> Dict:
         "campaign_days": _count(db, CampaignDailyActivity.id, CampaignDailyActivity.rider_id == rider.id),
         "campaign_photos": _count(db, CampaignActivityPhoto.id, CampaignActivityPhoto.rider_id == rider.id),
         "campaign_requests": _count(db, CampaignApplication.id, CampaignApplication.rider_id == rider.id),
+        "terms_acceptances": _count(db, CampaignTermsAcceptance.id, CampaignTermsAcceptance.rider_id == rider.id),
         "documents": _count(db, RiderDocument.id, RiderDocument.rider_id == rider.id),
         "notifications": _count(db, Notification.id, Notification.user_id == rider.user_id) if rider.user_id else 0,
     }
-    history_keys = ("payments", "brand_assignments", "campaign_assignments", "campaign_days", "campaign_photos")
+    # Accepted terms are consent records, so they count as history (archive instead of deleting).
+    history_keys = ("payments", "brand_assignments", "campaign_assignments", "campaign_days", "campaign_photos", "terms_acceptances")
     blockers = [k for k in history_keys if counts[k]]
     current_brand = next((a.brand.name for a in rider.brand_assignments if a.is_current and a.brand), None)
     current_campaign = (
@@ -248,7 +252,7 @@ def hard_delete_campaign(db: Session, campaign: Campaign, admin: User) -> None:
             raise DataAdminError("Only draft or cancelled campaigns can be deleted. Cancel the campaign first.")
         raise DataAdminError("This campaign has riders, activity or money records. Cancel it instead to keep that history.")
     cid, name = campaign.id, campaign.name
-    for model in (CampaignFulfillmentSnapshot, CampaignApplication, CampaignExtension, CampaignBrandKit, CampaignPickupLocation):
+    for model in (CampaignTermsAcceptance, CampaignTerms, CampaignFulfillmentSnapshot, CampaignApplication, CampaignExtension, CampaignBrandKit, CampaignPickupLocation):
         db.query(model).filter(model.campaign_id == cid).delete(synchronize_session=False)
     image = campaign.image_url
     db.delete(campaign)
@@ -322,7 +326,7 @@ def _reset_campaigns(db: Session) -> Dict[str, int]:
     removed["payments"] += payout_payments
     removed.update(
         _delete_all(
-            db, CampaignPayout, CampaignAssignment, CampaignApplication,
+            db, CampaignTermsAcceptance, CampaignTerms, CampaignPayout, CampaignAssignment, CampaignApplication,
             BrandPaymentRecord, CampaignExtension, CampaignBrandKit, CampaignPickupLocation, Campaign,
         )
     )
@@ -335,7 +339,7 @@ def _reset_riders(db: Session) -> Dict[str, int]:
     payout_payments = removed["payments"]
     removed.update(_delete_rider_kits(db))
     removed["payments"] += payout_payments
-    removed.update(_delete_all(db, CampaignPayout, CampaignAssignment, CampaignApplication))
+    removed.update(_delete_all(db, CampaignTermsAcceptance, CampaignPayout, CampaignAssignment, CampaignApplication))
     rider_user_ids = [uid for (uid,) in db.query(Rider.user_id).filter(Rider.user_id.isnot(None))]
     removed.update(_delete_all(db, RiderReferral, Payment, RiderBrandAssignment, RiderDocument, SupportTicket, Rider))
     removed["notifications"] = (

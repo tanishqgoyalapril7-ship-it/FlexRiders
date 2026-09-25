@@ -52,7 +52,7 @@ def test_fulfillment_endpoints(client, db_session, admin_headers):
     kit = client.put(f"{API}/campaigns/{cid}/brand-kit", json={"tshirt_required": True, "size_options": "M,L"}, headers=admin_headers).json()
     assert kit["kit"]["size_options"] == ["M", "L"]
     client.post(f"{API}/campaigns/{cid}/pickup-locations", json={"name": "Gurugram Office", "address": "Sector 44, Gurugram"}, headers=admin_headers)
-    reg = client.post(f"{API}/auth/register", json={"full_name": "Kit Rider", "mobile_number": "9100000099", "password": "riderPass1"}).json()
+    reg = client.post(f"{API}/auth/register", json={"vehicle_category": "CYCLE", "full_name": "Kit Rider", "mobile_number": "9100000099", "password": "riderPass1"}).json()
     rider_headers = {"Authorization": f"Bearer {reg['access_token']}"}
     rider = db_session.query(Rider).filter(Rider.mobile_number == "9100000099").first()
     rider.status = RiderStatus.APPROVED

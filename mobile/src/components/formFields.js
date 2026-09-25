@@ -274,21 +274,25 @@ const makeStyles = (c) =>
   });
 
 
+// Same list as the backend (value, label, icon, description).
 export const VEHICLE_CATEGORIES = [
-  ['TWO_WHEELER', 'Two Wheeler', 'bicycle-outline'],
-  ['THREE_WHEELER', 'Three Wheeler', 'car-outline'],
+  ['CYCLE', 'Cycle', 'bicycle-outline', 'Bicycle or pedal cycle'],
+  ['TWO_WHEELER', 'Bike / Two Wheeler', 'speedometer-outline', 'Motorbike or scooter'],
+  ['AUTO', 'Auto', 'car-outline', 'Passenger auto-rickshaw'],
+  ['THREE_WHEELER', 'Three Wheeler', 'cube-outline', 'Cargo / loader, non-passenger'],
 ];
+export const vehicleNumberOptional = (category) => category === 'CYCLE';
 export const vehicleCategoryLabel = (value) => (VEHICLE_CATEGORIES.find(([v]) => v === value) || [])[1] || '';
 
 /** "What type of vehicle do you use?" — decides which campaigns the rider can join. */
-export function VehicleCategoryField({ label = 'What type of vehicle do you use?', required, value, onChange, disabled, hint }) {
+export function VehicleCategoryField({ label = 'Select your vehicle type', required, value, onChange, disabled, hint }) {
   const styles = useStyles(makeChoiceStyles);
   const { colors } = useTheme();
   return (
     <View style={{ marginBottom: 14 }}>
       <FieldLabel label={label} required={required} />
       <View style={styles.row}>
-        {VEHICLE_CATEGORIES.map(([v, text, icon]) => {
+        {VEHICLE_CATEGORIES.map(([v, text, icon, description]) => {
           const selected = value === v;
           return (
             <TouchableOpacity
@@ -299,8 +303,10 @@ export function VehicleCategoryField({ label = 'What type of vehicle do you use?
               accessibilityRole="radio"
               accessibilityState={{ selected, disabled }}
             >
+              {selected ? <Ionicons name="checkmark-circle" size={18} color={colors.primary} style={styles.tick} /> : null}
               <Ionicons name={icon} size={22} color={selected ? colors.primary : colors.textMuted} />
               <Text style={[styles.optionText, selected && { color: colors.primary }]}>{text}</Text>
+              <Text style={styles.optionDesc}>{description}</Text>
             </TouchableOpacity>
           );
         })}
@@ -312,8 +318,10 @@ export function VehicleCategoryField({ label = 'What type of vehicle do you use?
 
 const makeChoiceStyles = (c) =>
   StyleSheet.create({
-    row: { flexDirection: 'row', gap: 10 },
-    option: { flex: 1, alignItems: 'center', gap: 6, paddingVertical: 14, borderRadius: 12, borderWidth: 1.5, borderColor: c.border, backgroundColor: c.surface },
-    optionText: { fontSize: 14, fontWeight: '700', color: c.text },
+    row: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+    option: { width: '48%', flexGrow: 1, alignItems: 'center', gap: 4, paddingVertical: 12, paddingHorizontal: 8, borderRadius: 12, borderWidth: 1.5, borderColor: c.border, backgroundColor: c.surface },
+    optionText: { fontSize: 14, fontWeight: '700', color: c.text, textAlign: 'center' },
+    optionDesc: { fontSize: 11, color: c.textMuted, textAlign: 'center', lineHeight: 14 },
+    tick: { position: 'absolute', top: 6, right: 6 },
     hint: { fontSize: 12, color: c.textMuted, marginTop: 6 },
   });

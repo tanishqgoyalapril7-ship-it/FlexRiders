@@ -38,7 +38,8 @@ import { JoinRequestsTable } from '../components/JoinRequests';
 // The map (Leaflet) only loads when an admin opens a route.
 const RouteMapModal = React.lazy(() => import('../components/RouteMap').then((m) => ({ default: m.RouteMapModal })));
 import { ConfirmDialog, CampaignFormModal, PhotoLightbox, PhotoReviewCard, RiderActivityModal } from '../components/CampaignModals';
-import { CampaignStatusPill, EmptyState, SlotProgress, SlotStatuses, StatCard, StatusPill, formatDate, formatINR } from '../components/CampaignShared';
+import { CampaignStatusPill, EmptyState, SlotProgress, SlotStatuses, StatCard, StatusPill, VEHICLE_TYPES, formatDate, formatINR, vehicleLabel } from '../components/CampaignShared';
+import { TermsPanel } from '../components/CampaignTerms';
 import {
   BrandKitPanel,
   DeliveryPanel,
@@ -57,6 +58,7 @@ const TABS = [
   ['payouts', 'Payouts'],
   ['extensions', 'Extensions'],
   ['kit', 'Brand Kit'],
+  ['terms', 'Terms'],
   ['financials', 'Financials'],
   ['history', 'History'],
 ];
@@ -131,6 +133,22 @@ function RiderVisibility({ campaign, onPublish }) {
   );
 }
 
+const matchesVehicle = (rider, filter) => filter === 'ALL' || (filter === 'NONE' ? !rider.vehicle_category : rider.vehicle_category === filter);
+
+function VehicleFilter({ value, onChange }) {
+  return (
+    <select className="form-input" style={{ width: 'auto' }} value={value} onChange={(e) => onChange(e.target.value)} aria-label="Vehicle type">
+      <option value="ALL">All vehicles</option>
+      {VEHICLE_TYPES.map(([v, label]) => (
+        <option key={v} value={v}>
+          {label}
+        </option>
+      ))}
+      <option value="NONE">Type not set</option>
+    </select>
+  );
+}
+
 const publicUrl = (campaign) => `${window.location.origin}/campaign/${campaign.public_slug}`;
 
 /** Shareable public page for the brand: turn it on, then copy / share / open the link. */
@@ -144,6 +162,20 @@ function ShareCampaignCard({ campaign, onChanged }) {
       const res = await api.shareCampaign(campaign.id, enabled);
       setUrl(res.url);
       toast.success(enabled ? 'Public campaign page is on. Share the link with the brand.' : 'Public campaign page turned off.');
+      onChanged();
+    } catch (err) {
+      toast.error(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  // The public page shows the banner only after an admin confirms FlexRiders may use it publicly.
+  const setBannerApproved = async (approved) => {
+    setBusy(true);
+    try {
+      const fields = ['name', 'brand_id', 'start_date', 'end_date', 'total_slots', 'daily_rate'];
+      await api.updateCampaign(campaign.id, { ...Object.fromEntries(fields.map((f) => [f, campaign[f]])), public_image_approved: approved });
+      toast.success(approved ? 'Banner will show on the public page.' : 'Banner hidden from the public page.');
       onChanged();
     } catch (err) {
       toast.error(err.message);
@@ -179,9 +211,17 @@ function ShareCampaignCard({ campaign, onChanged }) {
       <div className="share-card-body">
         <strong>Share Campaign</strong>
         {campaign.public_share_enabled ? (
-          <span className="share-link" title={link}>
-            <Link2 size={13} /> {link}
-          </span>
+          <>
+            <span className="share-link" title={link}>
+              <Link2 size={13} /> {link}
+            </span>
+            {campaign.image_url ? (
+              <label className="share-rights">
+                <input type="checkbox" checked={campaign.public_image_approved} disabled={busy} onChange={(e) => setBannerApproved(e.target.checked)} />
+                Show the campaign banner on the public page (we have the rights to it)
+              </label>
+            ) : null}
+          </>
         ) : (
           <span>Give the brand a public page with this campaign’s details. No rider, payout or internal data is shown.</span>
         )}
@@ -233,6 +273,8 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
   const [ridersAvailable, setRidersAvailable] = useState('');
   const [showSlots, setShowSlots] = useState(false);
   const [showExtension, setShowExtension] = useState(false);
+  const [vehicleFilter, setVehicleFilter] = useState('ALL');
+  const [requestStatus, setRequestStatus] = useState('ALL');
 
   const load = async () => {
     try {
@@ -312,6 +354,8 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                 <h1 className="page-title">{campaign.name}</h1>
                 <CampaignStatusPill campaign={campaign} />
+                <span className="status-pill pill-draft">{campaign.campaign_category_label}</span>
+                {campaign.terms_version ? <span className="status-pill pill-open">Terms v{campaign.terms_version}</span> : null}
               </div>
               <div className="campaign-meta-row">
                 <span>
@@ -579,6 +623,7 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
         <div className="card">
           <div className="card-header-bar">
             <span className="card-title-text">Assigned Riders</span>
+            <VehicleFilter value={vehicleFilter} onChange={setVehicleFilter} />
             <button className="btn-secondary" onClick={() => setRouteFor('ALL')} style={{ marginLeft: 'auto', marginRight: 8 }}>
               <MapIcon size={15} /> <span>View All Rider Routes</span>
             </button>
@@ -607,7 +652,7 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
                 </tr>
               </thead>
               <tbody>
-                {riders.map((r) => (
+                {riders.filter((r) => matchesVehicle(r.rider, vehicleFilter)).map((r) => (
                   <tr key={r.assignment_id}>
                     <td>
                       <strong>{r.rider.full_name}</strong>
@@ -615,6 +660,7 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
                       <div style={{ fontSize: '0.72rem', color: '#64748B' }}>
                         {r.rider.mobile_number} · Joined {formatDate(r.joined_at)}
                       </div>
+                      <div style={{ fontSize: '0.72rem', color: '#64748B' }}>{vehicleLabel(r.rider.vehicle_category) || 'Vehicle type not set'}</div>
                     </td>
                     <td>
                       <StatusPill status={r.status} />
@@ -724,11 +770,25 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
 
       {tab === 'requests' && (
         <div className="card">
-          <div className="card-header-bar">
+          <div className="card-header-bar" style={{ gap: 12, flexWrap: 'wrap' }}>
             <span className="card-title-text">Join Requests</span>
             <span style={{ fontSize: '0.8rem', color: '#64748B' }}>{s.remaining_slots} slots available</span>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginLeft: 'auto' }}>
+              <select className="form-input" style={{ width: 'auto' }} value={requestStatus} onChange={(e) => setRequestStatus(e.target.value)} aria-label="Request status">
+                <option value="ALL">All statuses</option>
+                <option value="REQUESTED">Pending approval</option>
+                <option value="APPROVED">Approved</option>
+                <option value="REJECTED">Rejected</option>
+                <option value="WITHDRAWN">Withdrawn</option>
+              </select>
+              <VehicleFilter value={vehicleFilter} onChange={setVehicleFilter} />
+            </div>
           </div>
-          <JoinRequestsTable requests={applications} campaignRiders={riders} onChanged={reload} />
+          <JoinRequestsTable
+            requests={applications.filter((a) => (requestStatus === 'ALL' || a.status === requestStatus) && matchesVehicle(a.rider, vehicleFilter))}
+            campaignRiders={riders}
+            onChanged={reload}
+          />
         </div>
       )}
 
@@ -894,6 +954,7 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
 
       {tab === 'extensions' && <ExtensionsPanel campaign={campaign} onExtend={() => setShowExtension(true)} />}
       {tab === 'kit' && <BrandKitPanel campaignId={campaign.id} />}
+      {tab === 'terms' && <TermsPanel campaignId={campaign.id} />}
       {tab === 'financials' && <FinancialsPanel campaignId={campaign.id} fulfillment={fulfillment} onChanged={reload} />}
       {tab === 'history' && <HistoryPanel campaign={campaign} />}
 

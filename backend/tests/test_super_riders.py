@@ -47,6 +47,8 @@ def test_auth_and_registration_flow(client, db_session):
         "dob": "10-02-1999",
         "current_company": "LogiExpress",
         "vehicle_type": "Scooter",
+        "vehicle_category": "TWO_WHEELER",
+        "vehicle_number": "KA01AB1234",
         "primary_city": "Gurugram",
         "primary_area": "Sector 43",
         "upi_id": "kavita@upi",

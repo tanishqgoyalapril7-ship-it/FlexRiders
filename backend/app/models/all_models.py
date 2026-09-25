@@ -142,6 +142,8 @@ class Brand(Base):
     contact_person = Column(String(120), nullable=True)
     contact_number = Column(String(30), nullable=True)
     is_active = Column(Boolean, default=True)
+    # The brand's logo is only shown on public pages once an admin confirms FlexRiders may use it.
+    public_assets_approved = Column(Boolean, default=False, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

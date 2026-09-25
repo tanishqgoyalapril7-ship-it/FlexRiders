@@ -162,7 +162,7 @@ def test_vehicle_category_registration_and_eligibility(client, db_session, admin
     phone = "9" + str(uuid.uuid4().int)[:9]
     bad = client.post(f"{API}/auth/register", json={"full_name": "Auto Rider", "mobile_number": phone, "password": "riderPass1", "vehicle_category": "Truck"})
     assert bad.status_code == 422
-    reg = client.post(f"{API}/auth/register", json={"full_name": "Auto Rider", "mobile_number": phone, "password": "riderPass1", "vehicle_category": "Three Wheeler"})
+    reg = client.post(f"{API}/auth/register", json={"full_name": "Auto Rider", "mobile_number": phone, "password": "riderPass1", "vehicle_category": "Three Wheeler", "vehicle_number": "DL1LA" + phone[-4:]})
     assert reg.status_code == 200
     auto_h = {"Authorization": f"Bearer {reg.json()['access_token']}"}
     me = client.get(f"{API}/riders/me", headers=auto_h).json()
@@ -173,23 +173,28 @@ def test_vehicle_category_registration_and_eligibility(client, db_session, admin
 
     campaign = _campaign(client, admin, eligible_vehicle_categories=["TWO_WHEELER"])
     cid = campaign["id"]
-    assert campaign["eligible_vehicle_label"] == "Two Wheeler"
+    assert campaign["eligible_vehicle_label"] == "Bike / Two Wheeler"
 
     # G. Three wheeler → rejected by the API, with the reason shown in the app.
     card = client.get(f"{API}/riders/me/campaigns/{cid}", headers=auto_h).json()
-    assert card["can_join"] is False and "only for Two Wheeler" in card["join_blocked_reason"]
+    assert card["can_join"] is False and "only for Bike / Two Wheeler" in card["join_blocked_reason"]
     res = client.post(f"{API}/riders/me/campaigns/{cid}/join", json={}, headers=auto_h)
     assert res.status_code == 400 and "Two Wheeler" in res.json()["detail"]
     assert client.post(f"{API}/campaigns/{cid}/riders", json={"rider_id": me["id"]}, headers=admin).status_code == 400
 
-    # No category yet: asked to add it; a two wheeler joins fine.
+    # No category yet (riders from before it was required): asked to add it; a two wheeler joins fine.
     unknown, unknown_h = _rider(client, admin)
+    from app.models.all_models import Rider
+
+    legacy = db_session.get(Rider, unknown["id"])
+    legacy.vehicle_category = None
+    db_session.commit()
     assert "Add your vehicle type" in client.post(f"{API}/riders/me/campaigns/{cid}/join", json={}, headers=unknown_h).json()["detail"]
     assert client.patch(f"{API}/riders/me", json={"vehicle_category": "TWO_WHEELER"}, headers=unknown_h).status_code == 200
     assert client.post(f"{API}/riders/me/campaigns/{cid}/join", json={}, headers=unknown_h).status_code == 200
 
-    # "Both" = every category.
-    both = _campaign(client, admin, eligible_vehicle_categories=["TWO_WHEELER", "THREE_WHEELER"])
+    # Every type ticked = all vehicles.
+    both = _campaign(client, admin, eligible_vehicle_categories=["CYCLE", "TWO_WHEELER", "AUTO", "THREE_WHEELER"])
     assert both["eligible_vehicle_label"] == "All vehicles"
     assert client.post(f"{API}/riders/me/campaigns/{both['id']}/join", json={}, headers=auto_h).status_code == 200
 

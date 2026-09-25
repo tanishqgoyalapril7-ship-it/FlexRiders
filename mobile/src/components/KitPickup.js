@@ -5,6 +5,7 @@ import { useStyles, useTheme } from '../theme';
 import { Card, SectionHeader, toneColors } from './ui';
 import { mobileApi } from '../services/api';
 import { formatDate, formatINR } from '../utils';
+import { TermsSheet } from './CampaignTerms';
 
 export const KIT_STATUS = {
   NOT_REQUIRED: { label: 'Not Required', tone: 'neutral', icon: 'remove-circle-outline' },
@@ -38,7 +39,7 @@ const activeLocations = (kit) => ((kit && kit.locations) || []).filter((l) => l.
 // Joining: size + pickup location
 // ---------------------------------------------------------------------------
 
-function JoinKitSheet({ campaign, visible, onClose, onDone }) {
+function JoinKitSheet({ campaign, visible, onClose, onDone, termsVersion }) {
   const styles = useStyles(makeStyles);
   const { colors } = useTheme();
   const kit = campaign.brand_kit;
@@ -62,7 +63,7 @@ function JoinKitSheet({ campaign, visible, onClose, onDone }) {
     setBusy(true);
     setError('');
     try {
-      await mobileApi.joinCampaign(campaign.id, size, locationId);
+      await mobileApi.joinCampaign(campaign.id, size, locationId, termsVersion);
       onClose();
       await onDone();
     } catch (err) {
@@ -174,10 +175,14 @@ function JoinKitSheet({ campaign, visible, onClose, onDone }) {
   );
 }
 
-/** Join button logic: asks for size / pickup location only when the campaign needs a T-shirt. */
+/** Join button logic: first the campaign's Terms & Conditions (when it has any), then size / pickup
+ *  location when the campaign needs a T-shirt. The accepted terms version is sent with the request. */
 export function useJoinCampaign(campaign, onChanged) {
   const [open, setOpen] = useState(false);
   const [joining, setJoining] = useState(false);
+  const [termsOpen, setTermsOpen] = useState(false);
+  const [termsVersion, setTermsVersion] = useState(null);
+  const needsShirtNow = () => campaign.brand_kit && campaign.brand_kit.tshirt_required;
 
   const done = async () => {
     const needsShirt = campaign.brand_kit && campaign.brand_kit.tshirt_required;
@@ -191,13 +196,23 @@ export function useJoinCampaign(campaign, onChanged) {
   };
 
   const start = async () => {
-    if (campaign.brand_kit && campaign.brand_kit.tshirt_required) {
+    const terms = campaign.terms;
+    if (terms && terms.needs_acceptance) {
+      setTermsOpen(true);
+      return;
+    }
+    await proceed(terms ? terms.version : null);
+  };
+
+  const proceed = async (version) => {
+    setTermsVersion(version);
+    if (needsShirtNow()) {
       setOpen(true);
       return;
     }
     setJoining(true);
     try {
-      await mobileApi.joinCampaign(campaign.id);
+      await mobileApi.joinCampaign(campaign.id, null, null, version);
       await done();
     } catch (err) {
       Alert.alert('Could not join', err.message);
@@ -206,7 +221,31 @@ export function useJoinCampaign(campaign, onChanged) {
     }
   };
 
-  const sheet = open ? <JoinKitSheet campaign={campaign} visible={open} onClose={() => setOpen(false)} onDone={done} /> : null;
+  const sheet = (
+    <>
+      {termsOpen ? (
+        <TermsSheet
+          campaignName={campaign.name}
+          terms={campaign.terms}
+          visible={termsOpen}
+          acceptLabel={needsShirtNow() ? 'Accept & Continue' : 'Accept & Join'}
+          onClose={() => setTermsOpen(false)}
+          onAccept={async (version) => {
+            if (needsShirtNow()) {
+              setTermsOpen(false);
+              setTermsVersion(version);
+              setOpen(true);
+              return;
+            }
+            await mobileApi.joinCampaign(campaign.id, null, null, version); // Errors show in the sheet
+            setTermsOpen(false);
+            await done();
+          }}
+        />
+      ) : null}
+      {open ? <JoinKitSheet campaign={campaign} visible={open} onClose={() => setOpen(false)} onDone={done} termsVersion={termsVersion} /> : null}
+    </>
+  );
   return { start, joining, sheet };
 }
 

@@ -2,9 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Plus, Search, Megaphone, PlayCircle, Users, Wallet, RotateCcw } from 'lucide-react';
 import { api } from '../services/api';
 import { CampaignFormModal } from '../components/CampaignModals';
-import { CAMPAIGN_STATUSES, CampaignStatusPill, EmptyState, SlotProgress, StatCard, formatDateRange, formatINR } from '../components/CampaignShared';
+import { CAMPAIGN_CATEGORIES, CAMPAIGN_STATUSES, CampaignStatusPill, EmptyState, SlotProgress, StatCard, formatDateRange, formatINR } from '../components/CampaignShared';
 
-const EMPTY_FILTERS = { search: '', status: 'ALL', brand_id: '', start_from: '', end_to: '' };
+const EMPTY_FILTERS = { search: '', status: 'ALL', brand_id: '', start_from: '', end_to: '', category: '' };
 
 export default function CampaignsView({ brands = [], summary, initialSearch = '', onOpenCampaign, onChanged, onCreateBrand }) {
   const [filters, setFilters] = useState({ ...EMPTY_FILTERS, search: initialSearch });
@@ -90,6 +90,17 @@ export default function CampaignsView({ brands = [], summary, initialSearch = ''
               {brands.map((b) => (
                 <option key={b.id} value={b.id}>
                   {b.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Category</label>
+            <select className="form-input" value={filters.category} onChange={setFilter('category')}>
+              <option value="">All categories</option>
+              {CAMPAIGN_CATEGORIES.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
                 </option>
               ))}
             </select>

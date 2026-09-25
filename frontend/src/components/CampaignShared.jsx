@@ -1,5 +1,25 @@
 import React from 'react';
 
+// Rider vehicle types (value, label, description). The backend enforces the same list.
+export const VEHICLE_TYPES = [
+  ['CYCLE', 'Cycle', 'Bicycle or pedal cycle'],
+  ['TWO_WHEELER', 'Bike / Two Wheeler', 'Motorbike or scooter'],
+  ['AUTO', 'Auto', 'Passenger auto-rickshaw'],
+  ['THREE_WHEELER', 'Three Wheeler', 'Cargo / loader or other non-passenger three-wheeler'],
+];
+export const vehicleLabel = (value) => (VEHICLE_TYPES.find(([v]) => v === value) || [])[1] || '';
+
+// Campaign categories are labels for grouping and filtering; they add no workflow.
+export const CAMPAIGN_CATEGORIES = [
+  ['STANDARD', 'Standard'],
+  ['BIKE', 'Bike'],
+  ['CYCLE', 'Cycle'],
+  ['TV', 'TV'],
+  ['GOOGLE', 'Google'],
+  ['BRAND_PARTNERSHIP', 'Brand Partnership'],
+  ['OTHER', 'Other'],
+];
+
 export const CAMPAIGN_STATUSES = ['DRAFT', 'OPEN', 'FULL', 'ACTIVE', 'PAUSED', 'COMPLETED', 'CANCELLED'];
 
 const STATUS_LABELS = {

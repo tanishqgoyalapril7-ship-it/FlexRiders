@@ -3,7 +3,7 @@ from typing import Dict, List, Optional
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-from app.models.campaign_models import VehicleCategory
+from app.models.campaign_models import CampaignCategory, VehicleCategory
 
 
 class CampaignBase(BaseModel):
@@ -22,6 +22,18 @@ class CampaignBase(BaseModel):
     location_area: Optional[str] = Field(None, max_length=200)
     # Vehicle categories that may join; empty/None = all.
     eligible_vehicle_categories: Optional[List[str]] = None
+    campaign_category: Optional[str] = Field(None, max_length=30)  # Label only (Standard, Bike, Cycle, TV, Google, …)
+    public_image_approved: Optional[bool] = None  # Banner may be shown on the public page (rights confirmed)
+
+    @field_validator("campaign_category")
+    @classmethod
+    def _valid_category(cls, value):
+        if not value:
+            return None
+        value = value.strip().upper().replace(" ", "_")
+        if value not in CampaignCategory.ALL:
+            raise ValueError(f"Campaign category must be one of: {', '.join(CampaignCategory.LABELS.values())}")
+        return value
     # {"MORNING": ["06:00", "11:00"], "EVENING": [...], "NIGHT": [...]}; None = default slot times.
     photo_slot_windows: Optional[Dict[str, List[str]]] = None
 
@@ -85,6 +97,16 @@ class AdminAddRiderRequest(BaseModel):
 class JoinCampaignRequest(BaseModel):
     tshirt_size: Optional[str] = Field(None, max_length=10)
     pickup_location_id: Optional[int] = None
+    terms_version: Optional[int] = None  # The Terms & Conditions version the rider read and accepted
+
+
+class TermsPublishRequest(BaseModel):
+    body: str = Field(..., max_length=50_000)
+    change_note: Optional[str] = Field(None, max_length=500)
+
+
+class TermsAcceptRequest(BaseModel):
+    version: int
 
 
 class ReplacementSlotsRequest(BaseModel):

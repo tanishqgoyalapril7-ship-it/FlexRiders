@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { VEHICLE_TYPES } from './CampaignShared';
 import { Eye, EyeOff, X } from 'lucide-react';
 import { api } from '../services/api';
 import { toast } from './Feedback';
@@ -107,6 +108,7 @@ export function RiderFormModal({ rider, onClose, onSaved }) {
     if (form.mobile_number.replace(/\D/g, '').length < 10) return setError('Enter a valid 10-digit mobile number.');
     if (!form.primary_city.trim()) return setError('Enter the primary working city.');
     if (!vehicleOk) return setError('Enter a valid vehicle number, e.g. HR26DK8337.');
+    if (!form.vehicle_category) return setError('Select the rider’s vehicle type.');
     if (!editing && form.password.length < 6) return setError('Set a password of at least 6 characters for the rider’s login.');
     setSaving(true);
     setError('');
@@ -167,9 +169,12 @@ export function RiderFormModal({ rider, onClose, onSaved }) {
           <div className="form-group">
             <label className="form-label">Vehicle Type</label>
             <select className="form-input" value={form.vehicle_category} onChange={set('vehicle_category')}>
-              <option value="">Not set</option>
-              <option value="TWO_WHEELER">Two Wheeler</option>
-              <option value="THREE_WHEELER">Three Wheeler</option>
+              <option value="">Select vehicle type</option>
+              {VEHICLE_TYPES.map(([value, label, description]) => (
+                <option key={value} value={value}>
+                  {label} ({description})
+                </option>
+              ))}
             </select>
             <span className="form-hint">Decides which campaigns the rider can join.</span>
           </div>

@@ -32,6 +32,7 @@ def get_all_riders(
     brand_id: Optional[int] = None,
     city: Optional[str] = None,
     company: Optional[str] = None,
+    vehicle_category: Optional[str] = None,  # CYCLE / TWO_WHEELER / AUTO / THREE_WHEELER, or NONE (not set yet)
     archived: str = Query("exclude", pattern="^(exclude|only|include)$"),
     skip: int = 0,
     limit: int = 500,
@@ -65,6 +66,9 @@ def get_all_riders(
 
     if city and city != "ALL":
         query = query.filter(Rider.primary_city.ilike(f"%{city}%"))
+
+    if vehicle_category and vehicle_category != "ALL":
+        query = query.filter(Rider.vehicle_category.is_(None) if vehicle_category == "NONE" else Rider.vehicle_category == vehicle_category)
 
     if company and company != "ALL":
         query = query.filter(Rider.current_company.ilike(f"%{company}%"))
@@ -451,6 +455,7 @@ def update_rider(id: int, data: AdminRiderUpdate, db: Session = Depends(get_db),
             raise HTTPException(status_code=400, detail=f"{field.replace('_', ' ').capitalize()} is required")
 
     changed = []
+    old_category = rider.vehicle_category
     for field in EDITABLE_FIELDS:
         if field in changes:
             value = changes[field]
@@ -469,6 +474,12 @@ def update_rider(id: int, data: AdminRiderUpdate, db: Session = Depends(get_db),
     db.commit()
     if changed:
         log_admin_action(db=db, admin_user=admin, action="RIDER_UPDATED", target_type="RIDER", target_id=rider.rider_id, details=f"{rider.full_name} updated: {', '.join(changed)}")
+    if "vehicle_category" in changed:
+        from app.models.campaign_models import VehicleCategory
+
+        label = lambda c: VehicleCategory.LABELS.get(c, "not set") if c else "not set"
+        log_admin_action(db=db, admin_user=admin, action="RIDER_VEHICLE_TYPE_CHANGED", target_type="RIDER", target_id=rider.rider_id,
+                         details=f"{rider.full_name}: vehicle type {label(old_category)} → {label(rider.vehicle_category)}")
     return get_rider_detail(rider.id, db, admin)
 
 

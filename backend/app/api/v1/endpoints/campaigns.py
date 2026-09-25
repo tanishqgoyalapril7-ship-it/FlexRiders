@@ -39,6 +39,7 @@ from app.models.campaign_models import (
     CampaignPayout,
     CampaignStatus,
     CampaignVisibility,
+    CampaignCategory,
     KitReturnStatus,
     LocationPurpose,
     PhotoSlot,
@@ -65,12 +66,15 @@ from app.schemas.campaign_schemas import (
     ReplacementSlotsRequest,
     RiderKitUpdate,
     ShareCampaignRequest,
+    TermsAcceptRequest,
+    TermsPublishRequest,
 )
 from app.services import fulfillment_service as fs
 from app.services import data_admin_service as das
 from app.services import kit_service as ks
 from app.services import route_service as routes
 from app.services import storage_service as storage
+from app.services import terms_service as terms
 from app.services import campaign_service as svc
 from app.services.audit_service import log_admin_action
 
@@ -152,6 +156,8 @@ def _rider_brief(rider: Rider) -> dict:
         "mobile_number": rider.mobile_number,
         "status": rider.status,
         "upi_id": rider.upi_id,
+        "vehicle_category": rider.vehicle_category,
+        "vehicle_category_label": VehicleCategory.LABELS.get(rider.vehicle_category) if rider.vehicle_category else None,
     }
 
 
@@ -185,6 +191,10 @@ def _campaign_dict(db: Session, campaign: Campaign, with_stats: bool = True) -> 
         "location_area": campaign.location_area,
         "eligible_vehicle_categories": svc.eligible_categories(campaign),
         "eligible_vehicle_label": _vehicle_label(campaign),
+        "campaign_category": campaign.campaign_category or CampaignCategory.STANDARD,
+        "campaign_category_label": CampaignCategory.LABELS.get(campaign.campaign_category or CampaignCategory.STANDARD),
+        "public_image_approved": bool(campaign.public_image_approved),
+        "terms_version": (lambda t: t.version if t else None)(terms.current_terms(db, campaign.id)),
         "photo_slot_windows": {slot: list(w) for slot, w in svc.slot_windows(campaign).items()},
         "public_share_enabled": bool(campaign.public_share_enabled),
         "public_slug": campaign.public_slug,
@@ -204,14 +214,14 @@ def _vehicle_label(campaign: Campaign) -> str:
     allowed = svc.eligible_categories(campaign)
     if not allowed or set(allowed) == set(VehicleCategory.ALL):
         return "All vehicles"
-    return " & ".join(VehicleCategory.LABELS[c] for c in allowed)
+    return ", ".join(VehicleCategory.LABELS[c] for c in allowed)
 
 
 def _campaign_fields(payload, only_set: bool = False) -> dict:
     """Payload → column values (vehicle categories and slot times are stored as text)."""
     data = payload.model_dump(exclude={"visibility"})
     if only_set:  # Fields added later are only changed when the client sends them
-        for field in ("location_area", "eligible_vehicle_categories", "photo_slot_windows"):
+        for field in ("location_area", "eligible_vehicle_categories", "photo_slot_windows", "campaign_category", "public_image_approved"):
             if field not in payload.model_fields_set:
                 data.pop(field)
     if "eligible_vehicle_categories" in data:
@@ -220,6 +230,8 @@ def _campaign_fields(payload, only_set: bool = False) -> dict:
         data["photo_slot_windows"] = _run(lambda: svc.validate_slot_windows(data["photo_slot_windows"]))
     if "location_area" in data:
         data["location_area"] = (data["location_area"] or "").strip() or None
+    if "public_image_approved" in data:
+        data["public_image_approved"] = bool(data["public_image_approved"])
     return data
 
 
@@ -423,10 +435,16 @@ def list_campaigns(
     brand_id: Optional[int] = None,
     start_from: Optional[date] = None,
     end_to: Optional[date] = None,
+    category: Optional[str] = None,
     db: Session = Depends(get_db),
     admin: User = Depends(get_current_admin),
 ):
     query = db.query(Campaign).join(Brand, Campaign.brand_id == Brand.id)
+    if category and category != "ALL":
+        if category == CampaignCategory.STANDARD:
+            query = query.filter(or_(Campaign.campaign_category.is_(None), Campaign.campaign_category == category))
+        else:
+            query = query.filter(Campaign.campaign_category == category)
     if search:
         term = f"%{search.strip()}%"
         query = query.filter(or_(Campaign.name.ilike(term), Brand.name.ilike(term)))
@@ -543,12 +561,18 @@ def update_campaign(
         raise HTTPException(status_code=400, detail="Total slots cannot be lower than the number of approved riders.")
     if payload.brand_id != campaign.brand_id:
         _require_active_brand(db, payload.brand_id)
+    before = {"eligible vehicles": _vehicle_label(campaign), "category": campaign.campaign_category or CampaignCategory.STANDARD,
+              "public banner": bool(campaign.public_image_approved)}
     for field, value in _campaign_fields(payload, only_set=True).items():
         setattr(campaign, field, value)
     db.commit()
     fs.recalculate_campaign_payouts(db, campaign)  # payout-beyond-contract may have changed
     svc.sync_campaign_status(db, campaign)
-    log_admin_action(db=db, admin_user=admin, action="CAMPAIGN_UPDATED", target_type="CAMPAIGN", target_id=str(campaign.id), details=f"{campaign.name} updated")
+    after = {"eligible vehicles": _vehicle_label(campaign), "category": campaign.campaign_category or CampaignCategory.STANDARD,
+             "public banner": bool(campaign.public_image_approved)}
+    changes = "; ".join(f"{k}: {before[k]} → {after[k]}" for k in before if before[k] != after[k])
+    log_admin_action(db=db, admin_user=admin, action="CAMPAIGN_UPDATED", target_type="CAMPAIGN", target_id=str(campaign.id),
+                     details=f"{campaign.name} updated" + (f" ({changes})" if changes else ""))
     return _campaign_dict(db, campaign)
 
 
@@ -605,6 +629,26 @@ def _share_dict(campaign: Campaign) -> dict:
     }
 
 
+@router.get("/{campaign_id}/terms")
+def campaign_terms(campaign_id: int, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
+    """Every Terms & Conditions version with its acceptance count."""
+    return terms.admin_overview(db, _get_campaign(db, campaign_id))
+
+
+@router.post("/{campaign_id}/terms")
+def publish_campaign_terms(
+    campaign_id: int, payload: TermsPublishRequest, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)
+):
+    """Publishes the next version of the campaign's terms. The text is exactly what the admin entered;
+    older versions and every acceptance are kept."""
+    campaign = _get_campaign(db, campaign_id)
+    try:
+        terms.publish(db, campaign, payload.body, payload.change_note, admin)
+    except terms.TermsError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return terms.admin_overview(db, campaign)
+
+
 @router.post("/{campaign_id}/share")
 def share_campaign(
     campaign_id: int, payload: ShareCampaignRequest, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)
@@ -642,9 +686,15 @@ def public_campaign(slug: str, db: Session = Depends(get_db)):
         "slug": campaign.public_slug,
         "campaign_id": campaign.id,
         "name": campaign.name,
-        "brand": {"name": campaign.brand.name if campaign.brand else None, "logo_url": campaign.brand.logo if campaign.brand else None},
+        # Third-party logos and banners appear only once an admin confirms FlexRiders may use them publicly.
+        "brand": {
+            "name": campaign.brand.name if campaign.brand else None,
+            "logo_url": campaign.brand.logo if campaign.brand and campaign.brand.public_assets_approved else None,
+        },
         "description": campaign.description,
-        "image_url": campaign.image_url,
+        "image_url": campaign.image_url if campaign.public_image_approved else None,
+        "category": CampaignCategory.LABELS.get(campaign.campaign_category or CampaignCategory.STANDARD),
+        "terms": terms.terms_dict(terms.current_terms(db, campaign.id)),
         "location_area": campaign.location_area,
         "start_date": campaign.start_date.isoformat(),
         "end_date": fs.effective_end_date(campaign).isoformat(),
@@ -759,6 +809,11 @@ def _approve_blocker(db: Session, a: CampaignApplication) -> Optional[str]:
     campaign, rider = a.campaign, a.rider
     if ks.kit_required(campaign) and ks.request_kit_status(a) != KitStatus.COLLECTED:
         return "Waiting for T-shirt collection"
+    if not terms.has_accepted_current(db, campaign.id, a.rider_id):
+        return "Waiting for the rider to accept the current terms"
+    vehicle = svc.vehicle_block_reason(campaign, rider)
+    if vehicle:
+        return vehicle
     if campaign.status not in CampaignStatus.PUBLISHED:
         return f"Campaign is {campaign.status.lower()}"
     busy = svc.current_assignment(db, a.rider_id)
@@ -793,6 +848,7 @@ def _application_dict(db: Session, a: CampaignApplication) -> dict:
         "kit_status_label": KitStatus.LABELS.get(kit_status, kit_status),
         "kit_collected_at": a.kit_collected_at,
         "kit_collected_by": a.kit_collected_by.email if a.kit_collected_by_id and a.kit_collected_by else None,
+        "terms_accepted_version": terms.accepted_version(db, a.campaign_id, a.rider_id),
         "can_approve": a.status == ApplicationStatus.REQUESTED and blocker is None,
         "approve_blocked_reason": blocker,
         # Kept for older screens
@@ -1102,6 +1158,8 @@ def _rider_campaign_card(db: Session, campaign: Campaign, rider: Rider) -> dict:
             "join_blocked_reason": reason,
             # Riders only see (and can choose) active pickup locations.
             "brand_kit": _kit_dict(db, campaign, active_only=True),
+            # Current Terms & Conditions and whether this rider still has to accept them.
+            "terms": terms.rider_status(db, campaign.id, rider.id),
         }
     )
     return data
@@ -1246,8 +1304,25 @@ def join_campaign(
     campaign = _rider_visible_campaign(db, campaign_id, rider)
     size = payload.tshirt_size if payload else None
     location_id = payload.pickup_location_id if payload else None
-    _run(lambda: svc.request_to_join(db, campaign, rider, size, location_id))
+    terms_version = payload.terms_version if payload else None
+    _run(lambda: svc.request_to_join(db, campaign, rider, size, location_id, terms_version))
     return _rider_campaign_card(db, campaign, rider)
+
+
+@rider_router.post("/{campaign_id}/terms/accept")
+def accept_campaign_terms(
+    campaign_id: int, payload: TermsAcceptRequest, rider: Rider = Depends(get_current_rider), db: Session = Depends(get_db)
+):
+    """The rider accepts the campaign's CURRENT terms version (e.g. after it was updated). The server
+    records the acceptance itself; an old or made-up version is refused."""
+    campaign = _rider_visible_campaign(db, campaign_id, rider)
+    if terms.current_terms(db, campaign.id) is None:
+        raise HTTPException(status_code=400, detail="This campaign has no Terms & Conditions to accept.")
+    try:
+        terms.accept(db, campaign, rider, payload.version, source="UPDATE")
+    except terms.TermsError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return terms.rider_status(db, campaign.id, rider.id)
 
 
 @rider_router.post("/{campaign_id}/withdraw")

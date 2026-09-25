@@ -40,6 +40,7 @@ def _brand_response(db: Session, brand: Brand) -> BrandResponse:
         contact_person=brand.contact_person,
         contact_number=brand.contact_number,
         is_active=brand.is_active,
+        public_assets_approved=bool(brand.public_assets_approved),
         created_at=brand.created_at,
         updated_at=brand.updated_at,
         active_riders_count=_current_rider_count(db, brand.id),
@@ -91,6 +92,7 @@ def create_brand(
         contact_person=_clean(brand_in.contact_person),
         contact_number=_clean(brand_in.contact_number),
         is_active=brand_in.is_active,
+        public_assets_approved=bool(brand_in.public_assets_approved),
     )
     db.add(brand)
     db.commit()
@@ -170,6 +172,9 @@ def update_brand(
     if brand_in.is_active is not None:
         # Deactivating only blocks new assignments; current and past assignments are kept.
         brand.is_active = brand_in.is_active
+    assets_changed = brand_in.public_assets_approved is not None and bool(brand.public_assets_approved) != brand_in.public_assets_approved
+    if brand_in.public_assets_approved is not None:
+        brand.public_assets_approved = brand_in.public_assets_approved
 
     db.commit()
     db.refresh(brand)
@@ -185,6 +190,10 @@ def update_brand(
         target_id=str(brand.id),
         details=f"Brand {brand.name} {action.split('_')[1].lower()}",
     )
+    if assets_changed:
+        log_admin_action(db=db, admin_user=admin, action="BRAND_PUBLIC_ASSETS_" + ("APPROVED" if brand.public_assets_approved else "REVOKED"),
+                         target_type="BRAND", target_id=str(brand.id),
+                         details=f"{brand.name}: logo {'may' if brand.public_assets_approved else 'may no longer'} be shown on public pages")
     return _brand_response(db, brand)
 
 

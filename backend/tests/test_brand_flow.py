@@ -51,7 +51,7 @@ def test_empty_database_to_campaign(empty_client):
     assert c.post(f"{API}/brands", json={"name": "brand a"}, headers=admin).status_code == 400  # duplicate name
 
     # 3. A new rider registers; a pending rider cannot be assigned.
-    reg = c.post(f"{API}/auth/register", json={"full_name": "Rahul Sharma", "mobile_number": "9876500001", "password": "riderPass1", "primary_city": "Gurugram"}).json()
+    reg = c.post(f"{API}/auth/register", json={"vehicle_category": "CYCLE", "full_name": "Rahul Sharma", "mobile_number": "9876500001", "password": "riderPass1", "primary_city": "Gurugram"}).json()
     rider_headers = {"Authorization": f"Bearer {reg['access_token']}"}
     rider_id = c.get(f"{API}/admin/riders", headers=admin).json()[0]["id"]
     res = c.post(f"{API}/brands/assign/{rider_id}", json={"brand_id": brand["id"]}, headers=admin)

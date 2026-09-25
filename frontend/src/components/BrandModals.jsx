@@ -53,6 +53,7 @@ export function BrandFormModal({ brand, onClose, onSaved }) {
     contact_person: brand?.contact_person || '',
     contact_number: brand?.contact_number || '',
     is_active: brand ? brand.is_active : true,
+    public_assets_approved: brand ? Boolean(brand.public_assets_approved) : false,
   });
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -139,6 +140,17 @@ export function BrandFormModal({ brand, onClose, onSaved }) {
                 ))}
               </div>
             </div>
+            <label className="toggle-row" style={{ marginTop: 4 }}>
+              <input
+                type="checkbox"
+                checked={form.public_assets_approved}
+                onChange={(e) => setForm((prev) => ({ ...prev, public_assets_approved: e.target.checked }))}
+              />
+              <div>
+                <strong>Logo may be shown on public pages</strong>
+                <span>Tick only if the brand has given FlexRiders permission to use its logo publicly. Until then public campaign pages show the brand name only.</span>
+              </div>
+            </label>
           </div>
           <div className="modal-footer">
             <button type="button" className="btn-secondary" onClick={onClose}>

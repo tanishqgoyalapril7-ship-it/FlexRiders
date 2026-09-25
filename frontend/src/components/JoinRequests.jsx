@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { CheckCircle2, Inbox, Shirt, X } from 'lucide-react';
 import { api } from '../services/api';
 import { DangerDialog, toast } from './Feedback';
-import { EmptyState, formatDate } from './CampaignShared';
+import { EmptyState, VEHICLE_TYPES, formatDate, vehicleLabel } from './CampaignShared';
 import { ApproveRequestDialog } from './CampaignFulfillment';
 
 const KIT_PILL = { NOT_REQUIRED: 'pill-draft', PENDING: 'pill-at_risk', COLLECTED: 'pill-on_track' };
@@ -128,6 +128,10 @@ export function JoinRequestsTable({ requests, showCampaign, onChanged, campaignR
                     <strong>{r.rider.full_name}</strong>
                     <div style={{ fontSize: '0.72rem', color: '#2563EB', fontWeight: 600 }}>{r.rider.rider_id}</div>
                     <div style={{ fontSize: '0.72rem', color: '#64748B' }}>{r.rider.mobile_number}</div>
+                    <div style={{ fontSize: '0.72rem', color: '#64748B' }}>{vehicleLabel(r.rider.vehicle_category) || 'Vehicle type not set'}</div>
+                    {r.terms_accepted_version ? (
+                      <div style={{ fontSize: '0.7rem', color: '#15803D' }}>Accepted terms v{r.terms_accepted_version}</div>
+                    ) : null}
                   </td>
                   {showCampaign ? (
                     <td>
@@ -230,6 +234,7 @@ const FILTERS = [
 export function JoinRequestsView({ onChanged }) {
   const [status, setStatus] = useState('REQUESTED');
   const [campaignId, setCampaignId] = useState('');
+  const [vehicle, setVehicle] = useState('ALL');
   const [requests, setRequests] = useState(null);
   const [campaigns, setCampaigns] = useState([]);
 
@@ -273,7 +278,15 @@ export function JoinRequestsView({ onChanged }) {
               </button>
             ))}
           </div>
-          <select className="form-input" style={{ width: 240 }} value={campaignId} onChange={(e) => setCampaignId(e.target.value)}>
+          <select className="form-input" style={{ width: 'auto' }} value={vehicle} onChange={(e) => setVehicle(e.target.value)} aria-label="Vehicle type">
+            <option value="ALL">All vehicles</option>
+            {VEHICLE_TYPES.map(([v, label]) => (
+              <option key={v} value={v}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <select className="form-input" style={{ width: 240, maxWidth: '100%' }} value={campaignId} onChange={(e) => setCampaignId(e.target.value)}>
             <option value="">All campaigns</option>
             {campaigns.map((c) => (
               <option key={c.id} value={c.id}>
@@ -289,7 +302,11 @@ export function JoinRequestsView({ onChanged }) {
         ) : null}
       </div>
       <div className="card">
-        {requests ? <JoinRequestsTable requests={requests} showCampaign onChanged={changed} /> : <EmptyState icon={Inbox}>Loading requests…</EmptyState>}
+        {requests ? (
+          <JoinRequestsTable requests={requests.filter((r) => vehicle === 'ALL' || r.rider.vehicle_category === vehicle)} showCampaign onChanged={changed} />
+        ) : (
+          <EmptyState icon={Inbox}>Loading requests…</EmptyState>
+        )}
       </div>
     </div>
   );

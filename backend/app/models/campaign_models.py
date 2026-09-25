@@ -116,11 +116,39 @@ class AdjustmentStatus:
 
 
 class VehicleCategory:
-    """Rider vehicle categories, used for campaign eligibility. Add a category here to support it everywhere."""
+    """Rider vehicle types, used for campaign eligibility. Add a type here to support it everywhere.
+
+    TWO_WHEELER keeps its original stored value; it is shown as "Bike / Two Wheeler"."""
+    CYCLE = "CYCLE"
     TWO_WHEELER = "TWO_WHEELER"
+    AUTO = "AUTO"
     THREE_WHEELER = "THREE_WHEELER"
-    ALL = (TWO_WHEELER, THREE_WHEELER)
-    LABELS = {TWO_WHEELER: "Two Wheeler", THREE_WHEELER: "Three Wheeler"}
+    ALL = (CYCLE, TWO_WHEELER, AUTO, THREE_WHEELER)
+    LABELS = {CYCLE: "Cycle", TWO_WHEELER: "Bike / Two Wheeler", AUTO: "Auto", THREE_WHEELER: "Three Wheeler"}
+    DESCRIPTIONS = {
+        CYCLE: "Bicycle or pedal cycle",
+        TWO_WHEELER: "Motorbike or scooter",
+        AUTO: "Passenger auto-rickshaw",
+        THREE_WHEELER: "Cargo / loader or other non-passenger three-wheeler",
+    }
+    # Cycles usually have no registration number; every other type must give one at registration.
+    NUMBER_OPTIONAL = (CYCLE,)
+
+
+class CampaignCategory:
+    """A label for grouping and filtering campaigns. It adds no workflow of its own."""
+    STANDARD = "STANDARD"
+    BIKE = "BIKE"
+    CYCLE = "CYCLE"
+    TV = "TV"
+    GOOGLE = "GOOGLE"
+    BRAND_PARTNERSHIP = "BRAND_PARTNERSHIP"
+    OTHER = "OTHER"
+    ALL = (STANDARD, BIKE, CYCLE, TV, GOOGLE, BRAND_PARTNERSHIP, OTHER)
+    LABELS = {
+        STANDARD: "Standard", BIKE: "Bike", CYCLE: "Cycle", TV: "TV", GOOGLE: "Google",
+        BRAND_PARTNERSHIP: "Brand Partnership", OTHER: "Other",
+    }
 
 
 class LocationPurpose:
@@ -188,6 +216,9 @@ class Campaign(Base):
     location_area = Column(String(200), nullable=True)  # e.g. "Sector 57, Gurugram"
     # Comma-separated VehicleCategory values; empty means every category may join.
     eligible_vehicle_categories = Column(String(120), nullable=True)
+    campaign_category = Column(String(30), nullable=True)  # CampaignCategory; null = STANDARD
+    # The campaign banner is only shown on the public page once an admin confirms the rights to it.
+    public_image_approved = Column(Boolean, default=False, nullable=True)
     # JSON {"MORNING": ["06:00", "11:00"], ...}; empty means PhotoSlot.DEFAULT_WINDOWS.
     photo_slot_windows = Column(Text, nullable=True)
     # Shareable public page (/campaign/<public_slug>) for the brand.
@@ -548,3 +579,41 @@ class RoutePoint(Base):
         Index("ix_route_points_assignment_day", "assignment_id", "route_date", "recorded_at"),
         UniqueConstraint("assignment_id", "recorded_at", name="uq_route_point_time"),
     )
+
+
+class CampaignTerms(Base):
+    """One published version of a campaign's Terms & Conditions. Versions are never edited or deleted
+    (a change is a new version), so every acceptance keeps pointing at the exact text accepted."""
+
+    __tablename__ = "campaign_terms"
+
+    id = Column(Integer, primary_key=True, index=True)
+    campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=False, index=True)
+    version = Column(Integer, nullable=False)
+    body = Column(Text, nullable=False)
+    change_note = Column(String(500), nullable=True)
+    published_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    published_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    published_by = relationship("User")
+
+    __table_args__ = (UniqueConstraint("campaign_id", "version", name="uq_campaign_terms_version"),)
+
+
+class CampaignTermsAcceptance(Base):
+    """A rider accepting one terms version. Append-only: accepting a newer version adds a row."""
+
+    __tablename__ = "campaign_terms_acceptances"
+
+    id = Column(Integer, primary_key=True, index=True)
+    campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=False, index=True)
+    rider_id = Column(Integer, ForeignKey("riders.id"), nullable=False, index=True)
+    terms_id = Column(Integer, ForeignKey("campaign_terms.id"), nullable=False)
+    terms_version = Column(Integer, nullable=False)
+    accepted_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    application_id = Column(Integer, ForeignKey("campaign_applications.id"), nullable=True)  # Set when accepted while joining
+    source = Column(String(20), nullable=False, default="JOIN")  # JOIN or UPDATE (a newer version accepted later)
+
+    terms = relationship("CampaignTerms")
+
+    __table_args__ = (UniqueConstraint("terms_id", "rider_id", name="uq_terms_acceptance_once"),)

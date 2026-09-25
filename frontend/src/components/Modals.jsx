@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { vehicleLabel } from './CampaignShared';
 import { X, CheckCircle, XCircle, AlertTriangle, FileText, Check, Shield } from 'lucide-react';
 
 export function RiderDetailModal({
@@ -61,7 +62,7 @@ export function RiderDetailModal({
             <div style={{ background: '#F8FAFC', padding: '12px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>
               <div style={{ fontSize: '0.72rem', color: '#64748B', fontWeight: 600 }}>WORK & VEHICLE</div>
               <div style={{ fontSize: '0.84rem', fontWeight: 600, marginTop: '2px' }}>{rider.current_company || 'Not provided'}</div>
-              <div style={{ fontSize: '0.75rem', color: '#64748B' }}>{[rider.vehicle_category && (rider.vehicle_category === 'THREE_WHEELER' ? 'Three Wheeler' : 'Two Wheeler'), rider.vehicle_type, rider.current_role].filter(Boolean).join(' • ') || 'Not provided'}</div>
+              <div style={{ fontSize: '0.75rem', color: '#64748B' }}>{[vehicleLabel(rider.vehicle_category), rider.vehicle_type, rider.current_role].filter(Boolean).join(' • ') || 'Not provided'}</div>
               <div style={{ fontSize: '0.75rem', color: '#0F172A', fontWeight: 600 }}>{rider.vehicle_number ? `Reg. No. ${rider.vehicle_number}` : 'Vehicle number not provided'}</div>
             </div>
 

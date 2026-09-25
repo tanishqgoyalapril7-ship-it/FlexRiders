@@ -34,6 +34,7 @@ from app.models.campaign_models import (
 )
 from app.services import fulfillment_service as fs
 from app.services import kit_service as ks
+from app.services import terms_service as terms
 from app.services.fulfillment_service import today_ist, to_ist_date  # noqa: F401  (re-exported)
 from app.services.audit_service import log_admin_action
 from app.services.notification_service import send_notification
@@ -255,7 +256,7 @@ def vehicle_block_reason(campaign: Campaign, rider: Rider) -> Optional[str]:
     allowed = eligible_categories(campaign)
     if not allowed or set(allowed) == set(VehicleCategory.ALL):
         return None
-    names = " or ".join(VehicleCategory.LABELS[c] for c in allowed)
+    names = ", ".join(VehicleCategory.LABELS[c] for c in allowed[:-1]) + (" or " if len(allowed) > 1 else "") + VehicleCategory.LABELS[allowed[-1]]
     if not rider.vehicle_category:
         return f"This campaign is for {names} riders. Add your vehicle type in your profile to join."
     if rider.vehicle_category not in allowed:
@@ -311,13 +312,22 @@ def _kit_choice(db: Session, campaign: Campaign, tshirt_size: Optional[str], pic
 
 
 def request_to_join(
-    db: Session, campaign: Campaign, rider: Rider, tshirt_size: Optional[str] = None, pickup_location_id: Optional[int] = None
+    db: Session, campaign: Campaign, rider: Rider, tshirt_size: Optional[str] = None, pickup_location_id: Optional[int] = None,
+    terms_version: Optional[int] = None,
 ) -> CampaignApplication:
     sync_campaign_status(db, campaign)
     can_join, reason = join_eligibility(db, campaign, rider)
     if not can_join:
         raise CampaignError(reason)
     size, location_id = _kit_choice(db, campaign, tshirt_size, pickup_location_id)
+    # The current Terms & Conditions (if the campaign has any) must be accepted to request to join.
+    current_terms = terms.current_terms(db, campaign.id)
+    if current_terms and not terms.has_accepted_current(db, campaign.id, rider.id) and terms_version != current_terms.version:
+        raise CampaignError(
+            f"Please read and accept the current Terms & Conditions for {campaign.name} (version {current_terms.version})."
+            if terms_version is None else
+            f"These terms have been updated to version {current_terms.version}. Please review the latest version and accept it."
+        )
 
     application = CampaignApplication(
         campaign_id=campaign.id, rider_id=rider.id, tshirt_size=size, pickup_location_id=location_id,
@@ -326,6 +336,11 @@ def request_to_join(
     db.add(application)
     db.commit()
     db.refresh(application)
+    if current_terms:
+        try:
+            terms.accept(db, campaign, rider, current_terms.version, application_id=application.id, source="JOIN")
+        except terms.TermsError as e:
+            raise CampaignError(str(e))
 
     send_notification(
         db=db,
@@ -384,6 +399,12 @@ def approve_application(
     vehicle = vehicle_block_reason(campaign, rider)
     if vehicle:
         raise CampaignError(f"{rider.full_name} can't be approved: {vehicle[0].lower()}{vehicle[1:]}")
+    if not terms.has_accepted_current(db, campaign.id, rider.id):
+        current_terms = terms.current_terms(db, campaign.id)
+        raise CampaignError(
+            f"{rider.full_name} hasn't accepted the current Terms & Conditions (version {current_terms.version}) yet. "
+            "They can accept them on the campaign page in the app."
+        )
     if ks.kit_required(campaign) and ks.request_kit_status(application) != KitStatus.COLLECTED:
         raise CampaignError("Mark the rider's T-shirt as collected before approving them for this campaign.")
 

@@ -3,7 +3,7 @@ import { X, Check, CheckCircle2, XCircle, Clock, ImageOff, Flame, Trophy, Calend
 import { api } from '../services/api';
 import { toast } from './Feedback';
 import { KitSettingsEditor, kitToDraft, syncBrandKit } from './BrandKitEditor';
-import { formatDate, formatINR, StatusPill, EmptyState, SlotStatuses } from './CampaignShared';
+import { formatDate, formatINR, StatusPill, EmptyState, SlotStatuses, VEHICLE_TYPES, CAMPAIGN_CATEGORIES } from './CampaignShared';
 
 const STEPS = ['Basics', 'Slots & Payout', 'T-Shirt & Pickup', 'Details'];
 
@@ -11,12 +11,9 @@ const toInputDate = (d) => d.toISOString().slice(0, 10);
 
 const DEFAULT_SLOTS = { MORNING: ['06:00', '11:00'], EVENING: ['12:00', '15:00'], NIGHT: ['17:00', '21:00'] };
 const SLOT_LABELS = { MORNING: 'Morning', EVENING: 'Evening', NIGHT: 'Night' };
-const VEHICLE_OPTIONS = [
-  ['BOTH', 'Both (Two & Three Wheeler)'],
-  ['TWO_WHEELER', 'Two Wheeler only'],
-  ['THREE_WHEELER', 'Three Wheeler only'],
-];
-const vehicleChoice = (categories) => (categories && categories.length === 1 ? categories[0] : 'BOTH');
+const ALL_VEHICLES = VEHICLE_TYPES.map(([value]) => value);
+// Stored empty = every type may join; the form shows that as all boxes ticked.
+const vehicleChoice = (categories) => (categories && categories.length ? categories : ALL_VEHICLES);
 
 function emptyForm() {
   const start = new Date();
@@ -36,7 +33,8 @@ function emptyForm() {
     allow_payout_beyond_contract: false,
     continue_after_fulfillment: false,
     location_area: '',
-    vehicle_choice: 'BOTH',
+    vehicle_choice: ALL_VEHICLES,
+    campaign_category: 'STANDARD',
     photo_slot_windows: DEFAULT_SLOTS,
   };
 }
@@ -63,6 +61,7 @@ export function CampaignFormModal({ brands = [], campaign, onClose, onSaved, onC
           continue_after_fulfillment: campaign.continue_after_fulfillment,
           location_area: campaign.location_area || '',
           vehicle_choice: vehicleChoice(campaign.eligible_vehicle_categories),
+          campaign_category: campaign.campaign_category || 'STANDARD',
           photo_slot_windows: campaign.photo_slot_windows || DEFAULT_SLOTS,
         }
       : emptyForm()
@@ -100,6 +99,7 @@ export function CampaignFormModal({ brands = [], campaign, onClose, onSaved, onC
       if (form.name.trim().length < 3) return 'Please enter a campaign name (at least 3 characters).';
       if (!form.start_date || !form.end_date) return 'Please choose start and end dates.';
       if (form.end_date < form.start_date) return 'End date must be on or after the start date.';
+      if (!form.vehicle_choice.length) return 'Tick at least one eligible vehicle type.';
     }
     if (index === 1) {
       if (!(Number(form.total_slots) >= 1)) return 'Total slots must be at least 1.';
@@ -135,7 +135,7 @@ export function CampaignFormModal({ brands = [], campaign, onClose, onSaved, onC
     const { vehicle_choice: vehicleChoiceValue, ...rest } = form;
     const payload = {
       ...rest,
-      eligible_vehicle_categories: vehicleChoiceValue === 'BOTH' ? [] : [vehicleChoiceValue],
+      eligible_vehicle_categories: vehicleChoiceValue.length === ALL_VEHICLES.length ? [] : ALL_VEHICLES.filter((v) => vehicleChoiceValue.includes(v)),
       location_area: form.location_area.trim(),
       brand_id: Number(form.brand_id),
       total_slots: Number(form.total_slots),
@@ -244,16 +244,43 @@ export function CampaignFormModal({ brands = [], campaign, onClose, onSaved, onC
                   <span className="form-hint">Shown to riders and on the public campaign page.</span>
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Eligible Vehicle Type *</label>
-                  <select className="form-input" value={form.vehicle_choice} onChange={set('vehicle_choice')}>
-                    {VEHICLE_OPTIONS.map(([value, label]) => (
+                  <label className="form-label">Campaign Category</label>
+                  <select className="form-input" value={form.campaign_category} onChange={set('campaign_category')}>
+                    {CAMPAIGN_CATEGORIES.map(([value, label]) => (
                       <option key={value} value={value}>
                         {label}
                       </option>
                     ))}
                   </select>
-                  <span className="form-hint">Checked against each rider’s registered vehicle type when they join.</span>
+                  <span className="form-hint">A label for grouping and filtering campaigns.</span>
                 </div>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Eligible Vehicle Types *</label>
+                <div className="vehicle-checks">
+                  {VEHICLE_TYPES.map(([value, label, description]) => {
+                    const checked = form.vehicle_choice.includes(value);
+                    return (
+                      <label key={value} className={`vehicle-check ${checked ? 'checked' : ''}`}>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() =>
+                            setForm((prev) => ({
+                              ...prev,
+                              vehicle_choice: checked ? prev.vehicle_choice.filter((v) => v !== value) : [...prev.vehicle_choice, value],
+                            }))
+                          }
+                        />
+                        <span>
+                          <strong>{label}</strong>
+                          <small>{description}</small>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <span className="form-hint">Only riders with a ticked vehicle type can join; the server checks each rider’s registered type.</span>
               </div>
             </>
           )}

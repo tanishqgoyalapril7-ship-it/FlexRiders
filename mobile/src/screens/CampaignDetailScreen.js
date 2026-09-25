@@ -7,6 +7,7 @@ import { useStyles, useTheme } from '../theme';
 import { Card, EmptyState, OutlineButton, PrimaryButton, ProgressBar, ScreenHeader, SectionHeader, StatusBadge, toneColors } from '../components/ui';
 import { formatDate, formatDateRange, formatINR, formatShortDate } from '../utils';
 import { PickupCard, RequestStatusCard, ReturnCard, useJoinCampaign } from '../components/KitPickup';
+import { TermsCard } from '../components/CampaignTerms';
 import RouteCard from '../components/RouteCard';
 
 const DAY_STYLES = {
@@ -406,6 +407,16 @@ export default function CampaignDetailScreen({ campaignId, onBack, onChanged }) 
       ) : null}
 
       <ReturnCard kitReturn={campaign.kit_return} />
+
+      <TermsCard
+        campaign={campaign}
+        joined={Boolean(p) || campaign.my_status === 'REQUESTED'}
+        onAccept={async (version) => {
+          await mobileApi.acceptCampaignTerms(campaign.id, version);
+          await refresh();
+          Alert.alert('Terms accepted', `You accepted version ${version} of the ${campaign.name} terms.`);
+        }}
+      />
 
       {!p ? (
         <View style={{ marginTop: 20 }}>

@@ -14,7 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { mobileApi } from '../services/api';
 import { useStyles, useTheme } from '../theme';
 import { OutlineButton, PrimaryButton, ScreenHeader } from '../components/ui';
-import { AutocompleteField, DateOfBirthField, PasswordField, ageOn, VehicleCategoryField, vehicleCategoryLabel } from '../components/formFields';
+import { AutocompleteField, DateOfBirthField, PasswordField, ageOn, VehicleCategoryField, vehicleCategoryLabel, vehicleNumberOptional } from '../components/formFields';
 import {
   CITIES,
   VEHICLE_MODELS,
@@ -76,8 +76,9 @@ export default function RegisterScreen({ onBack, onRegistered, initialReferralCo
     }
     if (step === 2) {
       if (!form.vehicle_category) return 'Please tell us what type of vehicle you use.';
-      if (!form.vehicle_number.trim()) return 'Please enter your vehicle registration number.';
-      if (!isValidVehicleNumber(form.vehicle_number)) return 'Please enter a valid vehicle number, e.g. HR26DK8337.';
+      // Cycles usually have no registration number; every other vehicle type needs one.
+      if (!vehicleNumberOptional(form.vehicle_category) && !form.vehicle_number.trim()) return 'Please enter your vehicle registration number.';
+      if (form.vehicle_number.trim() && !isValidVehicleNumber(form.vehicle_number)) return 'Please enter a valid vehicle number, e.g. HR26DK8337.';
       if (!form.primary_city.trim()) return 'Please enter your primary working city.';
     }
     return null;
@@ -96,7 +97,7 @@ export default function RegisterScreen({ onBack, onRegistered, initialReferralCo
     setLoading(true);
     try {
       const trimmed = Object.fromEntries(Object.entries(form).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v]));
-      trimmed.vehicle_number = normalizeVehicleNumber(trimmed.vehicle_number);
+      trimmed.vehicle_number = trimmed.vehicle_number ? normalizeVehicleNumber(trimmed.vehicle_number) : null;
       const result = await mobileApi.register(trimmed);
       await onRegistered(result);
     } catch (err) {
@@ -177,7 +178,7 @@ export default function RegisterScreen({ onBack, onRegistered, initialReferralCo
               required
               value={form.vehicle_category}
               onChange={set('vehicle_category')}
-              hint="Some campaigns are only for two wheelers or three wheelers."
+              hint="Campaigns can be for specific vehicle types. Only an admin can change this later."
             />
             <AutocompleteField
               label="Vehicle Model"
@@ -188,8 +189,8 @@ export default function RegisterScreen({ onBack, onRegistered, initialReferralCo
               placeholder="Start typing, e.g. Activa"
             />
             <Field
-              label="Vehicle Number"
-              required
+              label={vehicleNumberOptional(form.vehicle_category) ? 'Vehicle Number (optional for cycles)' : 'Vehicle Number'}
+              required={!vehicleNumberOptional(form.vehicle_category)}
               value={form.vehicle_number}
               onChangeText={(v) => set('vehicle_number')(v.toUpperCase())}
               placeholder="e.g. HR 26 DK 8337"

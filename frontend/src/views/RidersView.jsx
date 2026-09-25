@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Search, Eye, Pencil, Trash2, UserPlus } from 'lucide-react';
 import { RiderAvatar } from '../components/AdminCrud';
+import { VEHICLE_TYPES, vehicleLabel } from '../components/CampaignShared';
 
 const STATUS_TABS = [
   ['ALL', 'All Riders'],
@@ -29,6 +30,7 @@ export default function RidersView({
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [cityFilter, setCityFilter] = useState('ALL');
+  const [vehicleFilter, setVehicleFilter] = useState('ALL');
   const archivedTab = filterStatus === 'ARCHIVED';
   const source = archivedTab ? archivedRiders : riders;
   const cities = [...new Set(source.map((r) => r.primary_city).filter(Boolean))].sort();
@@ -42,7 +44,8 @@ export default function RidersView({
         (v || '').toLowerCase().includes(term)
       );
     const matchesCity = cityFilter === 'ALL' || r.primary_city === cityFilter;
-    return matchesStatus && matchesSearch && matchesCity;
+    const matchesVehicle = vehicleFilter === 'ALL' || (vehicleFilter === 'NONE' ? !r.vehicle_category : r.vehicle_category === vehicleFilter);
+    return matchesStatus && matchesSearch && matchesCity && matchesVehicle;
   });
 
   return (
@@ -76,8 +79,8 @@ export default function RidersView({
           )}
 
           {/* Search & City Filter */}
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-            <div className="search-container" style={{ width: '260px' }}>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div className="search-container" style={{ width: '260px', maxWidth: '100%' }}>
               <Search size={15} color="#94A3B8" />
               <input
                 type="text"
@@ -100,6 +103,21 @@ export default function RidersView({
                   {c}
                 </option>
               ))}
+            </select>
+            <select
+              className="form-input"
+              style={{ padding: '7px 12px', fontSize: '0.82rem' }}
+              value={vehicleFilter}
+              onChange={(e) => setVehicleFilter(e.target.value)}
+              aria-label="Vehicle type"
+            >
+              <option value="ALL">All vehicles</option>
+              {VEHICLE_TYPES.map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+              <option value="NONE">Type not set</option>
             </select>
           </div>
         </div>
@@ -144,7 +162,7 @@ export default function RidersView({
                   </td>
                   <td>
                     <div>
-                      {r.vehicle_category ? (r.vehicle_category === 'THREE_WHEELER' ? 'Three Wheeler' : 'Two Wheeler') : 'Type not set'}
+                      {r.vehicle_category ? vehicleLabel(r.vehicle_category) : 'Type not set'}
                       {r.vehicle_type ? ` · ${r.vehicle_type}` : ''}
                     </div>
                     {r.vehicle_number ? <div style={{ fontSize: '0.72rem', fontWeight: 600 }}>{r.vehicle_number}</div> : null}
