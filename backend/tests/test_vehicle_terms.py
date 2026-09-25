@@ -9,7 +9,7 @@ from app.core.config import settings
 from app.models.all_models import Notification, Rider
 from app.models.campaign_models import CampaignTermsAcceptance
 from app.services.campaign_service import today_ist
-from tests.conftest import before_start
+from tests.conftest import SELFIE, before_start
 from tests.test_crud import make_admin
 
 API = "/api/v1"
@@ -34,7 +34,7 @@ def _phone():
 
 def register(client, category, **extra):
     phone = _phone()
-    body = {"full_name": f"{category} Rider", "mobile_number": phone, "password": "riderPass1", "vehicle_category": category, **extra}
+    body = {"selfie": SELFIE, "full_name": f"{category} Rider", "mobile_number": phone, "password": "riderPass1", "vehicle_category": category, **extra}
     if category in NUMBERS and "vehicle_number" not in extra:
         body["vehicle_number"] = NUMBERS[category] + phone[-4:]
     return client.post(f"{API}/auth/register", json=body)
@@ -75,14 +75,14 @@ def test_each_vehicle_type_registers(client, category):
 
 
 def test_registration_vehicle_rules(client):
-    base = {"full_name": "No Type", "password": "riderPass1"}
-    assert client.post(f"{API}/auth/register", json={**base, "mobile_number": _phone()}).status_code == 422  # Missing
-    assert client.post(f"{API}/auth/register", json={**base, "mobile_number": _phone(), "vehicle_category": "TRUCK"}).status_code == 422  # Invalid
+    base = {"selfie": SELFIE, "full_name": "No Type", "password": "riderPass1"}
+    assert client.post(f"{API}/auth/register", json={"selfie": SELFIE, **base, "mobile_number": _phone()}).status_code == 422  # Missing
+    assert client.post(f"{API}/auth/register", json={"selfie": SELFIE, **base, "mobile_number": _phone(), "vehicle_category": "TRUCK"}).status_code == 422  # Invalid
     # A registration number is required for everything except Cycle (existing number rules unchanged).
     for category in ("TWO_WHEELER", "AUTO", "THREE_WHEELER"):
-        res = client.post(f"{API}/auth/register", json={**base, "mobile_number": _phone(), "vehicle_category": category})
+        res = client.post(f"{API}/auth/register", json={"selfie": SELFIE, **base, "mobile_number": _phone(), "vehicle_category": category})
         assert res.status_code == 422 and "registration number" in res.text
-    assert client.post(f"{API}/auth/register", json={**base, "mobile_number": _phone(), "vehicle_category": "AUTO", "vehicle_number": "12345"}).status_code == 422
+    assert client.post(f"{API}/auth/register", json={"selfie": SELFIE, **base, "mobile_number": _phone(), "vehicle_category": "AUTO", "vehicle_number": "12345"}).status_code == 422
     # Labels and aliases map to the stored values.
     assert register(client, "Bike / Two Wheeler", vehicle_number="KA05MN" + _phone()[-4:]).status_code == 200
     # Vehicle numbers stay unique across riders.

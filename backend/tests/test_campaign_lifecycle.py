@@ -9,7 +9,7 @@ from app.core.config import settings
 from app.models.all_models import Notification, Payment
 from app.services import slot_reminder_service
 from app.services.campaign_service import today_ist
-from tests.conftest import before_start
+from tests.conftest import SELFIE, before_start
 from tests.test_crud import make_admin, rider_payload
 
 API = "/api/v1"
@@ -160,9 +160,9 @@ def test_slot_notifications(client, db_session, admin):
 def test_vehicle_category_registration_and_eligibility(client, db_session, admin):
     # Registration stores the category; bad values are refused.
     phone = "9" + str(uuid.uuid4().int)[:9]
-    bad = client.post(f"{API}/auth/register", json={"full_name": "Auto Rider", "mobile_number": phone, "password": "riderPass1", "vehicle_category": "Truck"})
+    bad = client.post(f"{API}/auth/register", json={"selfie": SELFIE, "full_name": "Auto Rider", "mobile_number": phone, "password": "riderPass1", "vehicle_category": "Truck"})
     assert bad.status_code == 422
-    reg = client.post(f"{API}/auth/register", json={"full_name": "Auto Rider", "mobile_number": phone, "password": "riderPass1", "vehicle_category": "Three Wheeler", "vehicle_number": "DL1LA" + phone[-4:]})
+    reg = client.post(f"{API}/auth/register", json={"selfie": SELFIE, "full_name": "Auto Rider", "mobile_number": phone, "password": "riderPass1", "vehicle_category": "Three Wheeler", "vehicle_number": "DL1LA" + phone[-4:]})
     assert reg.status_code == 200
     auto_h = {"Authorization": f"Bearer {reg.json()['access_token']}"}
     me = client.get(f"{API}/riders/me", headers=auto_h).json()

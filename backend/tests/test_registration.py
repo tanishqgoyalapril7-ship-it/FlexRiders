@@ -1,5 +1,6 @@
 """Rider registration: vehicle number validation and normalisation."""
 import pytest
+from tests.conftest import SELFIE
 
 from app.schemas.all_schemas import normalize_vehicle_number
 
@@ -29,14 +30,14 @@ def test_invalid_vehicle_numbers(raw):
 
 
 def test_registration_stores_normalised_vehicle_number(client):
-    body = {"full_name": "Plate Rider", "mobile_number": "9100000123", "password": "riderPass1", "vehicle_number": "hr 26 dk 8337", "vehicle_category": "TWO_WHEELER"}
+    body = {"selfie": SELFIE, "full_name": "Plate Rider", "mobile_number": "9100000123", "password": "riderPass1", "vehicle_number": "hr 26 dk 8337", "vehicle_category": "TWO_WHEELER"}
     res = client.post(f"{API}/auth/register", json=body)
     assert res.status_code == 200, res.text
     token = res.json()["access_token"]
     me = client.get(f"{API}/riders/me", headers={"Authorization": f"Bearer {token}"}).json()
     assert me["vehicle_number"] == "HR26DK8337"
 
-    bad = client.post(f"{API}/auth/register", json={"vehicle_category": "CYCLE", **body, "mobile_number": "9100000124", "vehicle_number": "12345"})
+    bad = client.post(f"{API}/auth/register", json={"selfie": SELFIE, "vehicle_category": "CYCLE", **body, "mobile_number": "9100000124", "vehicle_number": "12345"})
     assert bad.status_code == 422
-    dup = client.post(f"{API}/auth/register", json={"vehicle_category": "CYCLE", **body, "mobile_number": "9100000125", "vehicle_number": "HR-26-DK-8337"})
+    dup = client.post(f"{API}/auth/register", json={"selfie": SELFIE, "vehicle_category": "CYCLE", **body, "mobile_number": "9100000125", "vehicle_number": "HR-26-DK-8337"})
     assert dup.status_code == 400 and "already registered" in dup.json()["detail"]

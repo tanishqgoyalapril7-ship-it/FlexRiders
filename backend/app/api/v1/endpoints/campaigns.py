@@ -78,6 +78,7 @@ from app.services import terms_service as terms
 from app.services import campaign_service as svc
 from app.services.audit_service import log_admin_action
 from app.services.standard_terms import STANDARD_TERMS
+from app.schemas.all_schemas import normalize_vehicle_category
 
 visibility_log = logging.getLogger("app.campaigns.visibility")
 if not visibility_log.handlers:  # Uvicorn doesn't configure app loggers; print these to the server console
@@ -440,10 +441,17 @@ def list_campaigns(
     start_from: Optional[date] = None,
     end_to: Optional[date] = None,
     category: Optional[str] = None,
+    vehicle: Optional[str] = None,  # Campaigns this vehicle type can join (restricted to it, or open to all)
     db: Session = Depends(get_db),
     admin: User = Depends(get_current_admin),
 ):
+    if vehicle and vehicle != "ALL":
+        try:
+            vehicle = normalize_vehicle_category(vehicle)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
     query = db.query(Campaign).join(Brand, Campaign.brand_id == Brand.id)
+    category = (category or "").strip().upper().replace(" ", "_")
     if category and category != "ALL":
         if category == CampaignCategory.STANDARD:
             query = query.filter(or_(Campaign.campaign_category.is_(None), Campaign.campaign_category == category))
@@ -461,6 +469,9 @@ def list_campaigns(
     campaigns = [svc.sync_campaign_status(db, c) for c in query.order_by(Campaign.start_date.desc(), Campaign.id.desc()).all()]
     if status and status != "ALL":
         campaigns = [c for c in campaigns if c.status == status]
+    if vehicle and vehicle != "ALL":
+        # Same rule as joining: an empty eligibility list means every vehicle type may join.
+        campaigns = [c for c in campaigns if not svc.eligible_categories(c) or vehicle in svc.eligible_categories(c)]
     return [_campaign_dict(db, c) for c in campaigns]
 
 

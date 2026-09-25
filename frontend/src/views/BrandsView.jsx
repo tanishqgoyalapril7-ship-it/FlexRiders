@@ -1,15 +1,35 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { api } from '../services/api';
 import { Briefcase, Plus, Users, Phone, Search, Trash2 } from 'lucide-react';
 import { BrandLogo } from '../components/BrandModals';
 
-export default function BrandsView({ brands = [], onCreateBrand, onViewBrand, onEditBrand, onAssignRider, onToggleActive, onDeleteBrand }) {
+export default function BrandsView({ brands = [], onCreateBrand, onViewBrand, onShowRiders, onEditBrand, onAssignRider, onToggleActive, onDeleteBrand }) {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('ALL');
+  // Server search also matches contact numbers and campaign names.
+  const [matchIds, setMatchIds] = useState(null);
   const term = search.trim().toLowerCase();
+  useEffect(() => {
+    if (!term) {
+      setMatchIds(null);
+      return undefined;
+    }
+    const timer = setTimeout(
+      () =>
+        api
+          .searchBrands(term)
+          .then((found) => setMatchIds(new Set(found.map((b) => b.id))))
+          .catch(() => setMatchIds(null)),
+      250
+    );
+    return () => clearTimeout(timer);
+  }, [term]);
   const visible = brands.filter(
     (b) =>
       (status === 'ALL' || (status === 'ACTIVE') === b.is_active) &&
-      (!term || [b.name, b.code, b.contact_person, b.description].some((v) => (v || '').toLowerCase().includes(term)))
+      (!term ||
+        (matchIds && matchIds.has(b.id)) ||
+        [b.name, b.code, b.contact_person, b.contact_number, b.description].some((v) => (v || '').toLowerCase().includes(term)))
   );
   return (
     <div className="page-container">
@@ -40,7 +60,7 @@ export default function BrandsView({ brands = [], onCreateBrand, onViewBrand, on
             </div>
             <div className="search-container" style={{ width: 260 }}>
               <Search size={15} color="#94A3B8" />
-              <input className="search-input" placeholder="Search name, code, contact…" value={search} onChange={(e) => setSearch(e.target.value)} />
+              <input className="search-input" placeholder="Search name, contact, phone or campaign…" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
           </div>
         </div>
@@ -102,7 +122,7 @@ export default function BrandsView({ brands = [], onCreateBrand, onViewBrand, on
 
               <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid #F1F5F9', paddingTop: '12px' }}>
                 <button className="btn-secondary" style={{ flex: 1, padding: '7px 10px', fontSize: '0.78rem' }} onClick={() => onViewBrand(b)}>
-                  Details
+                  Dashboard
                 </button>
                 <button className="btn-secondary" style={{ flex: 1, padding: '7px 10px', fontSize: '0.78rem' }} onClick={() => onEditBrand(b)}>
                   Edit

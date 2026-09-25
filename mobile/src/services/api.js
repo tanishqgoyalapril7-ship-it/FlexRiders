@@ -158,6 +158,7 @@ export const mobileApi = {
     );
 
     const res = await fetch(`${API_BASE_URL}/auth/register`, {
+      timeoutMs: 60000, // Includes the selfie; mobile data can be slow
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),

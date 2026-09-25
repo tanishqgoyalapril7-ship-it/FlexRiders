@@ -128,6 +128,11 @@ export const api = {
   getBrands: (activeOnly = false) => fetchWithAuth(`/brands${activeOnly ? '?active_only=true' : ''}`),
 
   getBrandDetail: (id) => fetchWithAuth(`/brands/${id}`),
+  searchBrands: (search) => fetchWithAuth(`/brands?search=${encodeURIComponent(search)}`),
+  getBrandDashboard: (id, params = {}) => {
+    const query = new URLSearchParams(Object.entries(params).filter(([, v]) => v)).toString();
+    return fetchWithAuth(`/brands/${id}/dashboard${query ? `?${query}` : ''}`);
+  },
   getBrandDeleteImpact: (id) => fetchWithAuth(`/brands/${id}/delete-impact`),
   deleteBrand: (id) => fetchWithAuth(`/brands/${id}`, { method: 'DELETE' }),
 
@@ -277,6 +282,17 @@ export const api = {
   shareCampaign: (id, enabled) => fetchWithAuth(`/campaigns/${id}/share`, { method: 'POST', body: JSON.stringify({ enabled }) }),
   getActivityLog: (id) => fetchWithAuth(`/campaigns/${id}/activity-log`),
   getCampaignSnapshot: (id) => fetchWithAuth(`/campaigns/${id}/snapshot`),
+
+  // Driver selfies are private: loaded with the admin token into a local object URL (the caller revokes it).
+  getRiderSelfieUrl: async (riderId) => {
+    const response = await fetch(`${API_BASE}/admin/riders/${riderId}/selfie`, {
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      cache: 'no-store',
+    });
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error('Could not load the selfie');
+    return URL.createObjectURL(await response.blob());
+  },
 
   // Export endpoints require the admin token, so download through fetch instead of opening the URL.
   downloadCampaignReport: async (id) => {

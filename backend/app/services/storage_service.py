@@ -1,4 +1,4 @@
-"""Uploaded files: campaign banners and rider proof photos.
+"""Uploaded files: campaign banners, rider proof photos and (private) driver selfies.
 
 Every file is referenced in the database as "/uploads/<folder>/<name>", wherever it is stored:
 - Local development: files live in UPLOAD_DIR and the backend serves /uploads directly.
@@ -6,6 +6,8 @@ Every file is referenced in the database as "/uploads/<folder>/<name>", wherever
   STORAGE_BUCKET. /uploads/<path> answers with a redirect to a short-lived signed URL, so the bucket
   can't be listed or read directly and shared links expire. File names are random (UUID), so a path
   can't be guessed.
+- Driver selfies (folder "selfies") are private personal images: /uploads never serves them, in either
+  mode. Admins view them through GET /admin/riders/{id}/selfie, which checks the admin's login.
 """
 import os
 import shutil
@@ -67,6 +69,36 @@ def save(content: bytes, extension: str, folder: str, content_type: str = "appli
         with open(os.path.join(settings.UPLOAD_DIR, path), "wb") as f:
             f.write(content)
     return PREFIX + path
+
+
+# Folders that hold private personal images: never served through the public /uploads route.
+PRIVATE_FOLDERS = ("selfies",)
+
+
+def is_private(path: str) -> bool:
+    path = path[len(PREFIX):] if path.startswith(PREFIX) else path.lstrip("/")
+    return path.split("/", 1)[0] in PRIVATE_FOLDERS
+
+
+def read(url: Optional[str]) -> Optional[bytes]:
+    """The stored file's bytes (for private files served by an authorised endpoint), or None if missing."""
+    if not url or not url.startswith(PREFIX):
+        return None
+    path = url[len(PREFIX):]
+    if ".." in path.split("/"):
+        return None
+    if remote():
+        res = httpx.get(f"{_base()}/object/{settings.STORAGE_BUCKET}/{path}", headers=_headers(), timeout=30)
+        if res.status_code == 404 or res.status_code == 400:
+            return None
+        if res.status_code >= 300:
+            raise StorageError(f"Could not read the file ({res.status_code}).")
+        return res.content
+    local = os.path.join(settings.UPLOAD_DIR, path)
+    if not os.path.isfile(local):
+        return None
+    with open(local, "rb") as f:
+        return f.read()
 
 
 def delete(url: Optional[str]) -> None:

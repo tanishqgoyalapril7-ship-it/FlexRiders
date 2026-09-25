@@ -105,7 +105,7 @@ def hard_delete_rider(db: Session, rider: Rider, admin: Optional[User], reason: 
         raise DataAdminError(
             "This rider has payment, brand or campaign history, so they can't be permanently deleted. Archive them instead."
         )
-    label, user = impact["name"], rider.user
+    label, user, selfie = impact["name"], rider.user, rider.profile_photo
     db.query(CampaignApplication).filter(CampaignApplication.rider_id == rider.id).delete(synchronize_session=False)
     # Referral links to or from this rider (a rider with a rewarded referral has payments, so isn't deleted here).
     db.query(RiderReferral).filter(
@@ -117,6 +117,7 @@ def hard_delete_rider(db: Session, rider: Rider, admin: Optional[User], reason: 
     if user is not None:
         db.delete(user)  # Cascades the rider's notifications
     db.commit()
+    _remove_upload(selfie)  # The driver selfie is personal data: it goes with the rider
     if admin is not None:
         log_admin_action(db=db, admin_user=admin, action="RIDER_DELETED", target_type="RIDER", target_id=label, details=f"{label} permanently deleted. {reason}".strip())
 
@@ -392,6 +393,8 @@ def reset_data(db: Session, scope: str, confirmation: str, admin: User) -> Dict:
 
     if scope in ("campaign_activity", "campaigns", "riders", "all"):
         _clear_upload_folder("campaign-proofs")
+    if scope in ("riders", "all"):
+        _clear_upload_folder("selfies")  # Driver selfies go with their riders
     if scope in ("campaigns", "brands", "all"):
         _clear_upload_folder("campaigns")
 

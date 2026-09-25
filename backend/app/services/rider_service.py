@@ -16,6 +16,9 @@ from app.services.audit_service import log_admin_action
 from datetime import datetime
 from typing import Optional, List
 
+# Private folder for driver selfies. Never served through the public /uploads route.
+SELFIE_FOLDER = "selfies"
+
 
 def generate_next_rider_id(db: Session) -> str:
     """Generate sequential Rider ID like SR-000001, SR-000145"""
@@ -35,24 +38,7 @@ def generate_next_rider_id(db: Session) -> str:
 
 def register_new_rider(db: Session, reg: RiderRegistrationRequest) -> Rider:
     """Registers a new rider in PENDING status and sends admin notification"""
-    # 1. Create or get user
-    user = db.query(User).filter(User.phone == reg.mobile_number).first()
-    if not user:
-        user = User(
-            phone=reg.mobile_number,
-            email=reg.email,
-            hashed_password=get_password_hash(reg.password or "Rider@123"),
-            role=UserRole.RIDER,
-            is_active=True,
-        )
-        db.add(user)
-        db.flush()
-    else:
-        # Check if already has rider profile
-        existing_rider = db.query(Rider).filter(Rider.user_id == user.id).first()
-        if existing_rider:
-            return existing_rider
-
+    # 1. Checks. Every check runs before anything is created, so a refused registration leaves nothing behind.
     from app.services import referral_service  # Local import avoids a circular import
 
     try:
@@ -61,6 +47,20 @@ def register_new_rider(db: Session, reg: RiderRegistrationRequest) -> Rider:
         raise HTTPException(status_code=400, detail=str(e))
     if reg.vehicle_number and db.query(Rider.id).filter(Rider.vehicle_number == reg.vehicle_number).first():
         raise HTTPException(status_code=400, detail=f"Vehicle {reg.vehicle_number} is already registered to another rider.")
+
+    # Registration only ever creates a NEW account. A number that already has one (a rider, or an admin)
+    # must log in with its password: registration never returns, reuses or attaches to an existing account.
+    if db.query(User.id).filter(User.phone == reg.mobile_number).first():
+        raise HTTPException(status_code=400, detail="This mobile number is already registered. Please log in instead.")
+    user = User(
+        phone=reg.mobile_number,
+        email=reg.email,
+        hashed_password=get_password_hash(reg.password),
+        role=UserRole.RIDER,
+        is_active=True,
+    )
+    db.add(user)
+    db.flush()
 
     # 2. Generate unique Rider ID
     sr_id = generate_next_rider_id(db)
@@ -72,7 +72,6 @@ def register_new_rider(db: Session, reg: RiderRegistrationRequest) -> Rider:
         full_name=reg.full_name,
         mobile_number=reg.mobile_number,
         email=reg.email,
-        profile_photo=reg.profile_photo,
         dob=reg.dob,
         current_company=reg.current_company or "Independent",
         current_role=reg.current_role or "Rider",
@@ -93,6 +92,22 @@ def register_new_rider(db: Session, reg: RiderRegistrationRequest) -> Rider:
     )
     db.add(rider)
     db.flush()
+
+    # Driver selfie (required): stored privately (Supabase Storage in production) and linked to this rider.
+    # If it can't be stored, nothing is saved and the rider can simply try again.
+    from app.schemas.all_schemas import decode_selfie
+    from app.services import storage_service
+
+    try:
+        content, extension, content_type = decode_selfie(reg.selfie)
+        rider.profile_photo = storage_service.save(content, extension, SELFIE_FOLDER, content_type)
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    except storage_service.StorageError:
+        db.rollback()
+        raise HTTPException(status_code=503, detail="Your selfie couldn't be saved just now, so your registration wasn't submitted. Please try again.")
+
     if referrer:
         referral_service.link_referral(db, referrer, rider)
 
@@ -108,7 +123,12 @@ def register_new_rider(db: Session, reg: RiderRegistrationRequest) -> Rider:
             )
             db.add(rider_doc)
 
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        storage_service.delete(rider.profile_photo)  # Don't leave an unlinked selfie behind
+        raise
     db.refresh(rider)
 
     # 5. Send Admin notification

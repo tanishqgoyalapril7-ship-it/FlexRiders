@@ -169,14 +169,47 @@ def _vehicle_number_rule(category: Optional[str], number: Optional[str]) -> None
         raise ValueError(problem)
 
 
+SELFIE_MIN_BYTES = 1024          # Anything smaller isn't a real camera photo
+SELFIE_MAX_BYTES = 3 * 1024 * 1024  # The app sends ~100-300 KB; this keeps requests well under hosting limits
+SELFIE_MAX_BASE64 = SELFIE_MAX_BYTES * 4 // 3 + 64
+SELFIE_TYPES = ((b"\xff\xd8\xff", ".jpg", "image/jpeg"), (b"\x89PNG\r\n\x1a\n", ".png", "image/png"))
+
+
+def decode_selfie(value: Optional[str]):
+    """Base64 selfie -> (bytes, extension, content type). Raises ValueError with a message for the rider."""
+    import base64
+    import binascii
+
+    text = (value or "").strip()
+    if text.startswith("data:") and "," in text:
+        text = text.split(",", 1)[1]
+    if not text:
+        raise ValueError("Take a driver selfie to complete your registration.")
+    try:
+        content = base64.b64decode(text, validate=True)
+    except (binascii.Error, ValueError):
+        raise ValueError("The selfie could not be read. Please take it again.")
+    if len(content) < SELFIE_MIN_BYTES or len(content) > SELFIE_MAX_BYTES:
+        raise ValueError("The selfie could not be read. Please take it again.")
+    for magic, extension, content_type in SELFIE_TYPES:
+        if content.startswith(magic):
+            return content, extension, content_type
+    if content[:4] == b"RIFF" and content[8:12] == b"WEBP":
+        return content, ".webp", "image/webp"
+    raise ValueError("The selfie must be a photo (JPEG or PNG). Please take it again.")
+
+
 class RiderRegistrationRequest(BaseModel):
     # Step 1: Personal
     full_name: str
     mobile_number: str
     email: Optional[str] = None
     dob: Optional[str] = None
-    profile_photo: Optional[str] = None
-    password: Optional[str] = "Rider@123"
+    # Required, no default: a missing password must never become a known one.
+    password: str = Field(..., min_length=6, max_length=128)
+    # Required driver selfie taken with the phone camera: base64 JPEG / PNG / WebP (a data: URL prefix is fine).
+    # The server stores it privately and links it to the new rider; clients can't set a photo path themselves.
+    selfie: str = Field(..., max_length=SELFIE_MAX_BASE64)
 
     # Step 2: Work
     current_company: Optional[str] = None
@@ -220,6 +253,12 @@ class RiderRegistrationRequest(BaseModel):
     def _vehicle_number_needed(self):
         _vehicle_number_rule(self.vehicle_category, self.vehicle_number)
         return self
+
+    @field_validator("selfie")
+    @classmethod
+    def _valid_selfie(cls, value):
+        decode_selfie(value)  # Raises with a readable message; the bytes are decoded again when stored
+        return value
 
 
 class AdminRiderCreate(BaseModel):
@@ -394,8 +433,8 @@ class RiderDetailResponse(RiderResponse):
 
 
 class RiderProfileUpdateRequest(BaseModel):
+    # The driver selfie (profile_photo) is set only at registration; profile edits can't change or remove it.
     dob: Optional[str] = None
-    profile_photo: Optional[str] = None
     primary_area: Optional[str] = None
     additional_locations: Optional[str] = None
     preferred_radius: Optional[str] = None

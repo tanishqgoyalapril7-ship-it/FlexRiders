@@ -86,3 +86,10 @@ def before_start(db, campaign_id):
         db.refresh(campaign)
         campaign.start_date, campaign.end_date = start, end
         db.commit()
+
+
+# A valid driver selfie for registration requests (a small JPEG-shaped payload, base64).
+import base64 as _b64
+
+SELFIE_BYTES = b"\xff\xd8\xff\xe0" + b"selfie-test-image " * 80
+SELFIE = _b64.b64encode(SELFIE_BYTES).decode()

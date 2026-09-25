@@ -9,6 +9,7 @@ import AuditLogsView from './views/AuditLogsView';
 import ReportsView from './views/ReportsView';
 import CampaignsView from './views/CampaignsView';
 import CampaignDetailView from './views/CampaignDetailView';
+import CustomerDetailView from './views/CustomerDetailView';
 import { JoinRequestsView } from './components/JoinRequests';
 import { AdminsView, LoginView, NotificationsView, SettingsView } from './views/AdminPages';
 import { RiderDetailModal, CreatePaymentModal } from './components/Modals';
@@ -47,6 +48,13 @@ export default function App() {
   const [showCreateBrandModal, setShowCreateBrandModal] = useState(false);
   const [editingBrand, setEditingBrand] = useState(null);
   const [viewingBrandId, setViewingBrandId] = useState(null);
+  // Customer (brand) dashboard page, and where "Back" on a campaign page returns to.
+  const [customerId, setCustomerId] = useState(null);
+  const [campaignBackView, setCampaignBackView] = useState('campaigns');
+  useEffect(() => {
+    // Leaving the customer page any other way: campaign pages go back to the campaign list again.
+    if (activeView !== 'campaign-detail' && activeView !== 'customer') setCampaignBackView('campaigns');
+  }, [activeView]);
   const [assignTarget, setAssignTarget] = useState(null); // { rider } or { brand }
   const [confirmAction, setConfirmAction] = useState(null);
   const [danger, setDanger] = useState(null);
@@ -547,7 +555,11 @@ export default function App() {
           <BrandsView
             brands={brands}
             onCreateBrand={() => setShowCreateBrandModal(true)}
-            onViewBrand={(b) => setViewingBrandId(b.id)}
+            onViewBrand={(b) => {
+              setCustomerId(b.id);
+              setActiveView('customer');
+            }}
+            onShowRiders={(b) => setViewingBrandId(b.id)}
             onEditBrand={setEditingBrand}
             onAssignRider={(b) => setAssignTarget({ brand: b })}
             onToggleActive={handleToggleBrandActive}
@@ -598,9 +610,26 @@ export default function App() {
             key={selectedCampaignId}
             campaignId={selectedCampaignId}
             brands={brands}
-            onBack={() => setActiveView('campaigns')}
+            onBack={() => {
+              setActiveView(campaignBackView);
+              setCampaignBackView('campaigns');
+            }}
             onViewRider={handleViewRiderFull}
             onChanged={refreshAllData}
+          />
+        )}
+        {activeView === 'customer' && customerId && (
+          <CustomerDetailView
+            key={`${customerId}-${brandRefreshKey}`}
+            brandId={customerId}
+            onBack={() => setActiveView('brands')}
+            onOpenCampaign={(id) => {
+              setSelectedCampaignId(id);
+              setCampaignBackView('customer');
+              setActiveView('campaign-detail');
+            }}
+            onEditBrand={setEditingBrand}
+            onShowRiders={(b) => setViewingBrandId(b.id)}
           />
         )}
         {activeView === 'join-requests' && <JoinRequestsView onChanged={refreshAllData} />}

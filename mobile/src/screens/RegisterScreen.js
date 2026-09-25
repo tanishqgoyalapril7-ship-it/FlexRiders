@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import {
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -14,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { mobileApi } from '../services/api';
 import { useStyles, useTheme } from '../theme';
 import { OutlineButton, PrimaryButton, ScreenHeader } from '../components/ui';
+import SelfieCapture from '../components/SelfieCapture';
 import { AutocompleteField, DateOfBirthField, PasswordField, ageOn, VehicleCategoryField, vehicleCategoryLabel, vehicleNumberOptional } from '../components/formFields';
 import {
   CITIES,
@@ -23,7 +25,8 @@ import {
   normalizeVehicleNumber,
 } from '../data/suggestions';
 
-const STEPS = ['Personal', 'Work', 'Vehicle', 'Payment', 'Review'];
+const STEPS = ['Personal', 'Work', 'Vehicle', 'Payment', 'Selfie', 'Review'];
+const SELFIE_STEP = 4;
 
 function Field({ label, required, hint, hintTone, ...inputProps }) {
   const styles = useStyles(makeStyles);
@@ -66,6 +69,8 @@ export default function RegisterScreen({ onBack, onRegistered, initialReferralCo
     gpay_number: '',
     referral_code: initialReferralCode,
   });
+  // Required driver selfie: { uri, base64 } from the camera.
+  const [selfie, setSelfie] = useState(null);
   const set = (key) => (value) => setForm((prev) => ({ ...prev, [key]: value }));
 
   const validateStep = () => {
@@ -81,6 +86,7 @@ export default function RegisterScreen({ onBack, onRegistered, initialReferralCo
       if (form.vehicle_number.trim() && !isValidVehicleNumber(form.vehicle_number)) return 'Please enter a valid vehicle number, e.g. HR26DK8337.';
       if (!form.primary_city.trim()) return 'Please enter your primary working city.';
     }
+    if (step === SELFIE_STEP && !selfie) return 'Please take your driver selfie to continue.';
     return null;
   };
 
@@ -94,10 +100,16 @@ export default function RegisterScreen({ onBack, onRegistered, initialReferralCo
   };
 
   const submit = async () => {
+    if (!selfie) {
+      Alert.alert('Selfie required', 'Please take your driver selfie before submitting.');
+      setStep(SELFIE_STEP);
+      return;
+    }
     setLoading(true);
     try {
       const trimmed = Object.fromEntries(Object.entries(form).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v]));
       trimmed.vehicle_number = trimmed.vehicle_number ? normalizeVehicleNumber(trimmed.vehicle_number) : null;
+      trimmed.selfie = selfie.base64;
       const result = await mobileApi.register(trimmed);
       await onRegistered(result);
     } catch (err) {
@@ -246,9 +258,28 @@ export default function RegisterScreen({ onBack, onRegistered, initialReferralCo
           </>
         )}
 
-        {step === 4 && (
+        {step === SELFIE_STEP && (
+          <>
+            <Text style={styles.stepTitle}>Driver Selfie</Text>
+            <Text style={[styles.hint, { marginTop: -10, marginBottom: 18 }]}>
+              Required. Take a clear photo of your face with the front camera. Only the FlexRiders team can see it.
+            </Text>
+            <SelfieCapture value={selfie} onChange={setSelfie} />
+          </>
+        )}
+
+        {step === SELFIE_STEP + 1 && (
           <>
             <Text style={styles.stepTitle}>Review your application</Text>
+            {selfie ? (
+              <View style={styles.selfieRow}>
+                <Image source={{ uri: selfie.uri }} style={styles.selfieThumb} />
+                <Text style={styles.reviewValue}>Driver selfie added</Text>
+                <TouchableOpacity onPress={() => setStep(SELFIE_STEP)}>
+                  <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 13 }}>Retake</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
             <View style={styles.reviewCard}>
               {reviewRows.map(([label, value], i) => (
                 <View key={label} style={[styles.reviewRow, i === reviewRows.length - 1 && { borderBottomWidth: 0 }]}>
@@ -325,6 +356,8 @@ const makeStyles = (c) =>
       gap: 16,
     },
     reviewLabel: { fontSize: 13, color: c.textMuted },
+    selfieRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 14 },
+    selfieThumb: { width: 48, height: 48, borderRadius: 24, backgroundColor: c.surfaceAlt },
     reviewValue: { fontSize: 13, fontWeight: '600', color: c.text, flexShrink: 1, textAlign: 'right' },
     footer: {
       flexDirection: 'row',

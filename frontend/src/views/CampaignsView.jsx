@@ -2,9 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { Plus, Search, Megaphone, PlayCircle, Users, Wallet, RotateCcw } from 'lucide-react';
 import { api } from '../services/api';
 import { CampaignFormModal } from '../components/CampaignModals';
-import { CAMPAIGN_CATEGORIES, CAMPAIGN_STATUSES, CampaignStatusPill, EmptyState, SlotProgress, StatCard, formatDateRange, formatINR } from '../components/CampaignShared';
+import { CAMPAIGN_CATEGORIES, CAMPAIGN_STATUSES, VEHICLE_TYPES, CampaignStatusPill, EmptyState, SlotProgress, StatCard, formatDateRange, formatINR } from '../components/CampaignShared';
 
-const EMPTY_FILTERS = { search: '', status: 'ALL', brand_id: '', start_from: '', end_to: '', category: '' };
+const EMPTY_FILTERS = { search: '', status: 'ALL', brand_id: '', start_from: '', end_to: '', category: '', vehicle: '' };
 
 export default function CampaignsView({ brands = [], summary, initialSearch = '', onOpenCampaign, onChanged, onCreateBrand }) {
   const [filters, setFilters] = useState({ ...EMPTY_FILTERS, search: initialSearch });
@@ -106,6 +106,17 @@ export default function CampaignsView({ brands = [], summary, initialSearch = ''
             </select>
           </div>
           <div className="form-group">
+            <label className="form-label">Vehicle</label>
+            <select className="form-input" value={filters.vehicle} onChange={setFilter('vehicle')}>
+              <option value="">All vehicles</option>
+              {VEHICLE_TYPES.map(([value, label]) => (
+                <option key={value} value={value}>
+                  Open to {label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="form-group">
             <label className="form-label">Starts on or after</label>
             <input type="date" className="form-input" value={filters.start_from} onChange={setFilter('start_from')} />
           </div>
@@ -129,6 +140,7 @@ export default function CampaignsView({ brands = [], summary, initialSearch = ''
               <tr>
                 <th>Campaign</th>
                 <th>Brand</th>
+                <th>Vehicles</th>
                 <th>Dates</th>
                 <th>Slots</th>
                 <th>Assigned</th>
@@ -147,6 +159,12 @@ export default function CampaignsView({ brands = [], summary, initialSearch = ''
                     <div style={{ fontSize: '0.72rem', color: '#94A3B8' }}>CMP-{String(c.id).padStart(4, '0')}</div>
                   </td>
                   <td>{c.brand_name}</td>
+                  <td style={{ fontSize: '0.8rem' }}>
+                    {c.eligible_vehicle_label}
+                    {c.campaign_category && c.campaign_category !== 'STANDARD' ? (
+                      <div style={{ fontSize: '0.72rem', color: '#94A3B8' }}>{c.campaign_category_label}</div>
+                    ) : null}
+                  </td>
                   <td style={{ fontSize: '0.8rem', color: '#475569', whiteSpace: 'nowrap' }}>{formatDateRange(c.start_date, c.end_date)}</td>
                   <td>{c.total_slots}</td>
                   <td>
@@ -183,7 +201,7 @@ export default function CampaignsView({ brands = [], summary, initialSearch = ''
               ))}
               {!loading && campaigns.length === 0 && (
                 <tr>
-                  <td colSpan={10}>
+                  <td colSpan={11}>
                     <EmptyState icon={Megaphone}>
                       {hasFilters ? 'No campaigns match these filters.' : 'No campaigns yet. Create your first campaign to start assigning riders.'}
                     </EmptyState>

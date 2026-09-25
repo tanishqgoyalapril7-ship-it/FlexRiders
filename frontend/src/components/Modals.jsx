@@ -1,6 +1,58 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { api } from '../services/api';
 import { vehicleLabel } from './CampaignShared';
 import { X, CheckCircle, XCircle, AlertTriangle, FileText, Check, Shield } from 'lucide-react';
+
+/** The rider's registration selfie, loaded privately with the admin's login. */
+function RiderSelfie({ rider }) {
+  const [url, setUrl] = useState(null);
+  const [state, setState] = useState(rider.profile_photo ? 'loading' : 'none');
+  const [large, setLarge] = useState(false);
+  useEffect(() => {
+    if (!rider.profile_photo) return undefined;
+    let objectUrl = null;
+    let cancelled = false;
+    api
+      .getRiderSelfieUrl(rider.id)
+      .then((u) => {
+        objectUrl = u;
+        if (cancelled) return;
+        setUrl(u);
+        setState(u ? 'ready' : 'missing');
+      })
+      .catch(() => !cancelled && setState('error'));
+    return () => {
+      cancelled = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [rider.id, rider.profile_photo]);
+
+  const size = large ? 220 : 76;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+      {state === 'ready' ? (
+        <img
+          src={url}
+          alt={`Selfie of ${rider.full_name}`}
+          onClick={() => setLarge(!large)}
+          title={large ? 'Click to shrink' : 'Click to enlarge'}
+          style={{ width: size, height: size, borderRadius: large ? 14 : '50%', objectFit: 'cover', border: '1px solid #E2E8F0', cursor: 'zoom-in' }}
+        />
+      ) : (
+        <div style={{ width: 76, height: 76, borderRadius: '50%', background: '#F1F5F9', border: '1px dashed #CBD5E1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.68rem', color: '#94A3B8', textAlign: 'center', padding: 6 }}>
+          {state === 'loading' ? 'Loading…' : 'No selfie'}
+        </div>
+      )}
+      <div style={{ fontSize: '0.75rem', color: '#64748B', lineHeight: 1.5 }}>
+        <div style={{ fontWeight: 700, color: '#0F172A' }}>Driver selfie</div>
+        {state === 'ready' ? 'Taken at registration. Private: visible to admins only.' : null}
+        {state === 'none' ? 'No selfie on file (added by an admin, or registered before selfies were required).' : null}
+        {state === 'missing' ? 'The selfie file could not be found.' : null}
+        {state === 'error' ? 'The selfie could not be loaded. Try again later.' : null}
+      </div>
+    </div>
+  );
+}
 
 export function RiderDetailModal({
   rider,
@@ -51,6 +103,7 @@ export function RiderDetailModal({
 
         {/* Body */}
         <div className="modal-body">
+          <RiderSelfie rider={rider} />
           {/* Section: Overview Cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
             <div style={{ background: '#F8FAFC', padding: '12px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>

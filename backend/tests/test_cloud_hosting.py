@@ -9,7 +9,7 @@ from app.core.config import settings
 from app.models.all_models import Notification
 from app.services import storage_service
 from app.services.campaign_service import today_ist
-from tests.conftest import before_start
+from tests.conftest import SELFIE, before_start
 from tests.test_crud import make_admin, rider_payload
 
 API = "/api/v1"
@@ -157,7 +157,7 @@ def test_login_does_not_reveal_which_numbers_exist(client, db_session):
     make_admin(client, db_session)
     unknown = client.post(f"{API}/auth/login", json={"phone": "+919000009999", "password": "whatever123"})
     body = rider_payload()
-    client.post(f"{API}/auth/register", json={**body, "vehicle_category": "CYCLE"})
+    client.post(f"{API}/auth/register", json={"selfie": SELFIE, **body, "vehicle_category": "CYCLE"})
     wrong = client.post(f"{API}/auth/login", json={"phone": body["mobile_number"], "password": "wrongPass999"})
     assert unknown.status_code == wrong.status_code == 401
     assert unknown.json()["detail"] == wrong.json()["detail"] == "Incorrect phone number or password"

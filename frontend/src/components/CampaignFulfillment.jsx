@@ -4,7 +4,7 @@ import { api } from '../services/api';
 import { toast } from './Feedback';
 import { EmptyState, StatusPill, formatDate, formatINR } from './CampaignShared';
 
-const STATUS_LABELS = {
+export const STATUS_LABELS = {
   ON_TRACK: 'On Track',
   AT_RISK: 'At Risk',
   BEHIND_TARGET: 'Behind Target',

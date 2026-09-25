@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.models.all_models import Brand, Rider, RiderBrandAssignment, User, RiderStatus
@@ -14,7 +14,10 @@ from app.services.audit_service import log_admin_action
 from app.services.notification_service import send_notification
 from app.services import data_admin_service as das
 from datetime import datetime, date
-from typing import List
+from typing import List, Optional
+
+from app.models.campaign_models import Campaign
+from app.services import brand_dashboard_service as dash
 
 router = APIRouter()
 
@@ -63,11 +66,23 @@ def _check_unique(db: Session, name: str, code: str, exclude_id: int = None):
 
 
 @router.get("", response_model=List[BrandResponse])
-def get_brands(active_only: bool = False, db: Session = Depends(get_db)):
-    """Lists brands created by admins. Pass active_only=true for assignment and campaign pickers."""
+def get_brands(
+    active_only: bool = False, search: Optional[str] = None, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)
+):
+    """Lists brands (customers) created by admins. Pass active_only=true for assignment and campaign pickers.
+    search matches the brand name or code, contact person or number, or one of the brand's campaign names."""
     query = db.query(Brand)
     if active_only:
         query = query.filter(Brand.is_active == True)
+    if search and search.strip():
+        term = f"%{search.strip()}%"
+        campaign_brands = db.query(Campaign.brand_id).filter(Campaign.name.ilike(term))
+        query = query.filter(
+            or_(
+                Brand.name.ilike(term), Brand.code.ilike(term), Brand.contact_person.ilike(term),
+                Brand.contact_number.ilike(term), Brand.id.in_(campaign_brands),
+            )
+        )
     return [_brand_response(db, b) for b in query.order_by(Brand.name).all()]
 
 
@@ -195,6 +210,29 @@ def update_brand(
                          target_type="BRAND", target_id=str(brand.id),
                          details=f"{brand.name}: logo {'may' if brand.public_assets_approved else 'may no longer'} be shown on public pages")
     return _brand_response(db, brand)
+
+
+@router.get("/{id}/dashboard")
+def brand_dashboard(
+    id: int,
+    status: Optional[str] = None,
+    category: Optional[str] = None,
+    vehicle: Optional[str] = None,
+    campaign_id: Optional[int] = None,
+    start_from: Optional[date] = None,
+    end_to: Optional[date] = None,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
+    """Customer dashboard: the brand's campaigns with delivery, riders, review queues and money, its
+    payment history and its activity. Filters apply to every section."""
+    brand = db.query(Brand).filter(Brand.id == id).first()
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    data = dash.dashboard(
+        db, brand, status=status, category=category, vehicle=vehicle, campaign_id=campaign_id, start_from=start_from, end_to=end_to
+    )
+    return {"brand": _brand_response(db, brand).model_dump(), **data}
 
 
 @router.get("/{id}/delete-impact")

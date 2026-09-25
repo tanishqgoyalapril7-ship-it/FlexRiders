@@ -1,5 +1,6 @@
 """End-to-end brand flow, starting from a completely empty database."""
 from datetime import date, timedelta
+from tests.conftest import SELFIE
 
 import pytest
 from fastapi.testclient import TestClient
@@ -40,18 +41,18 @@ def test_empty_database_to_campaign(empty_client):
     admin = {"Authorization": "Bearer " + c.post(f"{API}/auth/login", json={"phone": "+919000000001", "password": "adminPass1"}).json()["access_token"]}
 
     # 1. Empty database: no brands, riders or campaigns, and nothing on the dashboard.
-    assert c.get(f"{API}/brands").json() == []
+    assert c.get(f"{API}/brands", headers=admin).json() == []
     assert c.get(f"{API}/admin/riders", headers=admin).json() == []
     assert c.get(f"{API}/campaigns", headers=admin).json() == []
     assert c.get(f"{API}/reports/dashboard", headers=admin).json()["brand_distribution"] == []
 
     # 2. Admin creates Brand A.
     brand = c.post(f"{API}/brands", json={"name": "Brand A", "code": "BRA-001", "description": "Test partner"}, headers=admin).json()
-    assert [b["name"] for b in c.get(f"{API}/brands").json()] == ["Brand A"]
+    assert [b["name"] for b in c.get(f"{API}/brands", headers=admin).json()] == ["Brand A"]
     assert c.post(f"{API}/brands", json={"name": "brand a"}, headers=admin).status_code == 400  # duplicate name
 
     # 3. A new rider registers; a pending rider cannot be assigned.
-    reg = c.post(f"{API}/auth/register", json={"vehicle_category": "CYCLE", "full_name": "Rahul Sharma", "mobile_number": "9876500001", "password": "riderPass1", "primary_city": "Gurugram"}).json()
+    reg = c.post(f"{API}/auth/register", json={"selfie": SELFIE, "vehicle_category": "CYCLE", "full_name": "Rahul Sharma", "mobile_number": "9876500001", "password": "riderPass1", "primary_city": "Gurugram"}).json()
     rider_headers = {"Authorization": f"Bearer {reg['access_token']}"}
     rider_id = c.get(f"{API}/admin/riders", headers=admin).json()[0]["id"]
     res = c.post(f"{API}/brands/assign/{rider_id}", json={"brand_id": brand["id"]}, headers=admin)
@@ -75,7 +76,7 @@ def test_empty_database_to_campaign(empty_client):
     assert me["brand_history"][0]["brand_name"] == "Brand A"
     titles = [n["title"] for n in c.get(f"{API}/notifications", headers=rider_headers).json()]
     assert "Brand Assigned" in titles
-    assert c.get(f"{API}/brands").json()[0]["active_riders_count"] == 1
+    assert c.get(f"{API}/brands", headers=admin).json()[0]["active_riders_count"] == 1
     assert c.post(f"{API}/brands/assign/{rider_id}", json={"brand_id": brand["id"]}, headers=admin).status_code == 400  # already assigned
 
     # 7. Admin creates a campaign for Brand A (starting tomorrow); the rider sees it and can join.
@@ -92,8 +93,8 @@ def test_empty_database_to_campaign(empty_client):
 
     # 8. A deactivated brand is hidden from pickers and blocked for new work; history is kept.
     c.put(f"{API}/brands/{brand['id']}", json={"is_active": False}, headers=admin)
-    assert c.get(f"{API}/brands?active_only=true").json() == []
-    assert len(c.get(f"{API}/brands").json()) == 1
+    assert c.get(f"{API}/brands?active_only=true", headers=admin).json() == []
+    assert len(c.get(f"{API}/brands", headers=admin).json()) == 1
     res = c.post(
         f"{API}/campaigns",
         json={"name": "Blocked", "brand_id": brand["id"], "start_date": start, "end_date": end, "total_slots": 1, "daily_rate": 10},

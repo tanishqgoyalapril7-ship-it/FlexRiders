@@ -491,6 +491,26 @@ def update_rider(id: int, data: AdminRiderUpdate, db: Session = Depends(get_db),
     return get_rider_detail(rider.id, db, admin)
 
 
+@router.get("/{id}/selfie")
+def rider_selfie(id: int, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
+    """The rider's registration selfie (private: admins only, never cached or public)."""
+    from fastapi.responses import Response
+
+    from app.services import storage_service
+
+    rider = _get_rider(db, id)
+    if not rider.profile_photo:
+        raise HTTPException(status_code=404, detail="This rider has no selfie.")
+    try:
+        content = storage_service.read(rider.profile_photo)
+    except storage_service.StorageError:
+        raise HTTPException(status_code=503, detail="The selfie couldn't be loaded just now. Please try again.")
+    if content is None:
+        raise HTTPException(status_code=404, detail="The selfie file is missing.")
+    kind = "image/png" if content.startswith(b"\x89PNG") else "image/webp" if content[8:12] == b"WEBP" else "image/jpeg"
+    return Response(content=content, media_type=kind, headers={"Cache-Control": "private, no-store"})
+
+
 @router.get("/{id}/delete-impact")
 def rider_delete_impact(id: int, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
     return das.rider_impact(db, _get_rider(db, id))

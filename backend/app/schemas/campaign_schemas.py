@@ -42,10 +42,18 @@ class CampaignBase(BaseModel):
     def _valid_categories(cls, value):
         if not value:
             return None
-        unknown = [v for v in value if v not in VehicleCategory.ALL]
-        if unknown:
-            raise ValueError(f"Unknown vehicle category: {', '.join(unknown)}")
-        return [c for c in VehicleCategory.ALL if c in value]
+        from app.schemas.all_schemas import normalize_vehicle_category
+
+        # Same parsing as rider registration: "AUTO", "auto", "Auto" and "Auto rickshaw" all mean AUTO.
+        cleaned = set()
+        for v in value:
+            try:
+                code = normalize_vehicle_category(str(v))
+            except ValueError:
+                raise ValueError(f"Unknown vehicle category: {v}")
+            if code:
+                cleaned.add(code)
+        return [c for c in VehicleCategory.ALL if c in cleaned] or None
 
     @model_validator(mode="after")
     def check_dates(self):

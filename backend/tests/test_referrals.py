@@ -1,6 +1,7 @@
 """Refer & Earn: ₹30 to the referrer, once, when the referred rider completes their first Photo Streak."""
 import uuid
 from datetime import timedelta
+from tests.conftest import SELFIE
 
 import pytest
 
@@ -37,9 +38,9 @@ def test_referral_reward_after_first_photo_streak(client, db_session):
 
     # B registers with A's code (case doesn't matter); a wrong code is refused.
     b_phone = "9" + str(uuid.uuid4().int)[:9]
-    bad = client.post(f"{API}/auth/register", json={"vehicle_category": "CYCLE", "full_name": "Bhavesh Kumar", "mobile_number": b_phone, "password": "riderPass1", "referral_code": "SRNOPE00"})
+    bad = client.post(f"{API}/auth/register", json={"selfie": SELFIE, "vehicle_category": "CYCLE", "full_name": "Bhavesh Kumar", "mobile_number": b_phone, "password": "riderPass1", "referral_code": "SRNOPE00"})
     assert bad.status_code == 400 and "referral code" in bad.json()["detail"]
-    reg = client.post(f"{API}/auth/register", json={"vehicle_category": "CYCLE", "full_name": "Bhavesh Kumar", "mobile_number": b_phone, "password": "riderPass1", "referral_code": code.lower()})
+    reg = client.post(f"{API}/auth/register", json={"selfie": SELFIE, "vehicle_category": "CYCLE", "full_name": "Bhavesh Kumar", "mobile_number": b_phone, "password": "riderPass1", "referral_code": code.lower()})
     assert reg.status_code == 200, reg.text
     history = client.get(f"{API}/riders/me/referrals", headers=a_headers).json()["history"]
     assert history[0]["name"] == "Bhavesh" and history[0]["status"] == "JOINED" and history[0]["reward"] is None

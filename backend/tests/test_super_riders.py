@@ -1,4 +1,5 @@
 import pytest
+from tests.conftest import SELFIE
 from app.core.security import get_password_hash, UserRole
 from app.models.all_models import User, Brand, Rider, RiderStatus
 
@@ -43,6 +44,8 @@ def test_auth_and_registration_flow(client, db_session):
     reg_payload = {
         "full_name": "Kavita Rao",
         "mobile_number": "+919811002233",
+        "password": "kavitaPass1",
+        "selfie": SELFIE,
         "email": "kavita@example.com",
         "dob": "10-02-1999",
         "current_company": "LogiExpress",

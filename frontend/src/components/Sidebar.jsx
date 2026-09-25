@@ -112,12 +112,12 @@ export default function Sidebar({ open = false, onClose, activeView, setActiveVi
 
         {/* Brands */}
         <div
-          className={`nav-item ${activeView === 'brands' ? 'active' : ''}`}
+          className={`nav-item ${activeView === 'brands' || activeView === 'customer' ? 'active' : ''}`}
           onClick={() => setActiveView('brands')}
         >
           <div className="nav-item-left">
             <Briefcase size={18} />
-            <span>Brands</span>
+            <span>Brands / Customers</span>
           </div>
         </div>
 

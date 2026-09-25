@@ -14,6 +14,7 @@ export const CAMPAIGN_CATEGORIES = [
   ['STANDARD', 'Standard'],
   ['BIKE', 'Bike'],
   ['CYCLE', 'Cycle'],
+  ['AUTO', 'Auto'],
   ['TV', 'TV'],
   ['GOOGLE', 'Google'],
   ['BRAND_PARTNERSHIP', 'Brand Partnership'],

@@ -142,13 +142,14 @@ class CampaignCategory:
     STANDARD = "STANDARD"
     BIKE = "BIKE"
     CYCLE = "CYCLE"
+    AUTO = "AUTO"  # Auto-rickshaw advertising
     TV = "TV"
     GOOGLE = "GOOGLE"
     BRAND_PARTNERSHIP = "BRAND_PARTNERSHIP"
     OTHER = "OTHER"
-    ALL = (STANDARD, BIKE, CYCLE, TV, GOOGLE, BRAND_PARTNERSHIP, OTHER)
+    ALL = (STANDARD, BIKE, CYCLE, AUTO, TV, GOOGLE, BRAND_PARTNERSHIP, OTHER)
     LABELS = {
-        STANDARD: "Standard", BIKE: "Bike", CYCLE: "Cycle", TV: "TV", GOOGLE: "Google",
+        STANDARD: "Standard", BIKE: "Bike", CYCLE: "Cycle", AUTO: "Auto", TV: "TV", GOOGLE: "Google",
         BRAND_PARTNERSHIP: "Brand Partnership", OTHER: "Other",
     }
 
