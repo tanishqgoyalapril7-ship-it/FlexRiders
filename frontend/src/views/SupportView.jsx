@@ -132,29 +132,43 @@ export default function SupportView() {
       <div className="support-layout">
         <div className="card support-list">
           <div className="support-list-tools">
-            <div className="search-container" style={{ width: '100%' }}>
+            <div className="search-container support-search">
               <Search size={15} color="#94A3B8" />
               <input className="search-input" placeholder="Rider, phone, subject or campaign…" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
             <div className="support-filter-row">
-              <select className="form-input" value={filter} onChange={(e) => setFilter(e.target.value)}>
-                {FILTERS.map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-              <select className="form-input" value={assignee} onChange={(e) => setAssignee(e.target.value)}>
-                <option value="">Anyone</option>
-                <option value="-1">Unassigned</option>
-                {agents.map((a) => (
-                  <option key={a.id} value={a.id}>
-                    {a.email}
-                  </option>
-                ))}
-              </select>
-              <input type="date" className="form-input" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} title="Updated on or after" />
+              <label className="support-filter">
+                <span>Status</span>
+                <select className="form-input" value={filter} onChange={(e) => setFilter(e.target.value)}>
+                  {FILTERS.map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="support-filter">
+                <span>Assigned to</span>
+                <select className="form-input" value={assignee} onChange={(e) => setAssignee(e.target.value)}>
+                  <option value="">Anyone</option>
+                  <option value="-1">Unassigned</option>
+                  {agents.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.email}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
+            <label className="support-filter support-filter-date">
+              <span>Updated since</span>
+              <input type="date" className="form-input" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+              {dateFrom ? (
+                <button type="button" className="card-action-link" onClick={() => setDateFrom('')}>
+                  Clear
+                </button>
+              ) : null}
+            </label>
           </div>
           <div className="support-items">
             {(list || []).map((c) => (

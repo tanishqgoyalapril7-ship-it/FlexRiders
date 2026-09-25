@@ -9,7 +9,6 @@ import {
   CreditCard,
   Bell,
   BarChart3,
-  HelpCircle,
   ShieldCheck,
   UserCog,
   UserX,
@@ -230,17 +229,6 @@ export default function Sidebar({ open = false, onClose, activeView, setActiveVi
           <div className="nav-item-left">
             <BarChart3 size={18} />
             <span>Reports</span>
-          </div>
-        </div>
-
-        {/* Support */}
-        <div
-          className={`nav-item ${activeView === 'support' ? 'active' : ''}`}
-          onClick={() => setActiveView('support')}
-        >
-          <div className="nav-item-left">
-            <HelpCircle size={18} />
-            <span>Support</span>
           </div>
         </div>
 
