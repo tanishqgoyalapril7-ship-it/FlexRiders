@@ -204,3 +204,29 @@ def test_refused_registration_leaves_nothing_behind(client, db_session):
     assert db_session.query(User).filter(User.phone == body["mobile_number"]).first() is None
     body.pop("referral_code")
     assert client.post(f"{API}/auth/register", json=body).status_code == 200  # Can register normally afterwards
+
+
+# --------------------------------------------------------------------------- admin-created riders
+
+@pytest.mark.parametrize("category", ["CYCLE", "TWO_WHEELER", "AUTO", "THREE_WHEELER"])
+def test_admin_created_rider_needs_a_selfie(client, db_session, admin, uploads_dir, category):
+    body = {k: v for k, v in _body(category).items() if k != "selfie"}
+    body["primary_city"] = "Gurugram"
+    refused = client.post(f"{API}/admin/riders", json=body, headers=admin)
+    assert refused.status_code == 422 and _rider(db_session, body["mobile_number"]) is None
+    bad = client.post(f"{API}/admin/riders", json={**body, "selfie": "/uploads/selfies/x.jpg"}, headers=admin)
+    assert bad.status_code == 422
+    created = client.post(f"{API}/admin/riders", json={**body, "selfie": SELFIE}, headers=admin)
+    assert created.status_code == 200, created.text
+    rider = _rider(db_session, body["mobile_number"])
+    assert rider.profile_photo.startswith("/uploads/selfies/")
+    assert client.get(f"{API}/admin/riders/{rider.id}/selfie", headers=admin).content == SELFIE_BYTES
+
+
+def test_admin_create_storage_failure_creates_nothing(client, db_session, admin, monkeypatch):
+    monkeypatch.setattr(storage_service, "save", lambda *a, **k: (_ for _ in ()).throw(storage_service.StorageError("down")))
+    body = {**_body(), "primary_city": "Gurugram"}
+    res = client.post(f"{API}/admin/riders", json=body, headers=admin)
+    assert res.status_code == 503
+    db_session.expire_all()
+    assert db_session.query(User).filter(User.phone.like(f"%{body['mobile_number'][-10:]}")).first() is None

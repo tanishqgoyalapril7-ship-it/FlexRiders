@@ -1,6 +1,7 @@
 """CRUD, soft delete and permission rules for riders, brands, campaigns, payments, notifications and admins."""
 import uuid
 from datetime import timedelta
+from tests.conftest import SELFIE
 
 import pytest
 
@@ -29,7 +30,7 @@ def admin(client, db_session):
 
 
 def rider_payload(**extra):
-    return {"full_name": "Crud Rider", "mobile_number": _phone(), "password": "riderPass1", "primary_city": "Gurugram", "vehicle_category": "CYCLE", **extra}
+    return {"full_name": "Crud Rider", "mobile_number": _phone(), "password": "riderPass1", "primary_city": "Gurugram", "vehicle_category": "CYCLE", "selfie": SELFIE, **extra}
 
 
 def login(client, phone, password="riderPass1"):

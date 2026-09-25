@@ -36,6 +36,35 @@ def generate_next_rider_id(db: Session) -> str:
     return f"SR-{next_num:06d}"
 
 
+def store_selfie(db: Session, rider: Rider, selfie: str) -> None:
+    """Stores the required driver selfie privately (Supabase Storage in production) and links it to the
+    (flushed, not yet committed) rider. On any failure the whole creation is rolled back."""
+    from app.schemas.all_schemas import decode_selfie
+    from app.services import storage_service
+
+    try:
+        content, extension, content_type = decode_selfie(selfie)
+        rider.profile_photo = storage_service.save(content, extension, SELFIE_FOLDER, content_type)
+    except ValueError as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    except storage_service.StorageError:
+        db.rollback()
+        raise HTTPException(status_code=503, detail="The selfie couldn't be saved just now, so the account wasn't created. Please try again.")
+
+
+def commit_with_selfie(db: Session, rider: Rider) -> None:
+    """Commits a new rider; if that fails, removes the already-stored selfie so nothing is left unlinked."""
+    from app.services import storage_service
+
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        storage_service.delete(rider.profile_photo)
+        raise
+
+
 def register_new_rider(db: Session, reg: RiderRegistrationRequest) -> Rider:
     """Registers a new rider in PENDING status and sends admin notification"""
     # 1. Checks. Every check runs before anything is created, so a refused registration leaves nothing behind.
@@ -93,20 +122,7 @@ def register_new_rider(db: Session, reg: RiderRegistrationRequest) -> Rider:
     db.add(rider)
     db.flush()
 
-    # Driver selfie (required): stored privately (Supabase Storage in production) and linked to this rider.
-    # If it can't be stored, nothing is saved and the rider can simply try again.
-    from app.schemas.all_schemas import decode_selfie
-    from app.services import storage_service
-
-    try:
-        content, extension, content_type = decode_selfie(reg.selfie)
-        rider.profile_photo = storage_service.save(content, extension, SELFIE_FOLDER, content_type)
-    except ValueError as e:
-        db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
-    except storage_service.StorageError:
-        db.rollback()
-        raise HTTPException(status_code=503, detail="Your selfie couldn't be saved just now, so your registration wasn't submitted. Please try again.")
+    store_selfie(db, rider, reg.selfie)
 
     if referrer:
         referral_service.link_referral(db, referrer, rider)
@@ -123,12 +139,7 @@ def register_new_rider(db: Session, reg: RiderRegistrationRequest) -> Rider:
             )
             db.add(rider_doc)
 
-    try:
-        db.commit()
-    except Exception:
-        db.rollback()
-        storage_service.delete(rider.profile_photo)  # Don't leave an unlinked selfie behind
-        raise
+    commit_with_selfie(db, rider)
     db.refresh(rider)
 
     # 5. Send Admin notification

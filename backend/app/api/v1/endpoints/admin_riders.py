@@ -18,7 +18,7 @@ from app.services.audit_service import log_admin_action
 from app.services.notification_service import send_notification
 from app.services.payment_service import calculate_rider_earnings
 from app.services import data_admin_service as das
-from app.services.rider_service import generate_next_rider_id
+from app.services.rider_service import commit_with_selfie, generate_next_rider_id, store_selfie
 from app.core.security import get_password_hash, UserRole
 from typing import List, Optional
 
@@ -425,7 +425,9 @@ def create_rider(data: AdminRiderCreate, db: Session = Depends(get_db), admin: U
         status=data.status,
     )
     db.add(rider)
-    db.commit()
+    db.flush()
+    store_selfie(db, rider, data.selfie)  # Required for every new rider account, same private storage
+    commit_with_selfie(db, rider)
     db.refresh(rider)
     log_admin_action(db=db, admin_user=admin, action="RIDER_CREATED", target_type="RIDER", target_id=rider.rider_id, details=f"{rider.full_name} created by admin ({rider.status})")
     return get_rider_detail(rider.id, db, admin)

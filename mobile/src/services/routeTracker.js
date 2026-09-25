@@ -122,8 +122,18 @@ async function startForegroundWatch() {
   );
 }
 
-/** Starts recording today's route. Throws with a readable message if location isn't allowed. */
-export async function startRoute(campaignId) {
+/** True when "Allow all the time" is already granted (no disclosure needed before starting). */
+export async function hasBackgroundPermission() {
+  try {
+    return (await Location.getBackgroundPermissionsAsync()).status === 'granted';
+  } catch {
+    return false;
+  }
+}
+
+/** Starts recording today's route. Throws with a readable message if location isn't allowed.
+ *  askBackground: the rider has seen the in-app disclosure and agreed to screen-off recording. */
+export async function startRoute(campaignId, { askBackground = true } = {}) {
   const fg = await Location.requestForegroundPermissionsAsync();
   if (fg.status !== 'granted') {
     throw new Error('Location access is needed to record your route. Allow it in Settings.');
@@ -135,7 +145,8 @@ export async function startRoute(campaignId) {
   await AsyncStorage.setItem(STATE_KEY, JSON.stringify(state));
   let mode = 'foreground';
   try {
-    const bg = await Location.requestBackgroundPermissionsAsync();
+    // Only ever asked after the rider agreed to the disclosure shown by RouteCard.
+    const bg = askBackground ? await Location.requestBackgroundPermissionsAsync() : await Location.getBackgroundPermissionsAsync();
     if (bg.status === 'granted') {
       await Location.startLocationUpdatesAsync(TASK_NAME, {
         accuracy: Location.Accuracy.High,

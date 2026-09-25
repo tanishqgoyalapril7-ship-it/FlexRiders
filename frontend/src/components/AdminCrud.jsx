@@ -3,6 +3,7 @@ import { VEHICLE_TYPES } from './CampaignShared';
 import { Eye, EyeOff, X } from 'lucide-react';
 import { api } from '../services/api';
 import { toast } from './Feedback';
+import WebcamSelfie from './WebcamSelfie';
 
 // Same formats the backend accepts: HR26DK8337, DL3C1234, 22BH1234AA.
 export const normalizeVehicleNumber = (value) => (value || '').replace(/[\s.-]/g, '').toUpperCase();
@@ -99,6 +100,7 @@ export function RiderFormModal({ rider, onClose, onSaved }) {
   });
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [selfie, setSelfie] = useState(null); // Required for new riders
   const set = (key) => (e) => setForm((prev) => ({ ...prev, [key]: e.target.value }));
   const vehicleOk = !form.vehicle_number || isValidVehicleNumber(form.vehicle_number);
 
@@ -112,6 +114,7 @@ export function RiderFormModal({ rider, onClose, onSaved }) {
     if (form.vehicle_category !== 'CYCLE' && !form.vehicle_number.trim())
       return setError('Enter the vehicle registration number (only Cycle may be left blank).');
     if (!editing && form.password.length < 6) return setError('Set a password of at least 6 characters for the rider’s login.');
+    if (!editing && !selfie) return setError('Take the rider’s driver selfie with the camera. It is required for every new rider.');
     setSaving(true);
     setError('');
     try {
@@ -122,7 +125,7 @@ export function RiderFormModal({ rider, onClose, onSaved }) {
         saved = Object.keys(changes).length ? await api.updateRider(rider.id, changes) : rider;
       } else {
         const payload = Object.fromEntries(Object.entries(form).filter(([, v]) => v !== ''));
-        saved = await api.createRider(payload);
+        saved = await api.createRider({ ...payload, selfie });
       }
       toast.success(editing ? `${saved.full_name}'s details were updated.` : `${saved.full_name} was added as ${saved.rider_id}.`);
       onSaved(saved);
@@ -218,6 +221,12 @@ export function RiderFormModal({ rider, onClose, onSaved }) {
               <input className="form-input" value={form.gpay_number} onChange={set('gpay_number')} />
             </div>
           </div>
+          {!editing ? (
+            <div className="form-group">
+              <label className="form-label">Driver Selfie *</label>
+              <WebcamSelfie value={selfie} onChange={setSelfie} />
+            </div>
+          ) : null}
           {!editing ? (
             <div className="form-row-2">
               <div className="form-group">

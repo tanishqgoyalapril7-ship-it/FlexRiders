@@ -259,7 +259,7 @@ def test_public_page_hides_unapproved_assets_and_private_data(client, admin):
 # --------------------------------------------------------------------------- admin vehicle-number rules
 
 def _admin_create(client, admin, category, number=None):
-    body = {"full_name": "Admin Made", "mobile_number": _phone(), "password": "riderPass1", "primary_city": "Gurugram",
+    body = {"selfie": SELFIE, "full_name": "Admin Made", "mobile_number": _phone(), "password": "riderPass1", "primary_city": "Gurugram",
             "vehicle_category": category, "status": "APPROVED", **({"vehicle_number": number} if number else {})}
     return client.post(f"{API}/admin/riders", json=body, headers=admin)
 

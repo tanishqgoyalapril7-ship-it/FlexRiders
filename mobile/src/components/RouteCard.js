@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, StyleSheet, Text, TouchableOpacity, View } fr
 import { Ionicons } from '@expo/vector-icons';
 import { useStyles, useTheme } from '../theme';
 import { Card, SectionHeader } from './ui';
-import { flushRoute, getRouteState, istDate, resumeRoute, startRoute, stopRoute } from '../services/routeTracker';
+import { flushRoute, getRouteState, hasBackgroundPermission, istDate, resumeRoute, startRoute, stopRoute } from '../services/routeTracker';
 
 /** Start / End the day's campaign route. Shows no statistics — the route is only drawn for the team. */
 export default function RouteCard({ campaignId }) {
@@ -31,15 +31,36 @@ export default function RouteCard({ campaignId }) {
   if (state === undefined) return null;
   const recording = Boolean(state && !state.other && state.day === istDate());
 
-  const start = async () => {
+  const begin = async (askBackground) => {
     setBusy(true);
     try {
-      setState(await startRoute(campaignId));
+      setState(await startRoute(campaignId, { askBackground }));
     } catch (err) {
       Alert.alert('Could not start route', err.message);
     } finally {
       setBusy(false);
     }
+  };
+
+  // Google Play requires this disclosure in the app before the background-location permission is requested.
+  const start = async () => {
+    if (await hasBackgroundPermission()) {
+      begin(false);
+      return;
+    }
+    Alert.alert(
+      'Location while you ride',
+      'FlexRiders collects your location to record your campaign route, even when the app is closed or not in use, ' +
+        'from the moment you tap Start Route until you tap End Route (or the campaign day ends). The route is shared ' +
+        'only with the FlexRiders team to verify your campaign riding. It is never collected at other times.\n\n' +
+        'On the next screen, choose "Allow all the time" to keep recording with the screen off. ' +
+        'If you don’t, the route records only while the app is open.',
+      [
+        { text: 'Only while app is open', onPress: () => begin(false) },
+        { text: 'Continue', onPress: () => begin(true) },
+      ],
+      { cancelable: true }
+    );
   };
 
   const end = () =>

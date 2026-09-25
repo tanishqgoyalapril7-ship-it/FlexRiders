@@ -1510,3 +1510,10 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 .plate-check { font-size: 0.78rem; color: #92400E; background: #FEF3C7; border-radius: 6px; padding: 4px 8px; }
 .reason-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
 .reason-presets .btn-secondary { font-size: 0.75rem; padding: 4px 10px; text-align: left; }
+
+.selfie-box { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.selfie-preview { width: 132px; height: 132px; border-radius: 14px; object-fit: cover; background: #F1F5F9; border: 1px solid var(--border-color); }
+.selfie-video { transform: scaleX(-1); }
+.selfie-empty { display: flex; align-items: center; justify-content: center; font-size: 0.75rem; color: #94A3B8; border-style: dashed; }
+.selfie-actions { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 200px; align-items: flex-start; }
+.selfie-actions .btn-primary, .selfie-actions .btn-secondary { display: inline-flex; align-items: center; gap: 6px; }

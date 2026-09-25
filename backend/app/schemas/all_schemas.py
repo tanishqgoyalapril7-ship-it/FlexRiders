@@ -278,6 +278,14 @@ class AdminRiderCreate(BaseModel):
     upi_id: Optional[str] = None
     gpay_number: Optional[str] = None
     status: str = "PENDING"  # PENDING or APPROVED
+    # Every new rider account needs a driver selfie, including riders an admin adds (camera capture).
+    selfie: str = Field(..., max_length=SELFIE_MAX_BASE64)
+
+    @field_validator("selfie")
+    @classmethod
+    def _valid_selfie(cls, value):
+        decode_selfie(value)
+        return value
 
     @field_validator("email")
     @classmethod
