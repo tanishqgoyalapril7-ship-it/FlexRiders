@@ -114,7 +114,7 @@ function EditProfileModal({ rider, visible, onClose, onSaved }) {
   );
 }
 
-export default function ProfileScreen({ rider, onLogout, onProfileChanged, onAccountDeleted, onOpenRefer, onOpenNotifications, unreadCount = 0 }) {
+export default function ProfileScreen({ rider, onLogout, onProfileChanged, onAccountDeleted, onOpenRefer, onOpenNotifications, onOpenSupport, supportUnread = 0, unreadCount = 0 }) {
   const styles = useStyles(makeStyles);
   const { colors, preference, setPreference } = useTheme();
   const [editing, setEditing] = useState(false);
@@ -203,11 +203,23 @@ export default function ProfileScreen({ rider, onLogout, onProfileChanged, onAcc
         <Ionicons name="chevron-forward" size={18} color={colors.textSubtle} />
       </TouchableOpacity>
 
+      <TouchableOpacity style={[styles.referRow, { marginTop: 10 }]} onPress={onOpenSupport} activeOpacity={0.7} accessibilityRole="button">
+        <View style={styles.referIcon}>
+          <Ionicons name="chatbubbles-outline" size={20} color={colors.primary} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.referTitle}>Help & Support</Text>
+          <Text style={styles.lockedText}>{supportUnread ? `${supportUnread} new ${supportUnread === 1 ? 'reply' : 'replies'} from support` : 'Chat with the FlexRiders team'}</Text>
+        </View>
+        {supportUnread ? <View style={styles.unreadDot} /> : null}
+        <Ionicons name="chevron-forward" size={18} color={colors.textSubtle} />
+      </TouchableOpacity>
+
       <SectionHeader title="Account" />
       <Card style={{ gap: 10 }}>
         <Text style={styles.lockedText}>
-          Deleting your account removes your login and profile. If you have payments or campaign history, the account is deactivated instead so
-          those records stay available for payouts.
+          Deleting your account removes your login, selfie, contact, payment, location and support-chat details. If you have payments or
+          campaign history, your name, Rider ID, phone and those records are kept for payouts and accounts.
         </Text>
         <TouchableOpacity onPress={() => setDeleting(true)} style={styles.deleteRow} accessibilityRole="button">
           <Ionicons name="trash-outline" size={18} color={colors.danger} />

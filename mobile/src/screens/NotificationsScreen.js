@@ -7,7 +7,7 @@ import ConfirmSheet from '../components/ConfirmSheet';
 
 const FILTERS = ['All', 'Unread', 'Payments', 'System'];
 
-export default function NotificationsScreen({ notifications, onBack, onMarkAllRead, onDelete, onClearAll, onOpenCampaign }) {
+export default function NotificationsScreen({ notifications, onBack, onMarkAllRead, onDelete, onClearAll, onOpenCampaign, onOpenSupport }) {
   const styles = useStyles(makeStyles);
   const { colors } = useTheme();
   const [filter, setFilter] = useState('All');
@@ -53,16 +53,16 @@ export default function NotificationsScreen({ notifications, onBack, onMarkAllRe
                 </View>
                 <TouchableOpacity
                   style={{ flex: 1 }}
-                  disabled={!n.campaignId || !onOpenCampaign}
-                  onPress={() => onOpenCampaign(n.campaignId)}
+                  disabled={!(n.campaignId && onOpenCampaign) && !(n.supportId && onOpenSupport)}
+                  onPress={() => (n.supportId ? onOpenSupport(n.supportId) : onOpenCampaign(n.campaignId))}
                   activeOpacity={0.7}
-                  accessibilityRole={n.campaignId ? 'button' : undefined}
+                  accessibilityRole={n.campaignId || n.supportId ? 'button' : undefined}
                 >
                   <Text style={styles.title}>{n.title}</Text>
                   <Text style={styles.message}>{n.message}</Text>
                   <Text style={styles.time}>
                     {n.timeLabel}
-                    {n.campaignId ? '  ·  Open campaign ›' : ''}
+                    {n.campaignId ? '  ·  Open campaign ›' : n.supportId ? '  ·  Open chat ›' : ''}
                   </Text>
                 </TouchableOpacity>
                 <View style={{ alignItems: 'center', gap: 10 }}>

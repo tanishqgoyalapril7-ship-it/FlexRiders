@@ -300,3 +300,56 @@ class AccountDeletionRequest(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     handled_at = Column(DateTime, nullable=True)
     handled_by_email = Column(String(120), nullable=True)
+
+
+class SupportStatus:
+    OPEN = "OPEN"                            # Reopened by support
+    WAITING_FOR_ADMIN = "WAITING_FOR_ADMIN"  # The rider wrote last
+    WAITING_FOR_RIDER = "WAITING_FOR_RIDER"  # Support replied
+    RESOLVED = "RESOLVED"                    # The rider can still reply (that reopens it)
+    CLOSED = "CLOSED"                        # Finished; the rider starts a new conversation instead
+    ALL = (OPEN, WAITING_FOR_ADMIN, WAITING_FOR_RIDER, RESOLVED, CLOSED)
+    LABELS = {
+        OPEN: "Open", WAITING_FOR_ADMIN: "Waiting for support", WAITING_FOR_RIDER: "Waiting for rider",
+        RESOLVED: "Resolved", CLOSED: "Closed",
+    }
+
+
+class SupportConversation(Base):
+    """A rider ↔ support chat. The database is the source of truth for the rider app and the admin inbox.
+    History is kept when a conversation is resolved, closed or reopened."""
+
+    __tablename__ = "support_conversations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    rider_id = Column(Integer, ForeignKey("riders.id"), nullable=False, index=True)
+    campaign_id = Column(Integer, nullable=True, index=True)  # Optional; no FK so campaign clean-up never touches chats
+    campaign_name = Column(String(150), nullable=True)        # Snapshot shown in both apps
+    subject = Column(String(150), nullable=False)
+    status = Column(String(30), default=SupportStatus.WAITING_FOR_ADMIN, nullable=False, index=True)
+    assigned_admin_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    last_message_at = Column(DateTime, nullable=True)
+    last_message_preview = Column(String(160), nullable=True)
+    rider_last_read_id = Column(Integer, default=0, nullable=False)  # Highest message id the rider has read
+    admin_last_read_id = Column(Integer, default=0, nullable=False)  # Highest message id support has read
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    resolved_at = Column(DateTime, nullable=True)
+    closed_at = Column(DateTime, nullable=True)
+
+    rider = relationship("Rider")
+    assigned_admin = relationship("User")
+
+
+class SupportMessage(Base):
+    __tablename__ = "support_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    conversation_id = Column(Integer, ForeignKey("support_conversations.id"), nullable=False, index=True)
+    sender_type = Column(String(10), nullable=False)  # RIDER, ADMIN, SYSTEM
+    sender_user_id = Column(Integer, nullable=True)   # users.id of the rider's login or the admin (no FK: history is kept)
+    sender_name = Column(String(120), nullable=True)  # Snapshot, e.g. "FlexRiders Support (Asha)"
+    body = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    __table_args__ = (Index("ix_support_messages_conversation_id_id", "conversation_id", "id"),)

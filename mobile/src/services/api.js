@@ -224,6 +224,17 @@ export const mobileApi = {
     return res.json();
   },
 
+  // Support chat
+  getSupportRealtime: () => authedGet('/riders/me/support/realtime'),
+  getSupportUnread: () => authedGet('/riders/me/support/unread'),
+  getSupportConversations: () => authedGet('/riders/me/support/conversations'),
+  getSupportCampaignOptions: () => authedGet('/riders/me/support/campaign-options'),
+  startSupportConversation: (subject, message, campaignId) =>
+    authedPost('/riders/me/support/conversations', { subject, message, campaign_id: campaignId || null }),
+  getSupportMessages: (id, beforeId) => authedGet(`/riders/me/support/conversations/${id}/messages${beforeId ? `?before_id=${beforeId}` : ''}`),
+  sendSupportMessage: (id, message) => authedPost(`/riders/me/support/conversations/${id}/messages`, { message }),
+  markSupportRead: (id) => authedPost(`/riders/me/support/conversations/${id}/read`),
+
   deleteNotification: (id) => authedRequest('DELETE', `/notifications/${id}`),
   clearNotifications: () => authedRequest('DELETE', '/notifications'),
   // Only non-verified fields; an empty string removes the value.

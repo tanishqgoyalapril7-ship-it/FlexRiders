@@ -112,6 +112,9 @@ def hard_delete_rider(db: Session, rider: Rider, admin: Optional[User], reason: 
         (RiderReferral.referred_rider_id == rider.id) | (RiderReferral.referrer_rider_id == rider.id)
     ).delete(synchronize_session=False)
     db.query(Rider).filter(Rider.referred_by_rider_id == rider.id).update({Rider.referred_by_rider_id: None}, synchronize_session=False)
+    from app.services.support_service import delete_for_rider
+
+    delete_for_rider(db, rider.id)  # Support chats are personal data
     db.delete(rider)  # Cascades documents and support tickets
     db.flush()
     if user is not None:
@@ -177,7 +180,10 @@ def erase_personal_data(db: Session, rider: Rider) -> Dict[str, int]:
     selfie = rider.profile_photo
     documents = db.query(RiderDocument).filter(RiderDocument.rider_id == rider.id).all()
     files = [selfie] + [d.file_url for d in documents]
+    from app.services.support_service import delete_for_rider
+
     removed = {
+        "support_conversations": delete_for_rider(db, rider.id),
         "route_points": db.query(RoutePoint).filter(RoutePoint.rider_id == rider.id).delete(synchronize_session=False),
         "documents": len(documents),
         "notifications": (
@@ -407,6 +413,9 @@ def _reset_riders(db: Session) -> Dict[str, int]:
     removed["payments"] += payout_payments
     removed.update(_delete_all(db, CampaignPayout, CampaignAssignment, CampaignApplication))
     rider_user_ids = [uid for (uid,) in db.query(Rider.user_id).filter(Rider.user_id.isnot(None))]
+    from app.models.all_models import SupportConversation, SupportMessage
+
+    removed.update(_delete_all(db, SupportMessage, SupportConversation))
     removed.update(_delete_all(db, RiderReferral, Payment, RiderBrandAssignment, RiderDocument, SupportTicket, Rider))
     removed["notifications"] = (
         db.query(Notification).filter(Notification.user_id.in_(rider_user_ids)).delete(synchronize_session=False) if rider_user_ids else 0

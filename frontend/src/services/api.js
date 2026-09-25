@@ -283,6 +283,18 @@ export const api = {
   getActivityLog: (id) => fetchWithAuth(`/campaigns/${id}/activity-log`),
   getCampaignSnapshot: (id) => fetchWithAuth(`/campaigns/${id}/snapshot`),
 
+  // Support chat (admin inbox)
+  getSupportRealtime: () => fetchWithAuth('/admin/support/realtime'),
+  getSupportAgents: () => fetchWithAuth('/admin/support/agents'),
+  getSupportConversations: (params = {}) => {
+    const query = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== '' && v !== null && v !== undefined)).toString();
+    return fetchWithAuth(`/admin/support/conversations${query ? `?${query}` : ''}`);
+  },
+  getSupportMessages: (id, beforeId) => fetchWithAuth(`/admin/support/conversations/${id}/messages${beforeId ? `?before_id=${beforeId}` : ''}`),
+  sendSupportMessage: (id, message) => fetchWithAuth(`/admin/support/conversations/${id}/messages`, { method: 'POST', body: JSON.stringify({ message }) }),
+  markSupportRead: (id) => fetchWithAuth(`/admin/support/conversations/${id}/read`, { method: 'POST' }),
+  updateSupportConversation: (id, changes) => fetchWithAuth(`/admin/support/conversations/${id}`, { method: 'PATCH', body: JSON.stringify(changes) }),
+
   getDeletionRequests: (status) => fetchWithAuth(`/admin/deletion-requests${status && status !== 'ALL' ? `?status=${status}` : ''}`),
   completeDeletionRequest: (id, note) =>
     fetchWithAuth(`/admin/deletion-requests/${id}/complete`, { method: 'POST', body: JSON.stringify({ note: note || null }) }),

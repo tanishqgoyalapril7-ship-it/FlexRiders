@@ -123,6 +123,8 @@ const toNotification = (n) => ({
   category: n.category,
   // Campaign notifications (slot reminders, campaign live) carry the campaign id.
   campaignId: n.category === 'CAMPAIGN' && /^\d+$/.test(n.reference_id || '') ? Number(n.reference_id) : null,
+  // Support replies open that conversation.
+  supportId: n.category === 'SUPPORT' && /^\d+$/.test(n.reference_id || '') ? Number(n.reference_id) : null,
   unread: !n.is_read,
   timeLabel: formatDateTime(n.created_at),
   ...notificationStyle(n.category, n.title),
@@ -145,6 +147,8 @@ function RiderApp() {
   const [payments, setPayments] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [campaigns, setCampaigns] = useState(null);
+  const [supportUnread, setSupportUnread] = useState(0);
+  const [supportConversation, setSupportConversation] = useState(null); // Opened from a notification
   // A shared referral link (superriders://register?ref=CODE) opens registration with the code filled in.
   // A campaign link (superriders://campaign/ID, from the public campaign page) opens that campaign after login.
   const [referralCode, setReferralCode] = useState('');
@@ -174,6 +178,7 @@ function RiderApp() {
     setPayments([]);
     setNotifications([]);
     setCampaigns(null);
+    setSupportUnread(0);
     setEarnings(EMPTY_EARNINGS);
     setTab('home');
     setScreen('splash');
@@ -189,12 +194,14 @@ function RiderApp() {
       if (err.status === 401) logout();
       return err.status === 404 ? false : null;
     }
-    const [paymentData, notificationData, campaignData, earningsData] = await Promise.all([
+    const [paymentData, notificationData, campaignData, earningsData, supportData] = await Promise.all([
       mobileApi.getPaymentHistory().catch(() => null),
       mobileApi.getNotifications().catch(() => null),
       mobileApi.getCampaigns().catch(() => null),
       mobileApi.getEarnings().catch(() => null),
+      mobileApi.getSupportUnread().catch(() => null),
     ]);
+    if (supportData) setSupportUnread(supportData.unread || 0);
     if (earningsData) setEarnings(toEarnings(earningsData));
     if (paymentData) setPayments((paymentData.payments || []).map(toPayment));
     if (Array.isArray(notificationData)) setNotifications(notificationData.map(toNotification));
@@ -284,12 +291,22 @@ function RiderApp() {
     setTab('notifications');
   };
   const navigate = (target) =>
-    target === 'documents' ? showDocumentsInfo() : target === 'notifications' ? openNotifications('home') : setTab(target);
+    target === 'documents'
+      ? showDocumentsInfo()
+      : target === 'notifications'
+      ? openNotifications('home')
+      : target === 'support'
+      ? openSupport(null)
+      : setTab(target);
   const openCampaign = (id) => {
     setCampaignId(id);
     setTab('campaign');
   };
   const goHome = () => setTab('home');
+  const openSupport = (conversationId) => {
+    setSupportConversation(conversationId || null);
+    setTab('support');
+  };
   useEffect(() => {
     if (screen === 'main' && linkedCampaign) {
       openCampaign(linkedCampaign);
@@ -322,7 +339,7 @@ function RiderApp() {
       case 'payments':
         return <PaymentsScreen rider={rider} payments={payments} onBack={goHome} />;
       case 'brand':
-        return <BrandScreen rider={rider} onBack={goHome} onShowDocuments={showDocumentsInfo} onSupport={() => setTab('support')} />;
+        return <BrandScreen rider={rider} onBack={goHome} onShowDocuments={showDocumentsInfo} onSupport={() => openSupport(null)} />;
       case 'notifications':
         return (
           <NotificationsScreen
@@ -332,14 +349,25 @@ function RiderApp() {
             onDelete={deleteNotification}
             onClearAll={clearNotifications}
             onOpenCampaign={openCampaign}
+            onOpenSupport={openSupport}
           />
         );
       case 'profile':
-        return <ProfileScreen rider={rider} onLogout={logout} onProfileChanged={refreshData} onAccountDeleted={handleAccountDeleted} onOpenRefer={() => setTab('refer')} onOpenNotifications={() => openNotifications('profile')} unreadCount={unreadCount} />;
+        return <ProfileScreen rider={rider} supportUnread={supportUnread} onOpenSupport={() => openSupport(null)} onLogout={logout} onProfileChanged={refreshData} onAccountDeleted={handleAccountDeleted} onOpenRefer={() => setTab('refer')} onOpenNotifications={() => openNotifications('profile')} unreadCount={unreadCount} />;
       case 'refer':
         return <ReferScreen onBack={() => setTab('profile')} />;
       case 'support':
-        return <SupportScreen onBack={goHome} />;
+        return (
+          <SupportScreen
+            key={supportConversation || 'list'}
+            initialConversationId={supportConversation}
+            onUnreadChanged={setSupportUnread}
+            onBack={() => {
+              setSupportConversation(null);
+              goHome();
+            }}
+          />
+        );
       case 'campaigns':
         return <CampaignsScreen data={campaigns} onOpen={openCampaign} onChanged={refreshData} />;
       case 'campaign':

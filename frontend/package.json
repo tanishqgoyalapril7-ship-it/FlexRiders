@@ -11,6 +11,7 @@
     "preview:admin": "VITE_BASE=/admin/ vite preview --port 5181 --strictPort"
   },
   "dependencies": {
+    "@supabase/realtime-js": "^2.109.0",
     "clsx": "^2.1.1",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.363.0",

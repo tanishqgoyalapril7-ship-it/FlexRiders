@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   UserCog,
   UserX,
+  MessageSquare,
   Settings,
   ChevronDown,
   ChevronRight,
@@ -197,6 +198,17 @@ export default function Sidebar({ open = false, onClose, activeView, setActiveVi
               </div>
             </div>
           )}
+        </div>
+
+        {/* Support inbox */}
+        <div
+          className={`nav-item ${activeView === 'support' ? 'active' : ''}`}
+          onClick={() => setActiveView('support')}
+        >
+          <div className="nav-item-left">
+            <MessageSquare size={18} />
+            <span>Support</span>
+          </div>
         </div>
 
         {/* Notifications */}
