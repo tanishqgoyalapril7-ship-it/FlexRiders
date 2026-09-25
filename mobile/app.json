@@ -72,7 +72,8 @@
           "backgroundColor": "#0B1528"
         }
       ],
-      "./plugins/withReleaseSigning"
+      "./plugins/withReleaseSigning",
+      "expo-status-bar"
     ],
     "scheme": [
       "flexriders",
