@@ -131,7 +131,7 @@ export async function startRoute(campaignId) {
         showsBackgroundLocationIndicator: true,
         foregroundService: {
           notificationTitle: 'Recording your campaign route',
-          notificationBody: 'Your location is shared with Super Riders until you end the route.',
+          notificationBody: 'Your location is shared with FlexRiders until you end the route.',
         },
       });
       mode = 'background';

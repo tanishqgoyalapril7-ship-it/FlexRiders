@@ -1,5 +1,6 @@
+import logoDark from '../assets/fr-mark-dark.png';
 import React, { useEffect, useState } from 'react';
-import { Bell, CheckCheck, ShieldCheck, Trash2, UserPlus } from 'lucide-react';
+import { Bell, CheckCheck, Trash2, UserPlus } from 'lucide-react';
 import { api } from '../services/api';
 import { AdminUserFormModal, PasswordInput } from '../components/AdminCrud';
 import { DangerDialog, toast } from '../components/Feedback';
@@ -33,7 +34,7 @@ export function LoginView({ onLoggedIn }) {
     <div className="login-screen">
       <form className="login-card" onSubmit={submit}>
         <div className="login-brand">
-          <ShieldCheck size={24} color="#2563EB" /> Super Riders Admin
+          <img src={logoDark} alt="" style={{ height: 26 }} /> FlexRiders Admin
         </div>
         <p style={{ fontSize: '0.86rem', color: '#64748B', margin: 0 }}>Sign in with your admin phone number and password.</p>
         {error ? <div className="form-error">{error}</div> : null}

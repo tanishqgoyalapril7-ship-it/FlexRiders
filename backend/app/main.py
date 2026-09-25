@@ -24,7 +24,7 @@ app = FastAPI(
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     docs_url="/docs",
     redoc_url="/redoc",
-    description="Production REST API for Super Riders Rider Management & Payment Tracking Platform",
+    description="Production REST API for FlexRiders Rider Management & Payment Tracking Platform",
     version="1.0.0",
 )
 

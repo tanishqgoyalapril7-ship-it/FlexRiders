@@ -100,7 +100,7 @@ def process_payment_transaction(
 
         # Notify rider
         if rider and rider.user_id:
-            brand_name = payment.brand.name if payment.brand else "Super Riders"
+            brand_name = payment.brand.name if payment.brand else "FlexRiders"
             send_notification(
                 db=db,
                 user_id=rider.user_id,

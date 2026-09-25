@@ -59,15 +59,14 @@ npm install
 npm run dev
 ```
 
-Open http://localhost:5180 and sign in. `reset_clean_db.py` creates these accounts:
+Open http://localhost:5180 and sign in with an admin account. There are **no built-in admin accounts or passwords**: create the first one yourself (it asks for the phone, email, role and password, and stores nothing in code):
 
-| Role | Phone | Password |
-|---|---|---|
-| Super Admin | `+919999999999` | `admin123` |
-| Operations Admin | `+919999999998` | `ops123` |
-| Finance Admin | `+919999999997` | `finance123` |
+```bash
+cd backend
+venv/bin/python create_admin.py
+```
 
-> **Change these passwords** (Admins page → Edit) before using the system with real data.
+After that, add or remove admins from the dashboard (**Admin Users**).
 
 ### 3. Rider app
 

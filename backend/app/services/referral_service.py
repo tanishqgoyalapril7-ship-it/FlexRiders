@@ -129,7 +129,7 @@ def summary(db: Session, rider: Rider) -> Dict:
         "link": link,
         "reward_amount": amount,
         "share_message": (
-            f"Join me on Super Riders and earn with brand campaigns! Use my referral code {code} when you register: {link}"
+            f"Join me on FlexRiders and earn with brand campaigns! Use my referral code {code} when you register: {link}"
         ),
         "successful_referrals": len(rewarded),
         "total_earnings": round(sum(r.reward_amount or 0 for r in rewarded), 2),

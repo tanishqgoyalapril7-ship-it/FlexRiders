@@ -81,7 +81,7 @@ export default function LoginScreen({ initialOtpMode, onBack, onLoggedIn, onRegi
       </View>
       <ScrollView contentContainerStyle={styles.padded} keyboardShouldPersistTaps="handled">
         <Text style={styles.title}>Welcome back</Text>
-        <Text style={styles.subtitle}>Login to continue to Super Riders</Text>
+        <Text style={styles.subtitle}>Login to continue to FlexRiders</Text>
 
         <Text style={styles.label}>Mobile Number</Text>
         <View style={styles.inputRow}>

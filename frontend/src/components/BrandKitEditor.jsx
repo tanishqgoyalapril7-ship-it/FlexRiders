@@ -139,7 +139,7 @@ function LocationFormModal({ location, onClose, onSave }) {
             {error ? <div className="form-error">{error}</div> : null}
             <div className="form-group">
               <label className="form-label">Location Name *</label>
-              <input className="form-input" value={form.name} onChange={set('name')} placeholder="e.g. Super Riders Office – Gurugram" autoFocus />
+              <input className="form-input" value={form.name} onChange={set('name')} placeholder="e.g. FlexRiders Office – Gurugram" autoFocus />
             </div>
             <div className="form-group">
               <label className="form-label">Full Address *</label>

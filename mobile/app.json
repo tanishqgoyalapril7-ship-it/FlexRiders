@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Super Riders",
+    "name": "FlexRiders",
     "slug": "super-riders",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -17,10 +17,10 @@
       "bundleIdentifier": "com.superriders.riderapp",
       "buildNumber": "1",
       "infoPlist": {
-        "NSCameraUsageDescription": "Super Riders uses the camera to take your daily campaign photos (Morning, Evening and Night).",
-        "NSPhotoLibraryUsageDescription": "Super Riders may access your photo library only for development testing.",
-        "NSLocationWhenInUseUsageDescription": "While you record a campaign route, Super Riders shares your location with the Super Riders team so they can see the route you rode.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "While you record a campaign route, Super Riders keeps sharing your location in the background until you end the route.",
+        "NSCameraUsageDescription": "FlexRiders uses the camera to take your daily campaign photos (Morning, Evening and Night).",
+        "NSPhotoLibraryUsageDescription": "FlexRiders may access your photo library only for development testing.",
+        "NSLocationWhenInUseUsageDescription": "While you record a campaign route, FlexRiders shares your location with the FlexRiders team so they can see the route you rode.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "While you record a campaign route, FlexRiders keeps sharing your location in the background until you end the route.",
         "UIBackgroundModes": [
           "location"
         ]
@@ -46,8 +46,8 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "While you record a campaign route, Super Riders shares your location with the Super Riders team so they can see the route you rode.",
-          "locationAlwaysAndWhenInUsePermission": "While you record a campaign route, Super Riders keeps sharing your location in the background until you end the route.",
+          "locationWhenInUsePermission": "While you record a campaign route, FlexRiders shares your location with the FlexRiders team so they can see the route you rode.",
+          "locationAlwaysAndWhenInUsePermission": "While you record a campaign route, FlexRiders keeps sharing your location in the background until you end the route.",
           "isAndroidBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true
         }

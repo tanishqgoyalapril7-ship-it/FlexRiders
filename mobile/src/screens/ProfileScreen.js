@@ -223,7 +223,7 @@ export default function ProfileScreen({ rider, onLogout, onProfileChanged, onAcc
         points={[
           'You will be logged out and won’t be able to log in again with this number.',
           'Your profile, documents and notifications are removed.',
-          'Payments, payouts and campaign photos are kept by Super Riders as payout records.',
+          'Payments, payouts and campaign photos are kept by FlexRiders as payout records.',
           'If you are in an active campaign, finish it or ask your operations manager to remove you first.',
         ]}
         requirePassword

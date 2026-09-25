@@ -1386,3 +1386,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   .pub-facts, .pub-slots { grid-template-columns: minmax(0, 1fr); }
   .pub-title { font-size: 1.3rem; }
 }
+
+/* FlexRiders logo (sidebar and public page) */
+.brand-logo-img { height: 30px; width: auto; flex-shrink: 0; }
+.pub-logo-img { height: 30px; width: auto; }

@@ -156,7 +156,7 @@ def get_rider_payment_history(
             rider_name=rider.full_name,
             rider_sr_id=rider.rider_id,
             brand_id=p.brand_id,
-            brand_name=p.brand.name if p.brand else "Super Riders",
+            brand_name=p.brand.name if p.brand else "FlexRiders",
             amount=p.amount,
             payment_date=p.payment_date,
             payment_period=p.payment_period,

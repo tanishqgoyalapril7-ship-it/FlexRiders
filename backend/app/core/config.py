@@ -5,7 +5,7 @@ import os
 
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "Super Riders API"
+    PROJECT_NAME: str = "FlexRiders API"
     API_V1_STR: str = "/api/v1"
     SECRET_KEY: str = "super-riders-secret-key-production-change-this-in-prod"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours

@@ -1,3 +1,4 @@
+import logoLight from '../assets/fr-mark-light.png';
 import React, { useState } from 'react';
 import {
   Inbox,
@@ -35,9 +36,11 @@ export default function Sidebar({ activeView, setActiveView, riderFilter, setRid
     <aside className="sidebar">
       {/* Brand Header */}
       <div className="sidebar-header">
-        <div className="brand-logo-badge">SR</div>
+        <img src={logoLight} alt="FlexRiders" className="brand-logo-img" />
         <div className="brand-text">
-          <span className="brand-title">SUPER RIDERS</span>
+          <span className="brand-title">
+            FLEX<span style={{ color: '#3B9EFF' }}>RIDERS</span>
+          </span>
           <span className="brand-subtitle">FLEET & PAYMENTS</span>
         </div>
       </div>

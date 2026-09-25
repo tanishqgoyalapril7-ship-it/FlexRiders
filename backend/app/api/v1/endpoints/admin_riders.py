@@ -316,7 +316,7 @@ def suspend_rider(
             db=db,
             user_id=rider.user_id,
             title="Account Suspended",
-            message=f"Your Super Riders account has been suspended: {rider.suspension_reason}. Contact support for details.",
+            message=f"Your FlexRiders account has been suspended: {rider.suspension_reason}. Contact support for details.",
             category="SYSTEM",
             reference_id=rider.rider_id,
         )

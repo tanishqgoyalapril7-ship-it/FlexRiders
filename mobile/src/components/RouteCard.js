@@ -68,8 +68,8 @@ export default function RouteCard({ campaignId }) {
             <Text style={styles.text}>
               {recording
                 ? state.mode === 'background'
-                  ? 'Your location is shared with the Super Riders team until you end the route, even with the screen off.'
-                  : 'Your location is shared with the Super Riders team until you end the route. Keep the app open while riding.'
+                  ? 'Your location is shared with the FlexRiders team until you end the route, even with the screen off.'
+                  : 'Your location is shared with the FlexRiders team until you end the route. Keep the app open while riding.'
                 : state && state.other
                 ? 'A route is already recording for another campaign.'
                 : 'Start when you begin riding. Your location is shared only while the route is on.'}

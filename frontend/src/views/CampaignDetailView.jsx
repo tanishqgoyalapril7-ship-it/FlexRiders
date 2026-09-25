@@ -162,7 +162,7 @@ function ShareCampaignCard({ campaign, onChanged }) {
   const share = async () => {
     if (navigator.share) {
       try {
-        await navigator.share({ title: campaign.name, text: `${campaign.name} on Super Riders`, url: link });
+        await navigator.share({ title: campaign.name, text: `${campaign.name} on FlexRiders`, url: link });
       } catch {
         /* Share sheet closed */
       }

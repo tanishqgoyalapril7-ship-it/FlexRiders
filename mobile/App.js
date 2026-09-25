@@ -111,7 +111,7 @@ const toPayment = (p) => ({
   id: p.id,
   date: new Date(p.payment_date),
   dateLabel: formatDate(p.payment_date),
-  brand: p.brand_name || 'Super Riders',
+  brand: p.brand_name || 'FlexRiders',
   amount: Number(p.amount) || 0,
   status: p.status,
 });

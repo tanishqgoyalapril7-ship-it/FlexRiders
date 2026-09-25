@@ -1,3 +1,4 @@
+import logoDark from '../assets/fr-mark-dark.png';
 import React, { useEffect, useState } from 'react';
 import { Bike, CalendarDays, Camera, CheckCircle2, Clock, MapPin, Shirt, Smartphone } from 'lucide-react';
 import { api } from '../services/api';
@@ -19,7 +20,7 @@ export default function PublicCampaignPage({ slug }) {
       .getPublicCampaign(slug)
       .then((d) => {
         setData(d);
-        document.title = `${d.name} · Super Riders`;
+        document.title = `${d.name} · FlexRiders`;
       })
       .catch((err) => setError(err.message));
   }, [slug]);
@@ -52,8 +53,8 @@ export default function PublicCampaignPage({ slug }) {
   return (
     <div className="pub-page">
       <header className="pub-top">
-        <span className="pub-logo">SR</span>
-        <span className="pub-brandline">Super Riders · Brand campaign</span>
+        <img className="pub-logo-img" src={logoDark} alt="FlexRiders" />
+        <span className="pub-brandline">FlexRiders · Brand campaign</span>
       </header>
 
       <main className="pub-card">
@@ -133,12 +134,12 @@ export default function PublicCampaignPage({ slug }) {
           {data.accepting_riders ? (
             <>
               <ol className="pub-steps">
-                <li>Install the Super Riders app and register (or log in).</li>
+                <li>Install the FlexRiders app and register (or log in).</li>
                 <li>Open this campaign under Campaigns and tap Join Campaign{data.tshirt.required ? ', choosing your T-shirt size' : ''}.</li>
                 <li>Once approved, submit your Morning, Evening and Night photos every campaign day.</li>
               </ol>
               <a className="pub-cta" href={data.app_link}>
-                <Smartphone size={18} /> Join in the Super Riders app
+                <Smartphone size={18} /> Join in the FlexRiders app
               </a>
             </>
           ) : (
@@ -151,7 +152,7 @@ export default function PublicCampaignPage({ slug }) {
           )}
         </section>
       </main>
-      <footer className="pub-footer">Powered by Super Riders</footer>
+      <footer className="pub-footer">Powered by FlexRiders</footer>
     </div>
   );
 }

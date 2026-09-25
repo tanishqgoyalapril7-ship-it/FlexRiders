@@ -134,7 +134,7 @@ def register_new_rider(db: Session, reg: RiderRegistrationRequest) -> Rider:
     send_notification(
         db=db,
         user_id=user.id,
-        title="Welcome to Super Riders",
+        title="Welcome to FlexRiders",
         message="Your registration has been submitted successfully. Our team will review your application.",
         category="REGISTRATION",
         reference_id=rider.rider_id,

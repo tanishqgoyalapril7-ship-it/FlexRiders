@@ -4,9 +4,7 @@ import sys
 # Ensure backend root is on python path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from app.core.database import SessionLocal, Base, engine, lock_down_public_api
-from app.core.security import get_password_hash, UserRole
-from app.models.all_models import User
+from app.core.database import Base, engine, lock_down_public_api
 
 
 def reset_clean_db():
@@ -16,45 +14,10 @@ def reset_clean_db():
     Base.metadata.create_all(bind=engine)
     lock_down_public_api()
 
-    db = SessionLocal()
-    try:
-        print("Seeding standard Admin accounts...")
-        super_admin = User(
-            phone="+919999999999",
-            email="admin@superriders.com",
-            hashed_password=get_password_hash("admin123"),
-            role=UserRole.SUPER_ADMIN,
-            is_active=True,
-        )
-        ops_admin = User(
-            phone="+919999999998",
-            email="ops@superriders.com",
-            hashed_password=get_password_hash("ops123"),
-            role=UserRole.OPERATIONS_ADMIN,
-            is_active=True,
-        )
-        fin_admin = User(
-            phone="+919999999997",
-            email="finance@superriders.com",
-            hashed_password=get_password_hash("finance123"),
-            role=UserRole.FINANCE_ADMIN,
-            is_active=True,
-        )
-        db.add_all([super_admin, ops_admin, fin_admin])
-        db.flush()
-
-        db.commit()
-        print("✅ Database cleanly reset successfully!")
-        print("  - 0 Riders (ready for real registrations)")
-        print("  - 0 Payments (ready for real payouts)")
-        print("  - 3 Admins (admin@superriders.com / admin123)")
-        print("  - 0 Brands (admins create brands from the dashboard)")
-    except Exception as e:
-        db.rollback()
-        print(f"❌ Error resetting database: {e}")
-        raise e
-    finally:
-        db.close()
+    # No built-in admin accounts or passwords: create your own with create_admin.py.
+    print("✅ Database cleanly reset successfully!")
+    print("  - 0 admins: run `venv/bin/python create_admin.py` to create the first one")
+    print("  - 0 riders, 0 payments, 0 brands (ready for real data)")
 
 
 if __name__ == "__main__":
