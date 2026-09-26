@@ -262,6 +262,41 @@ export const api = {
   addCampaignExtension: (id, data) => fetchWithAuth(`/campaigns/${id}/extensions`, { method: 'POST', body: JSON.stringify(data) }),
   getBrandPayments: (id) => fetchWithAuth(`/campaigns/${id}/brand-payments`),
   addBrandPayment: (id, data) => fetchWithAuth(`/campaigns/${id}/brand-payments`, { method: 'POST', body: JSON.stringify(data) }),
+  cancelBrandPayment: (id, recordId, reason) =>
+    fetchWithAuth(`/campaigns/${id}/brand-payments/${recordId}/cancel`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  // Campaign video: a link, or a file uploaded straight to private storage (then confirmed).
+  getCampaignVideo: (id) => fetchWithAuth(`/campaigns/${id}/video`),
+  setCampaignVideoLink: (id, videoUrl) => fetchWithAuth(`/campaigns/${id}/video/link`, { method: 'PUT', body: JSON.stringify({ video_url: videoUrl }) }),
+  removeCampaignVideo: (id) => fetchWithAuth(`/campaigns/${id}/video`, { method: 'DELETE' }),
+  uploadCampaignVideo: async (id, file, onProgress) => {
+    const ticket = await fetchWithAuth(`/campaigns/${id}/video/upload-url`, {
+      method: 'POST',
+      body: JSON.stringify({ content_type: file.type, size: file.size }),
+    });
+    if (ticket.mode === 'DIRECT') {
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('PUT', ticket.upload_url);
+        xhr.setRequestHeader('Content-Type', file.type);
+        xhr.setRequestHeader('x-upsert', 'false');
+        xhr.upload.onprogress = (e) => e.lengthComputable && onProgress && onProgress(Math.round((e.loaded / e.total) * 100));
+        xhr.onload = () => (xhr.status < 300 ? resolve() : reject(new Error(`Video upload failed (${xhr.status}). Please try again.`)));
+        xhr.onerror = () => reject(new Error('Video upload failed. Check your connection and try again.'));
+        xhr.send(file);
+      });
+      return fetchWithAuth(`/campaigns/${id}/video/confirm`, { method: 'POST', body: JSON.stringify({ path: ticket.path }) });
+    }
+    const form = new FormData();
+    form.append('video', file);
+    const response = await fetch(`${API_BASE}/campaigns/${id}/video/file`, {
+      method: 'POST',
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      body: form,
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.detail || 'Video upload failed');
+    return data;
+  },
   getAdjustments: (id) => fetchWithAuth(`/campaigns/${id}/adjustments`),
   resolveAdjustment: (id, adjustmentId, status, note) =>
     fetchWithAuth(`/campaigns/${id}/adjustments/${adjustmentId}/resolve`, { method: 'POST', body: JSON.stringify({ status, note }) }),
@@ -310,6 +345,7 @@ export const api = {
     fetchWithAuth(`/admin/deletion-requests/${id}/reject`, { method: 'POST', body: JSON.stringify({ note }) }),
 
   // Driver selfies are private: loaded with the admin token into a local object URL (the caller revokes it).
+  getRiderConsents: (id) => fetchWithAuth(`/admin/riders/${id}/consents`),
   resetRiderPassword: (riderId) => fetchWithAuth(`/admin/riders/${riderId}/reset-password`, { method: 'POST' }),
   getRiderSelfieUrl: async (riderId) => {
     const response = await fetch(`${API_BASE}/admin/riders/${riderId}/selfie`, {

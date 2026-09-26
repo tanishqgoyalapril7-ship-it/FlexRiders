@@ -416,3 +416,18 @@ class EmailCode(Base):
     used_at = Column(DateTime, nullable=True)
     request_key = Column(String(64), nullable=True, index=True)  # Hashed client address, only for rate limiting
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+
+class PlatformConsent(Base):
+    """A user's acceptance of the platform Terms & Conditions and Privacy Policy. One row per acceptance;
+    rows are never updated or deleted, so the history of versions a user agreed to is kept.
+    (Campaign terms are separate: see CampaignTermsAcceptance.)"""
+
+    __tablename__ = "platform_consents"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    terms_version = Column(String(40), nullable=False)
+    privacy_version = Column(String(40), nullable=False)
+    source = Column(String(30), nullable=False)  # REGISTRATION (sign-up form) or APP (asked again for a new version)
+    accepted_at = Column(DateTime, default=datetime.utcnow, nullable=False)

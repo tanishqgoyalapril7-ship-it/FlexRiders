@@ -67,10 +67,15 @@ class Settings(BaseSettings):
     ENFORCE_PHOTO_SLOT_WINDOWS: bool = False
     # In-app reminders for the photo slots (sent by a background loop in the API process, IST).
     SLOT_NOTIFICATIONS_ENABLED: bool = True
-    # Driver selfie at rider self-registration. TEMPORARILY OFF for testing (riders may skip it; a selfie that
-    # is sent is still validated and stored privately). Set to True before the Play Store release: the rider
-    # app reads this from GET /public/app-config, so no new app build is needed. Admin → Add Rider always requires one.
-    REQUIRE_DRIVER_SELFIE: bool = False
+    # Driver selfie at rider self-registration (front camera). Required; set to False only for local testing.
+    # The rider app reads this from GET /public/app-config. Admin → Add Rider always requires one.
+    REQUIRE_DRIVER_SELFIE: bool = True
+    # Platform Terms & Conditions and Privacy Policy that riders accept at registration. Change a version when
+    # the published text changes: riders are then asked to accept the new version (earlier acceptances are kept).
+    PLATFORM_TERMS_VERSION: str = "2026-09-26"
+    PRIVACY_POLICY_VERSION: str = "2026-09-26"
+    TERMS_URL: str = "https://flexriders.in/terms"
+    PRIVACY_URL: str = "https://flexriders.in/privacy"
     SLOT_REMINDER_MINUTES: int = 30  # "Closes soon" reminder this long before a slot ends
     SLOT_NOTIFICATION_INTERVAL_SECONDS: int = 60
     # Paid once per rider per campaign when an admin marks the campaign T-shirt as returned.

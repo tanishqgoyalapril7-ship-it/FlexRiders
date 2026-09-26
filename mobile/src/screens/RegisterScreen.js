@@ -16,6 +16,7 @@ import { mobileApi } from '../services/api';
 import { useStyles, useTheme } from '../theme';
 import { OutlineButton, PrimaryButton, ScreenHeader } from '../components/ui';
 import SelfieCapture from '../components/SelfieCapture';
+import { PRIVACY_URL, TERMS_URL, TermsCheckbox } from './TermsConsentScreen';
 import { AutocompleteField, DateOfBirthField, PasswordField, ageOn, VehicleCategoryField, vehicleCategoryLabel, vehicleNumberOptional } from '../components/formFields';
 import {
   CITIES,
@@ -73,6 +74,9 @@ export default function RegisterScreen({ onBack, onRegistered, initialReferralCo
   // (it is optional while testing); if the setting can't be loaded, the selfie stays required.
   const [selfie, setSelfie] = useState(null);
   const [selfieRequired, setSelfieRequired] = useState(true);
+  // "I agree to the FlexRiders Terms & Conditions and Privacy Policy." (required to submit)
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+  const [legalUrls, setLegalUrls] = useState({ terms: TERMS_URL, privacy: PRIVACY_URL });
   // Email is required and confirmed with a 6-digit code once the server can send email.
   const [emailRequired, setEmailRequired] = useState(false);
   const [emailCode, setEmailCode] = useState('');
@@ -84,6 +88,7 @@ export default function RegisterScreen({ onBack, onRegistered, initialReferralCo
       .then((config) => {
         setSelfieRequired(config.selfie_required !== false);
         setEmailRequired(config.email_required === true);
+        if (config.terms_url && config.privacy_url) setLegalUrls({ terms: config.terms_url, privacy: config.privacy_url });
       })
       .catch(() => {});
   }, []);
@@ -121,6 +126,10 @@ export default function RegisterScreen({ onBack, onRegistered, initialReferralCo
   };
 
   const submit = async () => {
+    if (!acceptedTerms) {
+      Alert.alert('Terms & Privacy', 'Please tick "I agree to the FlexRiders Terms & Conditions and Privacy Policy." to submit your registration.');
+      return;
+    }
     if (!selfie && selfieRequired) {
       Alert.alert('Selfie required', 'Please take your driver selfie before submitting.');
       setStep(SELFIE_STEP);
@@ -132,6 +141,7 @@ export default function RegisterScreen({ onBack, onRegistered, initialReferralCo
       trimmed.vehicle_number = trimmed.vehicle_number ? normalizeVehicleNumber(trimmed.vehicle_number) : null;
       if (selfie) trimmed.selfie = selfie.base64;
       if (emailRequired) trimmed.email_code = emailCode;
+      trimmed.accept_terms = true;
       const result = await mobileApi.register(trimmed);
       await onRegistered(result);
     } catch (err) {
@@ -367,7 +377,10 @@ export default function RegisterScreen({ onBack, onRegistered, initialReferralCo
                 </View>
               ))}
             </View>
-            <View style={[styles.note, { marginTop: 16 }]}>
+            <View style={{ marginTop: 16 }}>
+              <TermsCheckbox checked={acceptedTerms} onChange={setAcceptedTerms} termsUrl={legalUrls.terms} privacyUrl={legalUrls.privacy} />
+            </View>
+            <View style={[styles.note, { marginTop: 4 }]}>
               <Ionicons name="information-circle-outline" size={18} color={colors.primary} />
               <Text style={styles.noteText}>
                 After you submit, our operations team will review your application and contact you to verify your
@@ -383,6 +396,7 @@ export default function RegisterScreen({ onBack, onRegistered, initialReferralCo
         <PrimaryButton
           style={{ flex: 1 }}
           loading={loading}
+          disabled={step === STEPS.length - 1 && !acceptedTerms}
           label={step < STEPS.length - 1 ? 'Continue' : 'Submit Application'}
           onPress={step < STEPS.length - 1 ? next : submit}
         />

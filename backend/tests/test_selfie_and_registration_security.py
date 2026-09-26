@@ -35,7 +35,7 @@ def _phone():
 
 def _body(category="CYCLE", **extra):
     phone = _phone()
-    body = {"full_name": "Selfie Rider", "mobile_number": phone, "password": "riderPass1", "vehicle_category": category, "selfie": SELFIE}
+    body = {"accept_terms": True, "full_name": "Selfie Rider", "mobile_number": phone, "password": "riderPass1", "vehicle_category": category, "selfie": SELFIE}
     if category in NUMBERS:
         body["vehicle_number"] = NUMBERS[category] + phone[-4:]
     body.update(extra)
@@ -150,7 +150,7 @@ def test_selfie_survives_profile_updates_and_cannot_be_replaced_by_the_rider(cli
     client.patch(f"{API}/riders/me", json={"profile_photo": ""}, headers=headers)  # Can't clear it either
     rider = _rider(db_session, body["mobile_number"])
     assert rider.profile_photo == original and rider.primary_area == "Sector 29"
-    client.put(f"{API}/admin/riders/{rider.id}", json={"full_name": "Renamed Rider"}, headers=admin)
+    client.put(f"{API}/admin/riders/{rider.id}", json={"accept_terms": True, "full_name": "Renamed Rider"}, headers=admin)
     assert _rider(db_session, body["mobile_number"]).profile_photo == original
 
 
@@ -170,7 +170,7 @@ def test_hard_delete_removes_the_selfie_file(client, db_session, admin, uploads_
 def test_registering_an_existing_rider_number_never_logs_in_as_them(client, db_session):
     victim = _body()
     assert client.post(f"{API}/auth/register", json=victim).status_code == 200
-    attacker = {**_body(), "mobile_number": victim["mobile_number"], "full_name": "Attacker", "password": "attacker1"}
+    attacker = {**_body(), "mobile_number": victim["mobile_number"], "accept_terms": True, "full_name": "Attacker", "password": "attacker1"}
     res = client.post(f"{API}/auth/register", json=attacker)
     assert res.status_code == 400 and "already registered" in res.json()["detail"]
     assert "access_token" not in res.json()
@@ -237,7 +237,9 @@ def test_admin_create_storage_failure_creates_nothing(client, db_session, admin,
 
 def test_selfie_optional_while_testing_but_still_validated(client, db_session, monkeypatch):
     monkeypatch.setattr(settings, "REQUIRE_DRIVER_SELFIE", False)
-    assert client.get(f"{API}/public/app-config").json() == {"selfie_required": False, "email_required": False, "otp_login": settings.ENABLE_OTP_LOGIN}
+    config = client.get(f"{API}/public/app-config").json()
+    assert {k: config[k] for k in ("selfie_required", "email_required", "otp_login")} == {"selfie_required": False, "email_required": False, "otp_login": settings.ENABLE_OTP_LOGIN}
+    assert config["terms_url"].endswith("/terms") and config["privacy_url"].endswith("/privacy") and config["terms_version"]
     for missing in (None, ""):
         body = _body(selfie=missing)
         if missing is None:
@@ -254,7 +256,9 @@ def test_selfie_optional_while_testing_but_still_validated(client, db_session, m
 
 def test_selfie_switch_on_is_enforced_and_reported(client, db_session, monkeypatch):
     monkeypatch.setattr(settings, "REQUIRE_DRIVER_SELFIE", True)
-    assert client.get(f"{API}/public/app-config").json() == {"selfie_required": True, "email_required": False, "otp_login": settings.ENABLE_OTP_LOGIN}
+    config = client.get(f"{API}/public/app-config").json()
+    assert {k: config[k] for k in ("selfie_required", "email_required", "otp_login")} == {"selfie_required": True, "email_required": False, "otp_login": settings.ENABLE_OTP_LOGIN}
+    assert config["terms_url"].endswith("/terms") and config["privacy_url"].endswith("/privacy") and config["terms_version"]
     body = _body()
     body.pop("selfie")
     assert client.post(f"{API}/auth/register", json=body).status_code == 422

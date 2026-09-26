@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -70,6 +70,33 @@ const to12h = (t) => {
   const [h, m] = t.split(':').map(Number);
   return `${((h + 11) % 12) + 1}${m ? `:${String(m).padStart(2, '0')}` : ''} ${h < 12 ? 'AM' : 'PM'}`;
 };
+
+/** Campaign video: opens the link (YouTube, Drive) or a temporary link to the uploaded video. */
+function VideoCard({ campaignId, styles, colors }) {
+  const [busy, setBusy] = useState(false);
+  const open = async () => {
+    setBusy(true);
+    try {
+      const video = await mobileApi.getCampaignVideo(campaignId);
+      await Linking.openURL(video.url);
+    } catch (err) {
+      Alert.alert('Video unavailable', err.message || 'The campaign video could not be opened. Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <SectionHeader title="Campaign Video" />
+      <Card>
+        <TouchableOpacity onPress={open} disabled={busy} style={[styles.ruleRow, { alignItems: 'center' }]} accessibilityRole="button">
+          {busy ? <ActivityIndicator color={colors.primary} /> : <Ionicons name="play-circle" size={28} color={colors.primary} />}
+          <Text style={[styles.body, { fontWeight: '700', color: colors.primary }]}>Watch the campaign video</Text>
+        </TouchableOpacity>
+      </Card>
+    </>
+  );
+}
 
 export default function CampaignDetailScreen({ campaignId, onBack, onChanged }) {
   const styles = useStyles(makeStyles);
@@ -406,6 +433,8 @@ export default function CampaignDetailScreen({ campaignId, onBack, onChanged }) 
           </Card>
         </>
       ) : null}
+
+      {campaign.video ? <VideoCard campaignId={campaign.id} styles={styles} colors={colors} /> : null}
 
       {campaign.rules.length ? (
         <>

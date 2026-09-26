@@ -214,6 +214,8 @@ class RiderRegistrationRequest(BaseModel):
     selfie: Optional[str] = Field(None, max_length=SELFIE_MAX_BASE64)
     # The 6-digit code emailed by /auth/email/verification-code (required once email sending is set up).
     email_code: Optional[str] = Field(None, max_length=10)
+    # "I agree to the FlexRiders Terms & Conditions and Privacy Policy." Must be true to register.
+    accept_terms: bool = False
 
     # Step 2: Work
     current_company: Optional[str] = None

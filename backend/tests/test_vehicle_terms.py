@@ -34,7 +34,7 @@ def _phone():
 
 def register(client, category, **extra):
     phone = _phone()
-    body = {"selfie": SELFIE, "full_name": f"{category} Rider", "mobile_number": phone, "password": "riderPass1", "vehicle_category": category, **extra}
+    body = {"selfie": SELFIE, "accept_terms": True, "full_name": f"{category} Rider", "mobile_number": phone, "password": "riderPass1", "vehicle_category": category, **extra}
     if category in NUMBERS and "vehicle_number" not in extra:
         body["vehicle_number"] = NUMBERS[category] + phone[-4:]
     return client.post(f"{API}/auth/register", json=body)
@@ -75,7 +75,7 @@ def test_each_vehicle_type_registers(client, category):
 
 
 def test_registration_vehicle_rules(client):
-    base = {"selfie": SELFIE, "full_name": "No Type", "password": "riderPass1"}
+    base = {"selfie": SELFIE, "accept_terms": True, "full_name": "No Type", "password": "riderPass1"}
     assert client.post(f"{API}/auth/register", json={"selfie": SELFIE, **base, "mobile_number": _phone()}).status_code == 422  # Missing
     assert client.post(f"{API}/auth/register", json={"selfie": SELFIE, **base, "mobile_number": _phone(), "vehicle_category": "TRUCK"}).status_code == 422  # Invalid
     # A registration number is required for everything except Cycle (existing number rules unchanged).
@@ -261,7 +261,7 @@ def test_public_page_hides_unapproved_assets_and_private_data(client, admin):
 # --------------------------------------------------------------------------- admin vehicle-number rules
 
 def _admin_create(client, admin, category, number=None):
-    body = {"selfie": SELFIE, "full_name": "Admin Made", "mobile_number": _phone(), "password": "riderPass1", "primary_city": "Gurugram",
+    body = {"selfie": SELFIE, "accept_terms": True, "full_name": "Admin Made", "mobile_number": _phone(), "password": "riderPass1", "primary_city": "Gurugram",
             "vehicle_category": category, "status": "APPROVED", **({"vehicle_number": number} if number else {})}
     return client.post(f"{API}/admin/riders", json=body, headers=admin)
 

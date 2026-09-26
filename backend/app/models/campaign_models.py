@@ -109,6 +109,24 @@ class BrandPaymentKind:
     CREDIT = "CREDIT"
 
 
+class BrandPaymentMode:
+    UPI = "UPI"
+    BANK_TRANSFER = "BANK_TRANSFER"
+    IMPS = "IMPS"
+    RTGS = "RTGS"
+    CHEQUE = "CHEQUE"
+    CASH = "CASH"
+    OTHER = "OTHER"
+    LABELS = {UPI: "UPI", BANK_TRANSFER: "Bank Transfer / NEFT", IMPS: "IMPS", RTGS: "RTGS", CHEQUE: "Cheque", CASH: "Cash", OTHER: "Other"}
+    ALL = tuple(LABELS)
+
+
+class BrandPaymentRecordStatus:
+    """A record is never edited or deleted; a wrong entry is cancelled (kept, but left out of the totals)."""
+    RECORDED = "RECORDED"
+    CANCELLED = "CANCELLED"
+
+
 class AdjustmentStatus:
     OPEN = "OPEN"
     RECOVERED = "RECOVERED"
@@ -224,6 +242,12 @@ class Campaign(Base):
     public_image_approved = Column(Boolean, default=False, nullable=True)
     # JSON {"MORNING": ["06:00", "11:00"], ...}; empty means PhotoSlot.DEFAULT_WINDOWS.
     photo_slot_windows = Column(Text, nullable=True)
+    # Campaign video for riders: an https link (YouTube, Drive, …) or a file uploaded to private storage
+    # ("/uploads/campaign-videos/<name>", served only through short-lived signed links). At most one is set.
+    video_url = Column(String(500), nullable=True)
+    video_path = Column(String(300), nullable=True)
+    # When the brand should have paid in full; after this date an unpaid balance shows as Overdue.
+    brand_payment_due_date = Column(Date, nullable=True)
     # Shareable public page (/campaign/<public_slug>) for the brand.
     public_slug = Column(String(80), unique=True, index=True, nullable=True)
     public_share_enabled = Column(Boolean, default=False, nullable=True)
@@ -427,10 +451,17 @@ class BrandPaymentRecord(Base):
     record_date = Column(Date, nullable=False)
     reference = Column(String(120), nullable=True)
     note = Column(String(500), nullable=True)
+    payment_mode = Column(String(20), nullable=True)  # BrandPaymentMode; null on records made before modes existed
+    status = Column(String(20), default=BrandPaymentRecordStatus.RECORDED, nullable=False, server_default="RECORDED")
+    cancel_reason = Column(String(500), nullable=True)
+    cancelled_at = Column(DateTime, nullable=True)
+    cancelled_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
-    created_by = relationship("User")
+    created_by = relationship("User", foreign_keys=[created_by_id])
+    cancelled_by = relationship("User", foreign_keys=[cancelled_by_id])
 
 
 class FinancialAdjustment(Base):

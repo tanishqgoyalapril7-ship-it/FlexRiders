@@ -1148,7 +1148,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 .chart-legend i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
 .pill-on_track, .pill-fulfilled { background-color: #DCFCE7; color: #15803D; }
 .pill-at_risk, .pill-extended, .pill-partially_paid, .pill-partially_refunded, .pill-credit_issued, .pill-ready_for_pickup, .pill-pickup_scheduled { background-color: #FEF3C7; color: #B45309; }
-.pill-behind_target, .pill-completed_with_shortfall, .pill-unpaid, .pill-refunded, .pill-not_collected { background-color: #FEE2E2; color: #B91C1C; }
+.pill-behind_target, .pill-completed_with_shortfall, .pill-unpaid, .pill-overdue, .pill-refunded, .pill-not_collected { background-color: #FEE2E2; color: #B91C1C; }
 .pill-not_started, .pill-not_required, .pill-waived, .pill-excused { background-color: #F1F5F9; color: #475569; }
 .pill-collected, .pill-recovered { background-color: #DCFCE7; color: #15803D; }
 .toggle-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-md); cursor: pointer; }

@@ -423,10 +423,35 @@ export function ExtensionsPanel({ campaign, onExtend }) {
 // BrandKitPanel lives in BrandKitEditor.jsx (shared with the campaign form).
 export { BrandKitPanel } from './BrandKitEditor';
 
+const PAYMENT_MODES = [
+  ['UPI', 'UPI'],
+  ['BANK_TRANSFER', 'Bank Transfer / NEFT'],
+  ['IMPS', 'IMPS'],
+  ['RTGS', 'RTGS'],
+  ['CHEQUE', 'Cheque'],
+  ['CASH', 'Cash'],
+  ['OTHER', 'Other'],
+];
+const MODE_LABELS = Object.fromEntries(PAYMENT_MODES);
+const BRAND_STATUS_LABELS = {
+  PENDING: 'Pending',
+  PARTIALLY_PAID: 'Partially Paid',
+  PAID: 'Paid',
+  OVERDUE: 'Overdue',
+  CANCELLED: 'Cancelled',
+  REFUNDED: 'Refunded',
+  PARTIALLY_REFUNDED: 'Partially Refunded',
+  CREDIT_ISSUED: 'Credit Issued',
+};
+export const brandStatusLabel = (status) => BRAND_STATUS_LABELS[status] || status;
+
 function BrandPaymentDialog({ campaignId, onClose, onSaved }) {
-  const [form, setForm] = useState({ kind: 'RECEIVED', amount: '', record_date: new Date().toISOString().slice(0, 10), reference: '', note: '' });
+  const [form, setForm] = useState({ kind: 'RECEIVED', amount: '', payment_mode: 'UPI', record_date: new Date().toISOString().slice(0, 10), reference: '', note: '' });
   const set = (key) => (e) => setForm((prev) => ({ ...prev, [key]: e.target.value }));
-  const { busy, error, submit } = useSubmit(() => api.addBrandPayment(campaignId, { ...form, amount: Number(form.amount) }), onSaved);
+  const { busy, error, submit } = useSubmit(
+    () => api.addBrandPayment(campaignId, { ...form, amount: Number(form.amount), payment_mode: form.payment_mode || null }),
+    onSaved
+  );
   return (
     <Modal
       title="Record Brand Payment"
@@ -436,7 +461,7 @@ function BrandPaymentDialog({ campaignId, onClose, onSaved }) {
           <button className="btn-secondary" onClick={onClose}>
             Cancel
           </button>
-          <button className="btn-primary" disabled={busy || !(Number(form.amount) > 0)} onClick={submit}>
+          <button className="btn-primary" disabled={busy || !(Number(form.amount) > 0) || (form.kind === 'RECEIVED' && !form.payment_mode)} onClick={submit}>
             Save Record
           </button>
         </>
@@ -457,19 +482,33 @@ function BrandPaymentDialog({ campaignId, onClose, onSaved }) {
           <input type="number" min="0" className="form-input" value={form.amount} onChange={set('amount')} />
         </div>
         <div className="form-group">
-          <label className="form-label">Date</label>
-          <input type="date" className="form-input" value={form.record_date} onChange={set('record_date')} />
+          <label className="form-label">Payment mode{form.kind === 'RECEIVED' ? ' *' : ''}</label>
+          <select className="form-input" value={form.payment_mode} onChange={set('payment_mode')}>
+            {form.kind !== 'RECEIVED' ? <option value="">—</option> : null}
+            {PAYMENT_MODES.map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="form-group">
-          <label className="form-label">Reference</label>
-          <input className="form-input" value={form.reference} onChange={set('reference')} placeholder="Invoice / UTR" />
+          <label className="form-label">Payment date</label>
+          <input type="date" className="form-input" value={form.record_date} onChange={set('record_date')} />
         </div>
       </div>
       <div className="form-group">
-        <label className="form-label">Note</label>
+        <label className="form-label">Reference / transaction ID</label>
+        <input className="form-input" value={form.reference} onChange={set('reference')} placeholder="UTR, UPI ref, cheque no., invoice" />
+      </div>
+      <div className="form-group">
+        <label className="form-label">Notes</label>
         <input className="form-input" value={form.note} onChange={set('note')} />
       </div>
-      <div className="form-hint">Every brand payment, refund and credit is recorded manually. Delivery shortfalls never change these.</div>
+      <div className="form-hint">
+        Each payment is added to the history; earlier records are never changed. A wrong entry can be cancelled (it stays visible but stops counting).
+        Brand payments never change rider earnings or payouts.
+      </div>
     </Modal>
   );
 }
@@ -492,6 +531,19 @@ export function FinancialsPanel({ campaignId, fulfillment: f, onChanged }) {
   const b = payments.summary;
   const rp = f.rider_payout;
 
+  const cancelRecord = (record) => {
+    const reason = window.prompt(`Cancel the ${formatINR(record.amount)} entry of ${formatDate(record.record_date)}? It stays in the history but stops counting. Reason:`);
+    if (!reason || !reason.trim()) return;
+    api
+      .cancelBrandPayment(campaignId, record.id, reason.trim())
+      .then((p) => {
+        setPayments(p);
+        toast.success('Entry cancelled.');
+        onChanged && onChanged();
+      })
+      .catch((err) => toast.error(err.message));
+  };
+
   const resolve = (adj, status) => {
     const note = window.prompt(status === 'RECOVERED' ? 'How was the amount recovered?' : 'Why is this being waived?') || '';
     api
@@ -509,13 +561,14 @@ export function FinancialsPanel({ campaignId, fulfillment: f, onChanged }) {
         <div className="card">
           <div className="card-header-bar">
             <span className="card-title-text">Brand</span>
-            <StatusPill status={b.payment_status} />
+            <StatusPill status={b.payment_status} label={brandStatusLabel(b.payment_status)} />
           </div>
           <div className="mini-stat-list">
-            <Kpi label="Contract value" value={formatINR(b.contract_value)} />
-            <Kpi label="Received" value={formatINR(b.received)} />
-            <Kpi label="Outstanding" value={formatINR(b.outstanding)} tone={b.outstanding > 0 ? 'negative' : ''} />
+            <Kpi label="Total campaign amount" value={formatINR(b.contract_value)} />
+            <Kpi label="Amount received" value={formatINR(b.net_received)} />
+            <Kpi label="Remaining" value={formatINR(b.outstanding)} tone={b.outstanding > 0 ? 'negative' : ''} />
             <Kpi label="Refunds / credits" value={`${formatINR(b.refunded)} / ${formatINR(b.credits)}`} />
+            <Kpi label="Payment due" value={b.due_date ? formatDate(b.due_date) : 'Not set'} tone={b.overdue ? 'negative' : ''} />
           </div>
         </div>
         <div className="card">
@@ -569,26 +622,44 @@ export function FinancialsPanel({ campaignId, fulfillment: f, onChanged }) {
                   <th>Date</th>
                   <th>Type</th>
                   <th>Amount</th>
+                  <th>Mode</th>
                   <th>Reference</th>
                   <th>Note</th>
                   <th>Recorded By</th>
+                  <th>Status</th>
                 </tr>
               </thead>
               <tbody>
-                {payments.records.map((r) => (
-                  <tr key={r.id}>
-                    <td>{formatDate(r.record_date)}</td>
-                    <td>
-                      <StatusPill status={r.kind === 'RECEIVED' ? 'PAID' : r.kind === 'REFUND' ? 'REFUNDED' : 'CREDIT_ISSUED'} label={r.kind} />
-                    </td>
-                    <td>
-                      <strong>{formatINR(r.amount)}</strong>
-                    </td>
-                    <td style={{ fontSize: '0.8rem' }}>{r.reference || '—'}</td>
-                    <td style={{ fontSize: '0.8rem' }}>{r.note || '—'}</td>
-                    <td style={{ fontSize: '0.78rem', color: '#64748B' }}>{r.created_by || '—'}</td>
-                  </tr>
-                ))}
+                {payments.records.map((r) => {
+                  const cancelled = r.status === 'CANCELLED';
+                  return (
+                    <tr key={r.id} style={cancelled ? { opacity: 0.6 } : null}>
+                      <td>{formatDate(r.record_date)}</td>
+                      <td>
+                        <StatusPill status={r.kind === 'RECEIVED' ? 'PAID' : r.kind === 'REFUND' ? 'REFUNDED' : 'CREDIT_ISSUED'} label={r.kind} />
+                      </td>
+                      <td>
+                        <strong style={cancelled ? { textDecoration: 'line-through' } : null}>{formatINR(r.amount)}</strong>
+                      </td>
+                      <td style={{ fontSize: '0.8rem' }}>{r.payment_mode ? MODE_LABELS[r.payment_mode] || r.payment_mode : '—'}</td>
+                      <td style={{ fontSize: '0.8rem' }}>{r.reference || '—'}</td>
+                      <td style={{ fontSize: '0.8rem' }}>{r.note || '—'}</td>
+                      <td style={{ fontSize: '0.78rem', color: '#64748B' }}>{r.created_by || '—'}</td>
+                      <td>
+                        {cancelled ? (
+                          <span title={`${r.cancel_reason || ''}${r.cancelled_by ? ` — ${r.cancelled_by}` : ''}`}>
+                            <StatusPill status="CANCELLED" label="Cancelled" />
+                            <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: 4 }}>{r.cancel_reason}</div>
+                          </span>
+                        ) : (
+                          <button className="btn-sm-view" onClick={() => cancelRecord(r)}>
+                            Cancel entry
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

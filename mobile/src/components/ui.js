@@ -128,11 +128,17 @@ export function EmptyState({ icon, title, message }) {
   );
 }
 
-export function PrimaryButton({ label, onPress, loading, style }) {
+export function PrimaryButton({ label, onPress, loading, disabled, style }) {
   const styles = useStyles(makeStyles);
   const { colors } = useTheme();
   return (
-    <TouchableOpacity style={[styles.primaryButton, style]} onPress={onPress} disabled={loading} activeOpacity={0.85}>
+    <TouchableOpacity
+      style={[styles.primaryButton, disabled && { opacity: 0.45 }, style]}
+      onPress={onPress}
+      disabled={loading || disabled}
+      accessibilityState={{ disabled: !!(loading || disabled) }}
+      activeOpacity={0.85}
+    >
       {loading ? <ActivityIndicator color={colors.onPrimary} /> : <Text style={styles.primaryButtonText}>{label}</Text>}
     </TouchableOpacity>
   );

@@ -30,7 +30,7 @@ def test_invalid_vehicle_numbers(raw):
 
 
 def test_registration_stores_normalised_vehicle_number(client):
-    body = {"selfie": SELFIE, "full_name": "Plate Rider", "mobile_number": "9100000123", "password": "riderPass1", "vehicle_number": "hr 26 dk 8337", "vehicle_category": "TWO_WHEELER"}
+    body = {"selfie": SELFIE, "accept_terms": True, "full_name": "Plate Rider", "mobile_number": "9100000123", "password": "riderPass1", "vehicle_number": "hr 26 dk 8337", "vehicle_category": "TWO_WHEELER"}
     res = client.post(f"{API}/auth/register", json=body)
     assert res.status_code == 200, res.text
     token = res.json()["access_token"]

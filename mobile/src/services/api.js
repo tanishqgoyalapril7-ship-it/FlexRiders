@@ -207,6 +207,10 @@ export const mobileApi = {
 
   getProfile: () => authedGet('/riders/me'),
 
+  // Platform Terms & Privacy: whether a newer version needs accepting, and accepting it.
+  getConsent: () => authedGet('/auth/consent'),
+  acceptConsent: () => authedPost('/auth/consent', { accept_terms: true }),
+
   getPaymentHistory: () => authedGet('/riders/me/payments'),
 
   getNotifications: () => authedGet('/notifications'),
@@ -218,6 +222,8 @@ export const mobileApi = {
   getCampaigns: () => authedGet('/riders/me/campaigns'),
 
   getCampaign: (campaignId) => authedGet(`/riders/me/campaigns/${campaignId}`),
+  // { kind, url }: a video link, or a temporary link to an uploaded video.
+  getCampaignVideo: (campaignId) => authedGet(`/riders/me/campaigns/${campaignId}/video`),
 
   // termsVersion: the campaign Terms & Conditions version the rider just read and accepted (if the campaign has terms).
   joinCampaign: (campaignId, tshirtSize, pickupLocationId, termsVersion) =>

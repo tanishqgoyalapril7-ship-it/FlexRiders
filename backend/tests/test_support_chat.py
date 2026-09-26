@@ -37,7 +37,7 @@ def admin(client, db_session):
 
 def _rider(client, name="Chat Rider"):
     phone = "9" + str(uuid.uuid4().int)[:9]
-    res = client.post(f"{API}/auth/register", json={"full_name": name, "mobile_number": phone, "password": "riderPass1",
+    res = client.post(f"{API}/auth/register", json={"accept_terms": True, "full_name": name, "mobile_number": phone, "password": "riderPass1",
                                                    "vehicle_category": "CYCLE", "selfie": SELFIE})
     assert res.status_code == 200, res.text
     headers = {"Authorization": "Bearer " + res.json()["access_token"]}

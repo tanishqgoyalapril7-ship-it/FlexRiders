@@ -30,6 +30,7 @@ function emptyForm() {
     rules: '',
     visibility: 'DRAFT',
     brand_contract_value: 0,
+    brand_payment_due_date: '',
     allow_payout_beyond_contract: false,
     continue_after_fulfillment: false,
     location_area: '',
@@ -58,6 +59,7 @@ export function CampaignFormModal({ brands = [], campaign, onClose, onSaved, onC
           rules: campaign.rules_text || '',
           visibility: campaign.visibility,
           brand_contract_value: campaign.brand_contract_value || 0,
+          brand_payment_due_date: campaign.brand_payment_due_date || '',
           allow_payout_beyond_contract: campaign.allow_payout_beyond_contract,
           continue_after_fulfillment: campaign.continue_after_fulfillment,
           location_area: campaign.location_area || '',
@@ -142,6 +144,7 @@ export function CampaignFormModal({ brands = [], campaign, onClose, onSaved, onC
       total_slots: Number(form.total_slots),
       daily_rate: Number(form.daily_rate),
       brand_contract_value: Number(form.brand_contract_value || 0),
+      brand_payment_due_date: form.brand_payment_due_date || null,
       name: form.name.trim(),
     };
     try {
@@ -337,6 +340,11 @@ export function CampaignFormModal({ brands = [], campaign, onClose, onSaved, onC
                     placeholder="Optional"
                   />
                   <span className="form-hint">Fills the contract value as rate × {riderDays} rider-days.</span>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Brand payment due date</label>
+                  <input type="date" className="form-input" value={form.brand_payment_due_date} onChange={set('brand_payment_due_date')} />
+                  <span className="form-hint">Optional. A balance still unpaid after this date shows as Overdue.</span>
                 </div>
               </div>
               <div className="form-group">

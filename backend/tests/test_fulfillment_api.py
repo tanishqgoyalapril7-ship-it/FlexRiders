@@ -52,7 +52,7 @@ def test_fulfillment_endpoints(client, db_session, admin_headers):
     kit = client.put(f"{API}/campaigns/{cid}/brand-kit", json={"tshirt_required": True, "size_options": "M,L"}, headers=admin_headers).json()
     assert kit["kit"]["size_options"] == ["M", "L"]
     client.post(f"{API}/campaigns/{cid}/pickup-locations", json={"name": "Gurugram Office", "address": "Sector 44, Gurugram"}, headers=admin_headers)
-    reg = client.post(f"{API}/auth/register", json={"selfie": SELFIE, "vehicle_category": "CYCLE", "full_name": "Kit Rider", "mobile_number": "9100000099", "password": "riderPass1"}).json()
+    reg = client.post(f"{API}/auth/register", json={"selfie": SELFIE, "vehicle_category": "CYCLE", "accept_terms": True, "full_name": "Kit Rider", "mobile_number": "9100000099", "password": "riderPass1"}).json()
     rider_headers = {"Authorization": f"Bearer {reg['access_token']}"}
     rider = db_session.query(Rider).filter(Rider.mobile_number == "9100000099").first()
     rider.status = RiderStatus.APPROVED
@@ -86,7 +86,7 @@ def test_fulfillment_endpoints(client, db_session, admin_headers):
     assert extended["effective_end_date"] == (ext_start + timedelta(days=2)).isoformat()
 
     # Brand money is recorded explicitly.
-    client.post(f"{API}/campaigns/{cid}/brand-payments", json={"kind": "RECEIVED", "amount": 300, "record_date": start.isoformat()}, headers=admin_headers)
+    client.post(f"{API}/campaigns/{cid}/brand-payments", json={"kind": "RECEIVED", "payment_mode": "BANK_TRANSFER", "amount": 300, "record_date": start.isoformat()}, headers=admin_headers)
     assert client.post(f"{API}/campaigns/{cid}/brand-payments", json={"kind": "REFUND", "amount": 500, "record_date": start.isoformat()}, headers=admin_headers).status_code == 400
     assert client.get(f"{API}/campaigns/{cid}/brand-payments", headers=admin_headers).json()["summary"]["payment_status"] == "PAID"
 

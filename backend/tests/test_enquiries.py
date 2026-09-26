@@ -113,7 +113,7 @@ def test_admin_follow_up_status_notes_and_convert(client, db_session, admin):
 
 def test_riders_cannot_read_enquiries(client, db_session):
     phone = _phone()
-    token = client.post(f"{API}/auth/register", json={"full_name": "Nosy Rider", "mobile_number": phone, "password": "riderPass1",
+    token = client.post(f"{API}/auth/register", json={"accept_terms": True, "full_name": "Nosy Rider", "mobile_number": phone, "password": "riderPass1",
                                                      "vehicle_category": "CYCLE", "selfie": SELFIE}).json()["access_token"]
     assert client.get(ADM, headers={"Authorization": f"Bearer {token}"}).status_code == 403
 
@@ -121,7 +121,7 @@ def test_riders_cannot_read_enquiries(client, db_session):
 def test_pending_rider_cannot_join_until_approved(client, db_session, admin):
     """The approval gate is enforced by the server, whatever the app shows."""
     phone = _phone()
-    reg = client.post(f"{API}/auth/register", json={"full_name": "Pending Rider", "mobile_number": phone, "password": "riderPass1",
+    reg = client.post(f"{API}/auth/register", json={"accept_terms": True, "full_name": "Pending Rider", "mobile_number": phone, "password": "riderPass1",
                                                    "vehicle_category": "CYCLE", "selfie": SELFIE}).json()
     headers = {"Authorization": f"Bearer {reg['access_token']}"}
     assert reg["status"] == "PENDING"
@@ -149,7 +149,7 @@ def test_join_refusal_explains_each_rider_status(client, db_session, admin):
                                               "end_date": (start + timedelta(days=3)).isoformat(), "total_slots": 2, "daily_rate": 10,
                                               "visibility": "PUBLIC"}, headers=admin).json()
     for action, expected in (("reject", "wasn't approved"), ("suspend", "suspended")):
-        reg = client.post(f"{API}/auth/register", json={"full_name": "Status Rider", "mobile_number": _phone(), "password": "riderPass1",
+        reg = client.post(f"{API}/auth/register", json={"accept_terms": True, "full_name": "Status Rider", "mobile_number": _phone(), "password": "riderPass1",
                                                        "vehicle_category": "CYCLE", "selfie": SELFIE}).json()
         headers = {"Authorization": f"Bearer {reg['access_token']}"}
         me = client.get(f"{API}/riders/me", headers=headers).json()

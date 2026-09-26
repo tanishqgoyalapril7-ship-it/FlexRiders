@@ -24,6 +24,7 @@ class CampaignBase(BaseModel):
     eligible_vehicle_categories: Optional[List[str]] = None
     campaign_category: Optional[str] = Field(None, max_length=30)  # Label only (Standard, Bike, Cycle, TV, Google, …)
     public_image_approved: Optional[bool] = None  # Banner may be shown on the public page (rights confirmed)
+    brand_payment_due_date: Optional[date] = None  # Unpaid balance after this date shows as Overdue
 
     @field_validator("campaign_category")
     @classmethod
@@ -137,10 +138,61 @@ class ExtensionCreate(BaseModel):
 
 class BrandPaymentCreate(BaseModel):
     kind: str = Field(..., pattern="^(RECEIVED|REFUND|CREDIT)$")
-    amount: float = Field(..., gt=0)
+    amount: float = Field(..., gt=0, le=100_000_000)
     record_date: date
-    reference: Optional[str] = Field(None, max_length=120)
+    # How the money moved (UPI, BANK_TRANSFER, IMPS, RTGS, CHEQUE, CASH, OTHER). Required for money received.
+    payment_mode: Optional[str] = Field(None, max_length=20)
+    reference: Optional[str] = Field(None, max_length=120)  # Transaction ID / UTR / cheque number
     note: Optional[str] = Field(None, max_length=500)
+
+    @field_validator("payment_mode")
+    @classmethod
+    def _valid_mode(cls, value):
+        from app.models.campaign_models import BrandPaymentMode
+
+        if not value:
+            return None
+        import re
+
+        value = re.sub(r"[^A-Z0-9]+", "_", value.strip().upper()).strip("_")  # "Bank Transfer / NEFT" → BANK_TRANSFER_NEFT
+        value = {"NEFT": "BANK_TRANSFER", "BANK": "BANK_TRANSFER", "BANK_TRANSFER_NEFT": "BANK_TRANSFER"}.get(value, value)
+        if value not in BrandPaymentMode.ALL:
+            raise ValueError("Payment mode must be one of: " + ", ".join(BrandPaymentMode.LABELS.values()))
+        return value
+
+    @model_validator(mode="after")
+    def _mode_for_money_received(self):
+        if self.kind == "RECEIVED" and not self.payment_mode:
+            raise ValueError("Select how the payment was made (payment mode).")
+        return self
+
+
+class BrandPaymentCancel(BaseModel):
+    reason: str = Field(..., min_length=3, max_length=500)
+
+
+class CampaignVideoLink(BaseModel):
+    video_url: str = Field(..., min_length=10, max_length=500)
+
+    @field_validator("video_url")
+    @classmethod
+    def _https_only(cls, value):
+        from urllib.parse import urlparse
+
+        value = value.strip()
+        parsed = urlparse(value)
+        if parsed.scheme != "https" or not parsed.netloc or " " in value:
+            raise ValueError("Enter a full https:// link to the video (for example a YouTube or Google Drive link).")
+        return value
+
+
+class CampaignVideoUploadRequest(BaseModel):
+    content_type: str = Field(..., max_length=40)
+    size: int = Field(..., gt=0)
+
+
+class CampaignVideoConfirm(BaseModel):
+    path: str = Field(..., max_length=300)
 
 
 class AdjustmentResolve(BaseModel):

@@ -45,7 +45,7 @@ def uploads_dir(tmp_path, monkeypatch):
 
 
 def make_rider(client, db_session, phone, status=RiderStatus.APPROVED):
-    res = client.post(f"{API}/auth/register", json={"selfie": SELFIE, "vehicle_category": "CYCLE", "full_name": f"Rider {phone[-4:]}", "mobile_number": phone, "password": "riderPass1"})
+    res = client.post(f"{API}/auth/register", json={"selfie": SELFIE, "vehicle_category": "CYCLE", "accept_terms": True, "full_name": f"Rider {phone[-4:]}", "mobile_number": phone, "password": "riderPass1"})
     assert res.status_code == 200
     rider = db_session.query(Rider).filter(Rider.mobile_number == phone).first()
     rider.status = status

@@ -26,7 +26,7 @@ def admin(client, db_session):
 
 def _register(client, **extra):
     phone = "9" + str(uuid.uuid4().int)[:9]
-    body = {"full_name": "Delete Me", "mobile_number": phone, "password": "riderPass1", "vehicle_category": "CYCLE", "selfie": SELFIE,
+    body = {"accept_terms": True, "full_name": "Delete Me", "mobile_number": phone, "password": "riderPass1", "vehicle_category": "CYCLE", "selfie": SELFIE,
             "email": f"{phone}@example.com", "dob": "1995-04-02", "upi_id": "me@upi", "primary_area": "Sector 29", **extra}
     res = client.post(f"{API}/auth/register", json=body)
     assert res.status_code == 200, res.text
@@ -78,12 +78,12 @@ def test_web_request_is_generic_rate_limited_and_admin_completes_it(client, db_s
     phone, _ = _register(client)
     unknown = "9" + str(uuid.uuid4().int)[:9]
     # Same answer for a real and an unknown number (no account discovery), and no login needed.
-    a = client.post(f"{API}/public/account-deletion-requests", json={"mobile_number": f"+91 {phone}", "full_name": "Delete Me", "message": "Please delete"})
-    b = client.post(f"{API}/public/account-deletion-requests", json={"mobile_number": unknown, "full_name": "Nobody"})
+    a = client.post(f"{API}/public/account-deletion-requests", json={"mobile_number": f"+91 {phone}", "accept_terms": True, "full_name": "Delete Me", "message": "Please delete"})
+    b = client.post(f"{API}/public/account-deletion-requests", json={"mobile_number": unknown, "accept_terms": True, "full_name": "Nobody"})
     assert a.status_code == b.status_code == 200 and a.json() == b.json()
-    assert client.post(f"{API}/public/account-deletion-requests", json={"mobile_number": "123", "full_name": "Bad"}).status_code == 422
+    assert client.post(f"{API}/public/account-deletion-requests", json={"mobile_number": "123", "accept_terms": True, "full_name": "Bad"}).status_code == 422
     for _ in range(5):
-        client.post(f"{API}/public/account-deletion-requests", json={"mobile_number": unknown, "full_name": "Nobody"})
+        client.post(f"{API}/public/account-deletion-requests", json={"mobile_number": unknown, "accept_terms": True, "full_name": "Nobody"})
     db_session.expire_all()
     assert db_session.query(AccountDeletionRequest).filter(AccountDeletionRequest.mobile_number == unknown).count() == 3  # Capped per day
 

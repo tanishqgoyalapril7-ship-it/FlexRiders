@@ -3,7 +3,7 @@ import { ArrowLeft, Briefcase, Phone, User, CalendarDays, Megaphone, Users, Wall
 import { api } from '../services/api';
 import { toast } from '../components/Feedback';
 import { BrandLogo } from '../components/BrandModals';
-import { STATUS_LABELS as DELIVERY_LABELS } from '../components/CampaignFulfillment';
+import { STATUS_LABELS as DELIVERY_LABELS, brandStatusLabel } from '../components/CampaignFulfillment';
 import {
   CAMPAIGN_CATEGORIES,
   CAMPAIGN_STATUSES,
@@ -325,7 +325,7 @@ export default function CustomerDetailView({ brandId, onBack, onOpenCampaign, on
                       <td>{formatINR(c.brand.contract_value)}</td>
                       <td>{formatINR(c.brand.net_received)}</td>
                       <td>{formatINR(c.brand.outstanding)}</td>
-                      <td><StatusPill status={c.brand.payment_status} label={titleCase(c.brand.payment_status)} /></td>
+                      <td><StatusPill status={c.brand.payment_status} label={brandStatusLabel(c.brand.payment_status)} /></td>
                       <td>{formatINR(c.rider_payout.earned)}</td>
                       <td>{formatINR(c.rider_payout.paid)}</td>
                       <td>{formatINR(c.rider_payout.pending)}</td>
@@ -357,7 +357,10 @@ export default function CustomerDetailView({ brandId, onBack, onOpenCampaign, on
                   {payments.map((p, i) => (
                     <tr key={`${p.type}-${i}`}>
                       <td style={{ whiteSpace: 'nowrap' }}>{formatDate(p.date)}</td>
-                      <td>{PAYMENT_LABELS[p.type] || titleCase(p.type)}</td>
+                      <td>
+                        {PAYMENT_LABELS[p.type] || titleCase(p.type)}
+                        {p.payment_mode ? <div style={{ fontSize: '0.72rem', color: '#64748B' }}>{titleCase(p.payment_mode)}</div> : null}
+                      </td>
                       <td>{p.campaign_name}</td>
                       <td>{p.rider_name || '—'}</td>
                       <td style={{ fontWeight: 700, color: p.type === 'BRAND_RECEIVED' ? '#047857' : undefined }}>{formatINR(p.amount)}</td>

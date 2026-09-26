@@ -42,7 +42,7 @@ def test_auth_and_registration_flow(client, db_session):
 
     # 4. Register New Rider (Multi-Step payload)
     reg_payload = {
-        "full_name": "Kavita Rao",
+        "accept_terms": True, "full_name": "Kavita Rao",
         "mobile_number": "+919811002233",
         "password": "kavitaPass1",
         "selfie": SELFIE,

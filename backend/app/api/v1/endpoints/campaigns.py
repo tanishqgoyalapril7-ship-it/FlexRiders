@@ -22,7 +22,9 @@ from app.models.campaign_models import (
     AdjustmentStatus,
     ApplicationStatus,
     BrandPaymentKind,
+    BrandPaymentMode,
     BrandPaymentRecord,
+    BrandPaymentRecordStatus,
     CampaignBrandKit,
     CampaignExtension,
     CampaignFulfillmentSnapshot,
@@ -56,8 +58,12 @@ from app.schemas.campaign_schemas import (
     RequestKitUpdate,
     RoutePointsUpload,
     PickupLocationUpdate,
+    BrandPaymentCancel,
     BrandPaymentCreate,
     CampaignCreate,
+    CampaignVideoConfirm,
+    CampaignVideoLink,
+    CampaignVideoUploadRequest,
     CampaignUpdate,
     ExcuseRequest,
     ExtensionCreate,
@@ -81,6 +87,7 @@ from app.services.standard_terms import STANDARD_TERMS
 from app.schemas.all_schemas import normalize_vehicle_category
 
 visibility_log = logging.getLogger("app.campaigns.visibility")
+logger = logging.getLogger("app.campaigns")
 if not visibility_log.handlers:  # Uvicorn doesn't configure app loggers; print these to the server console
     _handler = logging.StreamHandler()
     _handler.setFormatter(logging.Formatter("%(levelname)s:     [visibility] %(message)s"))
@@ -184,6 +191,8 @@ def _campaign_dict(db: Session, campaign: Campaign, with_stats: bool = True) -> 
         "contracted_rider_days": fs.contracted_rider_days(campaign),
         "commitment_locked": campaign.contracted_rider_days is not None,
         "brand_contract_value": campaign.brand_contract_value or 0.0,
+        "brand_payment_due_date": campaign.brand_payment_due_date.isoformat() if campaign.brand_payment_due_date else None,
+        "video": _video_brief(campaign),
         "allow_payout_beyond_contract": bool(campaign.allow_payout_beyond_contract),
         "continue_after_fulfillment": bool(campaign.continue_after_fulfillment),
         "extra_replacement_slots": campaign.extra_replacement_slots or 0,
@@ -215,6 +224,28 @@ def _campaign_dict(db: Session, campaign: Campaign, with_stats: bool = True) -> 
     return data
 
 
+def _video_brief(campaign: Campaign) -> Optional[dict]:
+    """What kind of campaign video is set (the playable address comes from the /video endpoints)."""
+    if campaign.video_path:
+        return {"kind": "UPLOAD", "link": None}
+    if campaign.video_url:
+        return {"kind": "LINK", "link": campaign.video_url}
+    return None
+
+
+def _video_playback(campaign: Campaign) -> dict:
+    """The address to play the campaign video: the link itself, or a short-lived signed link to the upload."""
+    if campaign.video_path:
+        if storage.remote():
+            url = storage.signed_url(campaign.video_path[len(storage.PREFIX):], 3600)
+        else:
+            url = campaign.video_path  # Local development: served by /uploads
+        return {"kind": "UPLOAD", "url": url, "expires_in": 3600 if storage.remote() else None}
+    if campaign.video_url:
+        return {"kind": "LINK", "url": campaign.video_url, "expires_in": None}
+    return {"kind": None, "url": None, "expires_in": None}
+
+
 def _vehicle_label(campaign: Campaign) -> str:
     allowed = svc.eligible_categories(campaign)
     if not allowed or set(allowed) == set(VehicleCategory.ALL):
@@ -225,8 +256,8 @@ def _vehicle_label(campaign: Campaign) -> str:
 def _campaign_fields(payload, only_set: bool = False) -> dict:
     """Payload → column values (vehicle categories and slot times are stored as text)."""
     data = payload.model_dump(exclude={"visibility", "publish_standard_terms"})
-    if only_set:  # Fields added later are only changed when the client sends them
-        for field in ("location_area", "eligible_vehicle_categories", "photo_slot_windows", "campaign_category", "public_image_approved"):
+    if only_set:  # Edits change only the fields the client sent (a partial update never resets the others)
+        for field in list(data):
             if field not in payload.model_fields_set:
                 data.pop(field)
     if "eligible_vehicle_categories" in data:
@@ -610,6 +641,94 @@ async def upload_campaign_image(
     campaign = _get_campaign(db, campaign_id)
     campaign.image_url = await _save_image(image, "campaigns")
     db.commit()
+    return _campaign_dict(db, campaign)
+
+
+def _replace_video(db: Session, campaign: Campaign, *, url: Optional[str] = None, path: Optional[str] = None) -> None:
+    """Sets the one campaign video (link or upload); a previously uploaded file is removed from storage."""
+    old_path = campaign.video_path
+    campaign.video_url, campaign.video_path = url, path
+    db.commit()
+    if old_path and old_path != path:
+        try:
+            storage.delete(old_path)
+        except Exception:  # Best effort: an orphaned file is harmless (private, random name)
+            logger.warning("Could not remove the old campaign video for campaign %s", campaign.id)
+
+
+@router.get("/{campaign_id}/video")
+def campaign_video(campaign_id: int, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
+    return _video_playback(_get_campaign(db, campaign_id))
+
+
+@router.put("/{campaign_id}/video/link")
+def set_campaign_video_link(campaign_id: int, payload: CampaignVideoLink, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
+    campaign = _get_campaign(db, campaign_id)
+    _replace_video(db, campaign, url=payload.video_url)
+    log_admin_action(db=db, admin_user=admin, action="CAMPAIGN_VIDEO_SET", target_type="CAMPAIGN", target_id=str(campaign.id),
+                     details=f"Video link set for {campaign.name}")
+    return _campaign_dict(db, campaign)
+
+
+def _check_video(content_type: str, size: int) -> None:
+    if content_type not in storage.VIDEO_TYPES:
+        raise HTTPException(status_code=400, detail="Please upload an MP4, WEBM or MOV video.")
+    if size > storage.MAX_VIDEO_BYTES:
+        raise HTTPException(status_code=400, detail="The video must be 50 MB or smaller. For a longer video, add a YouTube or Google Drive link instead.")
+
+
+@router.post("/{campaign_id}/video/upload-url")
+def campaign_video_upload_url(
+    campaign_id: int, payload: CampaignVideoUploadRequest, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)
+):
+    """Step 1 of an upload: a one-time link the admin's browser sends the file to (straight to private storage)."""
+    _get_campaign(db, campaign_id)
+    _check_video(payload.content_type, payload.size)
+    if not storage.remote():
+        return {"mode": "API", "upload_url": None, "path": None}  # Local development: POST the file to /video/file
+    path = storage.new_video_path(payload.content_type)
+    try:
+        return {"mode": "DIRECT", "upload_url": storage.signed_upload_url(path), "path": storage.PREFIX + path}
+    except storage.StorageError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+
+
+@router.post("/{campaign_id}/video/confirm")
+def confirm_campaign_video(campaign_id: int, payload: CampaignVideoConfirm, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
+    """Step 2: after the browser upload finishes, the file is linked to the campaign."""
+    campaign = _get_campaign(db, campaign_id)
+    path = payload.path.strip()
+    if not re.fullmatch(r"/uploads/campaign-videos/[0-9a-f]{32}\.(mp4|webm|mov)", path) or not storage.exists(path):
+        raise HTTPException(status_code=400, detail="The uploaded video wasn't found. Please upload it again.")
+    _replace_video(db, campaign, path=path)
+    log_admin_action(db=db, admin_user=admin, action="CAMPAIGN_VIDEO_SET", target_type="CAMPAIGN", target_id=str(campaign.id),
+                     details=f"Video uploaded for {campaign.name}")
+    return _campaign_dict(db, campaign)
+
+
+@router.post("/{campaign_id}/video/file")
+async def upload_campaign_video_file(
+    campaign_id: int, video: UploadFile = File(...), db: Session = Depends(get_db), admin: User = Depends(get_current_admin)
+):
+    """Upload through the API (local development; hosted uploads go straight to storage via /video/upload-url)."""
+    campaign = _get_campaign(db, campaign_id)
+    content = await video.read(storage.MAX_VIDEO_BYTES + 1)
+    _check_video(video.content_type or "", len(content))
+    if storage.remote():
+        raise HTTPException(status_code=400, detail="Upload the video with the direct upload link (/video/upload-url).")
+    path = storage.save(content, storage.VIDEO_TYPES[video.content_type], storage.VIDEO_FOLDER, video.content_type)
+    _replace_video(db, campaign, path=path)
+    log_admin_action(db=db, admin_user=admin, action="CAMPAIGN_VIDEO_SET", target_type="CAMPAIGN", target_id=str(campaign.id),
+                     details=f"Video uploaded for {campaign.name}")
+    return _campaign_dict(db, campaign)
+
+
+@router.delete("/{campaign_id}/video")
+def remove_campaign_video(campaign_id: int, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
+    campaign = _get_campaign(db, campaign_id)
+    _replace_video(db, campaign)
+    log_admin_action(db=db, admin_user=admin, action="CAMPAIGN_VIDEO_REMOVED", target_type="CAMPAIGN", target_id=str(campaign.id),
+                     details=f"Video removed from {campaign.name}")
     return _campaign_dict(db, campaign)
 
 
@@ -1170,6 +1289,9 @@ def _participation_status(db: Session, campaign: Campaign, rider: Rider) -> Opti
 def _rider_campaign_card(db: Session, campaign: Campaign, rider: Rider) -> dict:
     can_join, reason = svc.join_eligibility(db, campaign, rider)
     data = _campaign_dict(db, campaign, with_stats=False)
+    # What the brand pays is internal: riders see only their own payout (daily_rate).
+    for private in ("brand_contract_value", "brand_payment_due_date", "allow_payout_beyond_contract", "created_at", "updated_at"):
+        data.pop(private, None)
     used = svc.slots_used(db, campaign.id)
     data.update(
         {
@@ -1330,6 +1452,16 @@ def rider_campaign_detail(campaign_id: int, rider: Rider = Depends(get_current_r
         data["my_kit"] = {"status": KitStatus.NOT_REQUIRED, "status_label": KitStatus.LABELS[KitStatus.NOT_REQUIRED]} if not ks.kit_required(campaign) else None
     data["kit_return"] = _rider_return_block(db, campaign, assignment, kit)
     return data
+
+
+@rider_router.get("/{campaign_id}/video")
+def rider_campaign_video(campaign_id: int, rider: Rider = Depends(get_current_rider), db: Session = Depends(get_db)):
+    """The campaign video for a rider who can see the campaign (approved, eligible vehicle)."""
+    campaign = _rider_visible_campaign(db, campaign_id, rider)
+    video = _video_playback(campaign)
+    if not video["url"]:
+        raise HTTPException(status_code=404, detail="This campaign has no video.")
+    return video
 
 
 def _rider_return_block(db: Session, campaign: Campaign, assignment: Optional[CampaignAssignment], kit: Optional[RiderBrandKit]) -> Optional[dict]:
@@ -1521,17 +1653,26 @@ def approve_extension(
     return _campaign_dict(db, campaign)
 
 
+def _brand_payment_dict(r: BrandPaymentRecord) -> dict:
+    return {
+        "id": r.id, "kind": r.kind, "amount": r.amount, "record_date": r.record_date.isoformat(),
+        "payment_mode": r.payment_mode, "payment_mode_label": BrandPaymentMode.LABELS.get(r.payment_mode) if r.payment_mode else None,
+        "reference": r.reference, "note": r.note,
+        "status": r.status or BrandPaymentRecordStatus.RECORDED,
+        "cancel_reason": r.cancel_reason, "cancelled_at": r.cancelled_at,
+        "cancelled_by": r.cancelled_by.email if r.cancelled_by else None,
+        "created_by": r.created_by.email if r.created_by else None, "created_at": r.created_at, "updated_at": r.updated_at,
+    }
+
+
 @router.get("/{campaign_id}/brand-payments")
 def list_brand_payments(campaign_id: int, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
     campaign = _get_campaign(db, campaign_id)
     records = db.query(BrandPaymentRecord).filter(BrandPaymentRecord.campaign_id == campaign.id).order_by(BrandPaymentRecord.record_date.desc(), BrandPaymentRecord.id.desc()).all()
     return {
         "summary": fs.brand_financials(db, campaign),
-        "records": [
-            {"id": r.id, "kind": r.kind, "amount": r.amount, "record_date": r.record_date.isoformat(), "reference": r.reference,
-             "note": r.note, "created_by": r.created_by.email if r.created_by else None, "created_at": r.created_at}
-            for r in records
-        ],
+        "records": [_brand_payment_dict(r) for r in records],
+        "modes": [{"value": k, "label": v} for k, v in BrandPaymentMode.LABELS.items()],
     }
 
 
@@ -1542,15 +1683,45 @@ def add_brand_payment(
     db: Session = Depends(get_db),
     admin: User = Depends(get_current_admin),
 ):
-    """Explicit admin entry. Delivery shortfalls never create these automatically."""
+    """Explicit admin entry, added to the history (earlier records are never changed). Delivery shortfalls never
+    create these automatically, and they never touch rider earnings or payouts."""
     campaign = _get_campaign(db, campaign_id)
     summary = fs.brand_financials(db, campaign)
     if payload.kind == BrandPaymentKind.REFUND and payload.amount > summary["net_received"]:
         raise HTTPException(status_code=400, detail="A refund cannot be more than the amount received.")
-    db.add(BrandPaymentRecord(campaign_id=campaign.id, created_by_id=admin.id, **payload.model_dump()))
+    db.add(BrandPaymentRecord(campaign_id=campaign.id, created_by_id=admin.id, status=BrandPaymentRecordStatus.RECORDED, **payload.model_dump()))
     db.commit()
+    mode = f" by {BrandPaymentMode.LABELS[payload.payment_mode]}" if payload.payment_mode else ""
     log_admin_action(db=db, admin_user=admin, action=f"BRAND_PAYMENT_{payload.kind}", target_type="CAMPAIGN", target_id=str(campaign.id),
-                     details=f"{payload.kind.title()} ₹{payload.amount:,.2f} for {campaign.name}" + (f" (ref {payload.reference})" if payload.reference else ""))
+                     details=f"{payload.kind.title()} ₹{payload.amount:,.2f}{mode} for {campaign.name}" + (f" (ref {payload.reference})" if payload.reference else ""))
+    return list_brand_payments(campaign_id, db, admin)
+
+
+@router.post("/{campaign_id}/brand-payments/{record_id}/cancel")
+def cancel_brand_payment(
+    campaign_id: int,
+    record_id: int,
+    payload: BrandPaymentCancel,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
+    """Marks a wrong entry as cancelled. It stays in the history (with who and why) but no longer counts."""
+    campaign = _get_campaign(db, campaign_id)
+    record = db.query(BrandPaymentRecord).filter(BrandPaymentRecord.id == record_id, BrandPaymentRecord.campaign_id == campaign.id).first()
+    if not record:
+        raise HTTPException(status_code=404, detail="Payment record not found")
+    if record.status == BrandPaymentRecordStatus.CANCELLED:
+        raise HTTPException(status_code=400, detail="This record is already cancelled.")
+    summary = fs.brand_financials(db, campaign)
+    if record.kind == BrandPaymentKind.RECEIVED and summary["received"] - record.amount < summary["refunded"] - 0.001:
+        raise HTTPException(status_code=400, detail="Refunds would be more than the amount received. Cancel the refund first.")
+    record.status = BrandPaymentRecordStatus.CANCELLED
+    record.cancel_reason = payload.reason.strip()
+    record.cancelled_at = datetime.utcnow()
+    record.cancelled_by_id = admin.id
+    db.commit()
+    log_admin_action(db=db, admin_user=admin, action="BRAND_PAYMENT_CANCELLED", target_type="CAMPAIGN", target_id=str(campaign.id),
+                     details=f"Cancelled {record.kind.title()} ₹{record.amount:,.2f} of {record.record_date:%d %b %Y} for {campaign.name}: {record.cancel_reason}")
     return list_brand_payments(campaign_id, db, admin)
 
 

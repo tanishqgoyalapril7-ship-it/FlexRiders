@@ -15,6 +15,7 @@ from app.api.v1.endpoints import (
     support,
     enquiries,
     password,
+    consent,
 )
 
 api_router = APIRouter()
@@ -40,3 +41,4 @@ api_router.include_router(support.admin_router, prefix="/admin/support", tags=["
 api_router.include_router(enquiries.public_router, prefix="/public", tags=["Website enquiries (public submit)"])
 api_router.include_router(enquiries.admin_router, prefix="/admin/enquiries", tags=["Website enquiries (admin)"])
 api_router.include_router(password.router, prefix="/auth", tags=["Password recovery & email verification"])
+api_router.include_router(consent.router, prefix="/auth", tags=["Terms & Privacy acceptance"])

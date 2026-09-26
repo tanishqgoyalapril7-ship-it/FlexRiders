@@ -133,6 +133,36 @@ function RiderSelfie({ rider }) {
   );
 }
 
+/** Platform Terms & Privacy acceptances (versions and times; history is kept). */
+function RiderConsents({ rider }) {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getRiderConsents(rider.id)
+      .then((d) => !cancelled && setData(d))
+      .catch(() => !cancelled && setData(false));
+    return () => {
+      cancelled = true;
+    };
+  }, [rider.id]);
+  if (data === null) return null;
+  const latest = data && data.acceptances[0];
+  const when = (value) => new Date(value.endsWith('Z') ? value : `${value}Z`).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+  return (
+    <div style={{ fontSize: '0.75rem', color: '#64748B', lineHeight: 1.5, marginTop: -4 }}>
+      <span style={{ fontWeight: 700, color: '#0F172A' }}>Terms & Privacy: </span>
+      {data === false
+        ? 'could not be loaded.'
+        : latest
+          ? `accepted v${latest.terms_version} / v${latest.privacy_version} on ${when(latest.accepted_at)} (${latest.source === 'REGISTRATION' ? 'at registration' : 'in the app'})` +
+            (data.is_current ? '' : ' — a newer version is waiting for acceptance') +
+            (data.acceptances.length > 1 ? `; ${data.acceptances.length - 1} earlier acceptance(s) kept` : '')
+          : 'not accepted yet (registered before the Terms checkbox, or added by an admin). The app asks at next login.'}
+    </div>
+  );
+}
+
 export function RiderDetailModal({
   rider,
   brands = [],
@@ -183,6 +213,7 @@ export function RiderDetailModal({
         {/* Body */}
         <div className="modal-body">
           <RiderSelfie rider={rider} />
+          <RiderConsents rider={rider} />
           {/* Section: Overview Cards */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
             <div style={{ background: '#F8FAFC', padding: '12px', borderRadius: '8px', border: '1px solid #E2E8F0' }}>

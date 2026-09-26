@@ -26,6 +26,7 @@ from app.models.campaign_models import (
     AssignmentStatus,
     BrandPaymentKind,
     BrandPaymentRecord,
+    BrandPaymentRecordStatus,
     Campaign,
     CampaignAssignment,
     CampaignDailyActivity,
@@ -317,20 +318,30 @@ def rider_performance(campaign: Campaign, assignment: CampaignAssignment, today:
 # 5. Brand money (never derived from delivery)
 # ---------------------------------------------------------------------------
 
-def brand_financials(db: Session, campaign: Campaign) -> Dict:
-    records = db.query(BrandPaymentRecord).filter(BrandPaymentRecord.campaign_id == campaign.id).all()
+def brand_financials(db: Session, campaign: Campaign, today: Optional[date] = None) -> Dict:
+    """Brand → FlexRiders money for one campaign. Remaining = contract value − credits − (received − refunded).
+    Cancelled records are kept for history but never counted. Rider payouts are separate (rider_financials)."""
+    records = db.query(BrandPaymentRecord).filter(
+        BrandPaymentRecord.campaign_id == campaign.id, BrandPaymentRecord.status != BrandPaymentRecordStatus.CANCELLED
+    ).all()
     total = lambda kind: round(sum(r.amount for r in records if r.kind == kind), 2)
     received, refunded, credits = total(BrandPaymentKind.RECEIVED), total(BrandPaymentKind.REFUND), total(BrandPaymentKind.CREDIT)
     contract_value = round(campaign.brand_contract_value or 0.0, 2)
     net_received = round(received - refunded, 2)
     outstanding = round(max(contract_value - credits - net_received, 0), 2)
+    due = campaign.brand_payment_due_date
+    overdue = bool(due and outstanding > 0 and (today or today_ist()) > due)
 
-    if refunded > 0:
+    if campaign.status == CampaignStatus.CANCELLED:
+        status = "CANCELLED"
+    elif refunded > 0:
         status = "REFUNDED" if net_received <= 0 else "PARTIALLY_REFUNDED"
+    elif overdue:
+        status = "OVERDUE"
     elif credits > 0:
         status = "CREDIT_ISSUED"
     elif net_received <= 0:
-        status = "UNPAID"
+        status = "PENDING"
     elif outstanding > 0:
         status = "PARTIALLY_PAID"
     else:
@@ -343,6 +354,8 @@ def brand_financials(db: Session, campaign: Campaign) -> Dict:
         "credits": credits,
         "net_received": net_received,
         "outstanding": outstanding,
+        "due_date": due.isoformat() if due else None,
+        "overdue": overdue,
         "payment_status": status,
     }
 

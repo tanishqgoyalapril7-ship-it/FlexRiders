@@ -517,6 +517,21 @@ def reset_rider_password(id: int, db: Session = Depends(get_db), admin: User = D
     return {"temporary_password": temporary, "message": "Give this password to the rider. They'll be asked to choose a new one when they log in."}
 
 
+@router.get("/{id}/consents")
+def rider_consents(id: int, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
+    """Every Terms & Privacy acceptance by this rider, newest first (history is never overwritten)."""
+    from app.models.all_models import PlatformConsent
+    from app.services import consent_service
+
+    rider = _get_rider(db, id)
+    rows = (
+        db.query(PlatformConsent).filter(PlatformConsent.user_id == rider.user_id).order_by(PlatformConsent.id.desc()).all()
+        if rider.user_id else []
+    )
+    return {"current": consent_service.current(), "is_current": consent_service.is_current(rows[0] if rows else None),
+            "acceptances": [consent_service.as_dict(r) for r in rows]}
+
+
 @router.get("/{id}/selfie")
 def rider_selfie(id: int, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
     """The rider's registration selfie (private: admins only, never cached or public)."""

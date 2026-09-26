@@ -9,7 +9,7 @@ API = "/api/v1"
 
 
 def _body(phone, name="Victim Rider"):
-    return {"full_name": name, "mobile_number": phone, "password": "riderPass1", "vehicle_category": "CYCLE", "selfie": SELFIE}
+    return {"accept_terms": True, "full_name": name, "mobile_number": phone, "password": "riderPass1", "vehicle_category": "CYCLE", "selfie": SELFIE}
 
 
 def test_existing_rider_number_is_refused(client, db_session):

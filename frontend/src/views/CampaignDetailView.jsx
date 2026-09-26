@@ -40,6 +40,7 @@ const RouteMapModal = React.lazy(() => import('../components/RouteMap').then((m)
 import { ConfirmDialog, CampaignFormModal, PLATE_NOT_VISIBLE, PhotoLightbox, PhotoReviewCard, RiderActivityModal } from '../components/CampaignModals';
 import { CampaignStatusPill, EmptyState, SlotProgress, SlotStatuses, StatCard, StatusPill, VEHICLE_TYPES, formatDate, formatINR, vehicleLabel } from '../components/CampaignShared';
 import { TermsPanel } from '../components/CampaignTerms';
+import CampaignVideoCard from '../components/CampaignVideo';
 import {
   BrandKitPanel,
   DeliveryPanel,
@@ -537,6 +538,7 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
         onPublish={() => statusAction('publish', 'Publish Campaign', 'Eligible riders will be able to see this campaign and request to join.')}
       />
       <ShareCampaignCard campaign={campaign} onChanged={load} />
+      <CampaignVideoCard campaign={campaign} onChanged={load} />
 
       <div className="tabs-header-bar">
         {TABS.map(([key, label]) => (
@@ -593,6 +595,17 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
               ) : (
                 <p style={{ fontSize: '0.84rem', color: '#94A3B8' }}>No requirements added.</p>
               )}
+              <div className="card-title-text" style={{ margin: '18px 0 8px' }}>Photo timings (IST)</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {['MORNING', 'EVENING', 'NIGHT'].map((slot) => {
+                  const w = (campaign.photo_slot_windows || {})[slot] || [];
+                  return (
+                    <span key={slot} className="status-pill pill-gray" style={{ textTransform: 'none' }}>
+                      {slot.charAt(0) + slot.slice(1).toLowerCase()}: {w[0] || '—'} – {w[1] || '—'}
+                    </span>
+                  );
+                })}
+              </div>
             </div>
             <div className="card">
               <div className="card-header-bar">

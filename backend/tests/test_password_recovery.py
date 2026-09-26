@@ -46,7 +46,7 @@ def _register(client, outbox, email=None, **extra):
     phone = _phone()
     email = email or f"{uuid.uuid4().hex[:10]}@example.com"
     assert client.post(f"{API}/auth/email/verification-code", json={"email": email}).status_code == 200
-    body = {"full_name": "Mail Rider", "mobile_number": phone, "password": "oldPass123", "vehicle_category": "CYCLE",
+    body = {"accept_terms": True, "full_name": "Mail Rider", "mobile_number": phone, "password": "oldPass123", "vehicle_category": "CYCLE",
             "selfie": SELFIE, "email": email, "email_code": _code(outbox, email), **extra}
     res = client.post(f"{API}/auth/register", json=body)
     assert res.status_code == 200, res.text
@@ -61,7 +61,7 @@ def _login(client, phone, password):
 
 def test_registration_email_is_verified_when_sending_is_on(client, db_session, outbox):
     email = f"{uuid.uuid4().hex[:8]}@Example.com"
-    base = {"full_name": "Reg", "mobile_number": _phone(), "password": "regPass123", "vehicle_category": "CYCLE", "selfie": SELFIE}
+    base = {"accept_terms": True, "full_name": "Reg", "mobile_number": _phone(), "password": "regPass123", "vehicle_category": "CYCLE", "selfie": SELFIE}
     assert client.post(f"{API}/auth/register", json=base).status_code == 422  # Email required
     assert client.post(f"{API}/auth/register", json={**base, "email": email, "email_code": "000000"}).status_code == 400
     assert client.post(f"{API}/auth/email/verification-code", json={"email": "not-an-email"}).status_code == 422
@@ -83,7 +83,7 @@ def test_registration_email_is_verified_when_sending_is_on(client, db_session, o
 
 def test_without_email_sending_email_stays_optional(client):
     assert not mail.delivery_available()
-    res = client.post(f"{API}/auth/register", json={"full_name": "NoMail", "mobile_number": _phone(), "password": "regPass123",
+    res = client.post(f"{API}/auth/register", json={"accept_terms": True, "full_name": "NoMail", "mobile_number": _phone(), "password": "regPass123",
                                                    "vehicle_category": "CYCLE", "selfie": SELFIE})
     assert res.status_code == 200
     assert client.post(f"{API}/auth/email/verification-code", json={"email": "a@b.co"}).status_code == 400
@@ -151,7 +151,7 @@ def test_code_expiry_attempts_and_rate_limits(client, db_session, outbox):
 
 def test_admin_reset_forces_a_new_password(client, db_session, admin):
     phone = _phone()
-    reg = client.post(f"{API}/auth/register", json={"full_name": "Forgetful", "mobile_number": phone, "password": "oldPass123",
+    reg = client.post(f"{API}/auth/register", json={"accept_terms": True, "full_name": "Forgetful", "mobile_number": phone, "password": "oldPass123",
                                                    "vehicle_category": "CYCLE", "selfie": SELFIE}).json()
     old = {"Authorization": "Bearer " + reg["access_token"]}
     rider_id = client.get(f"{API}/riders/me", headers=old).json()["id"]

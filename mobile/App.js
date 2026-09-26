@@ -11,6 +11,7 @@ import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
 import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
 import ChangePasswordScreen from './src/screens/ChangePasswordScreen';
+import TermsConsentScreen from './src/screens/TermsConsentScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import EarningsScreen from './src/screens/EarningsScreen';
 import PaymentsScreen from './src/screens/PaymentsScreen';
@@ -142,7 +143,9 @@ function RiderApp() {
   const insets = useSafeAreaInsets();
   const styles = useStyles(makeStyles);
   const { colors } = useTheme();
-  const [screen, setScreen] = useState('loading'); // loading | splash | login | forgot | change-password | register | main
+  const [screen, setScreen] = useState('loading'); // loading | splash | login | forgot | change-password | terms | register | main
+  const [consent, setConsent] = useState(null); // Terms & Privacy status when a newer version needs accepting
+  const consentChecked = useRef(false); // Checked once per login, not on every background refresh
   const [forgotFor, setForgotFor] = useState('');
   const [otpLogin, setOtpLogin] = useState(false); // Only where the server allows it (local development)
   useEffect(() => {
@@ -181,6 +184,8 @@ function RiderApp() {
     // Stop location sharing and upload the last points while still signed in.
     await stopRoute().catch(() => {});
     setAuthToken('');
+    consentChecked.current = false;
+    setConsent(null);
     setRider(EMPTY_RIDER);
     setPayments([]);
     setNotifications([]);
@@ -204,6 +209,15 @@ function RiderApp() {
         return 'CHANGE_PASSWORD';
       }
       return err.status === 404 ? false : null;
+    }
+    if (!consentChecked.current) {
+      const status = await mobileApi.getConsent().catch(() => null);
+      if (status) consentChecked.current = true;
+      if (status && status.required) {
+        setConsent(status);
+        setScreen('terms'); // A newer Terms / Privacy version: accept it before continuing
+        return 'TERMS';
+      }
     }
     const [paymentData, notificationData, campaignData, earningsData, supportData] = await Promise.all([
       mobileApi.getPaymentHistory().catch(() => null),
@@ -245,7 +259,7 @@ function RiderApp() {
       .then(async (token) => {
         if (token) await refreshData().catch(() => null); // Offline or a bad response: open the app anyway, polling retries
       })
-      .finally(() => setScreen((current) => (current === 'change-password' ? current : getAuthToken() ? 'main' : 'splash')));
+      .finally(() => setScreen((current) => (['change-password', 'terms'].includes(current) ? current : getAuthToken() ? 'main' : 'splash')));
   }, [refreshData]);
 
   useEffect(() => {
@@ -260,7 +274,7 @@ function RiderApp() {
       return;
     }
     const result = await refreshData();
-    if (result === 'CHANGE_PASSWORD') return;
+    if (result === 'CHANGE_PASSWORD' || result === 'TERMS') return;
     if (result === false) {
       Alert.alert('Complete your registration', 'This number is not registered as a rider yet. Please complete the registration form.');
       setScreen('register');
@@ -459,6 +473,19 @@ function RiderApp() {
         <ChangePasswordScreen
           onLogout={logout}
           onChanged={async () => {
+            await refreshData();
+            setTab('home');
+            setScreen('main');
+          }}
+        />
+      )}
+
+      {screen === 'terms' && (
+        <TermsConsentScreen
+          consent={consent}
+          onLogout={logout}
+          onAccepted={async () => {
+            setConsent(null);
             await refreshData();
             setTab('home');
             setScreen('main');

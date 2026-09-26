@@ -71,13 +71,25 @@ def save(content: bytes, extension: str, folder: str, content_type: str = "appli
     return PREFIX + path
 
 
-# Folders that hold private personal images: never served through the public /uploads route.
-PRIVATE_FOLDERS = ("selfies",)
+# Folders never served through the public /uploads route: private personal images (selfies) and campaign
+# videos (riders and admins get short-lived signed links from authenticated endpoints).
+PRIVATE_FOLDERS = ("selfies", "campaign-videos")
+
+# Campaign videos go straight from the admin's browser to storage (too large for the API), with a one-time
+# upload link the API signs. Hosted storage caps a file at 50 MB.
+VIDEO_FOLDER = "campaign-videos"
+VIDEO_TYPES = {"video/mp4": ".mp4", "video/webm": ".webm", "video/quicktime": ".mov"}
+MAX_VIDEO_BYTES = 50 * 1024 * 1024
+BUCKET_FILE_LIMIT = MAX_VIDEO_BYTES
+BUCKET_TYPES = ["image/jpeg", "image/png", "image/webp", "image/heic", *VIDEO_TYPES]
 
 
 def is_private(path: str) -> bool:
     path = path[len(PREFIX):] if path.startswith(PREFIX) else path.lstrip("/")
-    return path.split("/", 1)[0] in PRIVATE_FOLDERS
+    folder = path.split("/", 1)[0]
+    if folder == VIDEO_FOLDER and not remote():
+        return False  # Local development has no signed links, so /uploads plays the video directly
+    return folder in PRIVATE_FOLDERS
 
 
 def read(url: Optional[str]) -> Optional[bytes]:
@@ -151,7 +163,7 @@ def ensure_bucket() -> str:
         f"{_base()}/bucket",
         json={
             "id": settings.STORAGE_BUCKET, "name": settings.STORAGE_BUCKET, "public": False,
-            "file_size_limit": 8 * 1024 * 1024, "allowed_mime_types": ["image/jpeg", "image/png", "image/webp", "image/heic"],
+            "file_size_limit": BUCKET_FILE_LIMIT, "allowed_mime_types": BUCKET_TYPES,
         },
         headers=_headers(),
         timeout=30,
@@ -161,3 +173,37 @@ def ensure_bucket() -> str:
     if "already exists" in res.text.lower() or res.status_code == 409:
         return "exists"
     raise StorageError(f"Could not create the storage bucket: {res.status_code} {res.text[:200]}")
+
+
+def configure_bucket() -> None:
+    """Brings an existing bucket's settings up to date (still private; images and campaign videos)."""
+    res = httpx.put(
+        f"{_base()}/bucket/{settings.STORAGE_BUCKET}",
+        json={"public": False, "file_size_limit": BUCKET_FILE_LIMIT, "allowed_mime_types": BUCKET_TYPES},
+        headers=_headers(),
+        timeout=30,
+    )
+    if res.status_code >= 300:
+        raise StorageError(f"Could not update the storage bucket ({res.status_code}).")
+
+
+def new_video_path(content_type: str) -> str:
+    return f"{VIDEO_FOLDER}/{uuid.uuid4().hex}{VIDEO_TYPES[content_type]}"
+
+
+def signed_upload_url(path: str) -> str:
+    """One-time address the browser uploads a file to (hosted storage only). Valid for 2 hours."""
+    res = httpx.post(f"{_base()}/object/upload/sign/{settings.STORAGE_BUCKET}/{path}", headers=_headers(), timeout=15)
+    if res.status_code >= 300:
+        raise StorageError(f"Could not prepare the upload ({res.status_code}). Please try again.")
+    return settings.SUPABASE_URL.rstrip("/") + "/storage/v1" + res.json()["url"]
+
+
+def exists(url: str) -> bool:
+    """Whether a stored file is there (hosted: it can be signed; local: the file exists)."""
+    if not url or not url.startswith(PREFIX) or ".." in url.split("/"):
+        return False
+    path = url[len(PREFIX):]
+    if remote():
+        return signed_url(path, 60) is not None
+    return os.path.isfile(os.path.join(settings.UPLOAD_DIR, path))

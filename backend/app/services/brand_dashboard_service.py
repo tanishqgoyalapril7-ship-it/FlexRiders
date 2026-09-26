@@ -154,7 +154,9 @@ def payments(db: Session, campaigns: List[Campaign]) -> List[Dict]:
             "date": r.record_date.isoformat(),
             "reference": r.reference,
             "note": r.note,
-            "status": None,
+            "payment_mode": r.payment_mode,
+            # Cancelled entries stay in the history but aren't counted in any total.
+            "status": "CANCELLED" if r.status == "CANCELLED" else None,
             "rider_name": None,
         }
         for r in db.query(BrandPaymentRecord).filter(BrandPaymentRecord.campaign_id.in_(ids)).all()

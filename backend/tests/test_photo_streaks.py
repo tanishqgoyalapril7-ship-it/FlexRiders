@@ -224,7 +224,7 @@ def test_photo_upload_api(client, db_session):
               "end_date": (start + timedelta(days=4)).isoformat(), "total_slots": 1, "daily_rate": 10, "visibility": "PUBLIC"},
         headers=admin_headers,
     ).json()["id"]
-    reg = client.post(f"{API}/auth/register", json={"selfie": SELFIE, "vehicle_category": "CYCLE", "full_name": "Streak Rider", "mobile_number": "9100000077", "password": "riderPass1"}).json()
+    reg = client.post(f"{API}/auth/register", json={"selfie": SELFIE, "vehicle_category": "CYCLE", "accept_terms": True, "full_name": "Streak Rider", "mobile_number": "9100000077", "password": "riderPass1"}).json()
     rider_headers = {"Authorization": f"Bearer {reg['access_token']}"}
     rider = db_session.query(Rider).filter(Rider.mobile_number == "9100000077").first()
     rider.status = RiderStatus.APPROVED

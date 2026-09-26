@@ -70,6 +70,8 @@ def register_new_rider(db: Session, reg: RiderRegistrationRequest) -> Rider:
     # 1. Checks. Every check runs before anything is created, so a refused registration leaves nothing behind.
     from app.services import referral_service  # Local import avoids a circular import
 
+    if not reg.accept_terms:
+        raise HTTPException(status_code=422, detail="Please accept the FlexRiders Terms & Conditions and Privacy Policy to register.")
     try:
         referrer = referral_service.find_referrer(db, reg.referral_code)
     except referral_service.ReferralError as e:
@@ -108,6 +110,9 @@ def register_new_rider(db: Session, reg: RiderRegistrationRequest) -> Rider:
     )
     db.add(user)
     db.flush()
+    from app.services import consent_service
+
+    consent_service.record(db, user, consent_service.REGISTRATION)
 
     # 2. Generate unique Rider ID
     sr_id = generate_next_rider_id(db)
