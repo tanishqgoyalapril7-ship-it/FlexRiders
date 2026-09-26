@@ -12,6 +12,7 @@ import CampaignDetailView from './views/CampaignDetailView';
 import CustomerDetailView from './views/CustomerDetailView';
 import DeletionRequestsView from './views/DeletionRequestsView';
 import SupportView from './views/SupportView';
+import EnquiriesView from './views/EnquiriesView';
 import { JoinRequestsView } from './components/JoinRequests';
 import { AdminsView, LoginView, NotificationsView, SettingsView } from './views/AdminPages';
 import { RiderDetailModal, CreatePaymentModal } from './components/Modals';
@@ -98,7 +99,7 @@ export default function App() {
         needs('reports') ? api.getDashboard().catch(() => null) : skip,
         api.getRiders().catch(() => null),
         needs('riders') && riderFilterRef.current === 'ARCHIVED' ? api.getRiders({ archived: 'only' }).catch(() => null) : skip,
-        needs('brands', 'riders', 'assignments', 'campaigns', 'campaign-detail', 'payments') ? api.getBrands().catch(() => null) : skip,
+        needs('brands', 'riders', 'assignments', 'campaigns', 'campaign-detail', 'payments', 'enquiries') ? api.getBrands().catch(() => null) : skip,
         needs('payments') ? api.getPayments().catch(() => null) : skip,
         api.getNotifications().catch(() => null),
         needs('audit') ? api.getAuditLogs().catch(() => null) : skip,
@@ -645,6 +646,8 @@ export default function App() {
         {activeView === 'deletion-requests' && <DeletionRequestsView />}
 
         {activeView === 'support' && <SupportView />}
+
+        {activeView === 'enquiries' && <EnquiriesView brands={brands} onChanged={refreshAllData} />}
 
         {activeView === 'settings' && <SettingsView currentAdmin={currentAdmin} onDataReset={refreshAllData} />}
       </div>

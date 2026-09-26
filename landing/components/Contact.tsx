@@ -9,12 +9,12 @@ import {
   useId,
   useRef,
   useState,
-  type FormEvent,
   type ReactNode,
 } from "react";
 import { getLenis } from "@/lib/scroll";
 import { IconCheck, IconClose } from "./Icons";
 import MagneticButton from "./MagneticButton";
+import EnquiryForm from "./EnquiryForm";
 import styles from "./Contact.module.css";
 
 export type Intent = "start" | "talk" | "support" | "advertise";
@@ -25,16 +25,16 @@ export const useContact = () => useContext(ContactCtx);
 
 const copy: Record<Intent, { title: string; sub: string }> = {
   start: {
-    title: "Get started with Flex Riders",
-    sub: "Tell us a little about you and we'll help you get set up.",
+    title: "Want to promote your brand?",
+    sub: "Tell us about your campaign and our team will get in touch with you.",
   },
   talk: {
     title: "Talk to us",
     sub: "Questions about running riders on Flex Riders? We'd love to hear from you.",
   },
   advertise: {
-    title: "Advertise with Flex Riders",
-    sub: "Tell us about your brand and where you'd like to be seen. We'll help plan your campaign.",
+    title: "Promote your brand with riders & autos",
+    sub: "Tell us about your campaign and our team will get in touch with you.",
   },
   support: {
     title: "Get support",
@@ -42,15 +42,15 @@ const copy: Record<Intent, { title: string; sub: string }> = {
   },
 };
 
-type Status = "idle" | "sending" | "sent" | "error";
+type Status = "idle" | "sent";
 
 export function ContactProvider({ children }: { children: ReactNode }) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [intent, setIntent] = useState<Intent>("start");
   const [role, setRole] = useState<Role>("business");
   const [status, setStatus] = useState<Status>("idle");
-  const [error, setError] = useState("");
   const [firstName, setFirstName] = useState("");
+  const [doneMessage, setDoneMessage] = useState("");
   const [open, setOpenState] = useState(false);
   const titleId = useId();
   const descId = useId();
@@ -59,7 +59,6 @@ export function ContactProvider({ children }: { children: ReactNode }) {
     setIntent(next);
     setRole(nextRole);
     setStatus("idle");
-    setError("");
     const d = dialogRef.current;
     if (d && !d.open) {
       d.showModal();
@@ -88,29 +87,6 @@ export function ContactProvider({ children }: { children: ReactNode }) {
       d.removeEventListener("click", onClick);
     };
   }, []);
-
-  async function onSubmit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    const form = e.currentTarget;
-    const data = Object.fromEntries(new FormData(form).entries());
-    setStatus("sending");
-    setError("");
-    try {
-      const res = await fetch("/api/contact", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...data, role, intent }),
-      });
-      const json = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) throw new Error(json.error || "Something went wrong. Please try again.");
-      setFirstName(String(data.name || "").trim().split(" ")[0]);
-      setStatus("sent");
-      form.reset();
-    } catch (err) {
-      setStatus("error");
-      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
-    }
-  }
 
   const c = copy[intent];
 
@@ -145,19 +121,21 @@ export function ContactProvider({ children }: { children: ReactNode }) {
                     {firstName ? `Thanks, ${firstName}.` : "Thank you."}
                   </h2>
                   <p id={descId} className={styles.sub}>
-                    Your message is with the Flex Riders team. We&apos;ll be in touch soon.
+                    {doneMessage}
                   </p>
                   <MagneticButton variant="ghost" onClick={close}>
                     Close
                   </MagneticButton>
                 </div>
               ) : (
-                <form onSubmit={onSubmit} noValidate={false}>
+                <div>
                   <h2 id={titleId} className={styles.title}>
-                    {c.title}
+                    {role === "business" ? c.title : "Join Flex Riders"}
                   </h2>
                   <p id={descId} className={styles.sub}>
-                    {c.sub}
+                    {role === "business"
+                      ? c.sub
+                      : "Leave your details and our team will call you. Riders can also register directly in the FlexRiders app."}
                   </p>
 
                   <fieldset className={styles.segment}>
@@ -182,53 +160,18 @@ export function ContactProvider({ children }: { children: ReactNode }) {
                     ))}
                   </fieldset>
 
-                  <div className={styles.fields}>
-                    <label className={styles.field}>
-                      <span>Full name</span>
-                      <input name="name" required autoComplete="name" maxLength={120} />
-                    </label>
-                    <label className={styles.field}>
-                      <span>Email</span>
-                      <input name="email" type="email" required autoComplete="email" maxLength={160} />
-                    </label>
-                    <label className={styles.field}>
-                      <span>Phone {role === "business" && <em>(optional)</em>}</span>
-                      <input
-                        name="phone"
-                        type="tel"
-                        autoComplete="tel"
-                        required={role !== "business"}
-                        maxLength={24}
-                      />
-                    </label>
-                    {role === "business" ? (
-                      <label className={styles.field}>
-                        <span>Company</span>
-                        <input name="company" required autoComplete="organization" maxLength={160} />
-                      </label>
-                    ) : (
-                      <label className={styles.field}>
-                        <span>City</span>
-                        <input name="city" required autoComplete="address-level2" maxLength={80} />
-                      </label>
-                    )}
-                    <label className={`${styles.field} ${styles.full}`}>
-                      <span>
-                        Message <em>(optional)</em>
-                      </span>
-                      <textarea name="message" rows={3} maxLength={2000} />
-                    </label>
-                  </div>
-
-                  <div className={styles.actions}>
-                    <p className={styles.error} role="alert" aria-live="assertive">
-                      {status === "error" ? error : ""}
-                    </p>
-                    <MagneticButton type="submit" arrow={status !== "sending"}>
-                      {status === "sending" ? "Sending…" : "Send"}
-                    </MagneticButton>
-                  </div>
-                </form>
+                  <EnquiryForm
+                    key={role}
+                    role={role}
+                    intent={intent}
+                    submitLabel={role === "business" ? "Submit Enquiry" : "Send"}
+                    onDone={(name, message) => {
+                      setFirstName(name);
+                      setDoneMessage(message);
+                      setStatus("sent");
+                    }}
+                  />
+                </div>
               )}
             </motion.div>
           )}

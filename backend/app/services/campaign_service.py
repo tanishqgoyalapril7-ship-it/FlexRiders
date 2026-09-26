@@ -290,8 +290,12 @@ def join_eligibility(
             return False, "Your request is awaiting admin approval."
         return False, "You already have a pending request for another campaign."
 
-    if rider.status not in ELIGIBLE_RIDER_STATUSES:
-        return False, "Your rider account must be approved before you can join campaigns."
+    if rider.status not in ELIGIBLE_RIDER_STATUSES:  # The approval gate itself is unchanged; only the wording depends on why
+        if rider.status == RiderStatus.REJECTED:
+            return False, "Your profile wasn't approved, so you can't join campaigns. Contact support in the app for details."
+        if rider.status == RiderStatus.SUSPENDED:
+            return False, "Your account is suspended, so you can't join campaigns. Contact support in the app for details."
+        return False, "Your profile is under review. You'll be able to join campaigns once it has been approved by FlexRiders."
     if campaign.status in CampaignStatus.PUBLISHED and campaign.live_at and not by_admin:
         return False, LIVE_JOIN_CLOSED
     vehicle = vehicle_block_reason(campaign, rider)

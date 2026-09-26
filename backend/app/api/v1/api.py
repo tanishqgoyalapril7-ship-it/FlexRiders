@@ -13,6 +13,7 @@ from app.api.v1.endpoints import (
     internal,
     account_deletion,
     support,
+    enquiries,
 )
 
 api_router = APIRouter()
@@ -35,3 +36,5 @@ api_router.include_router(account_deletion.public_router, prefix="/public", tags
 api_router.include_router(account_deletion.admin_router, prefix="/admin/deletion-requests", tags=["Account Deletion (admin)"])
 api_router.include_router(support.rider_router, prefix="/riders/me/support", tags=["Rider Support Chat"])
 api_router.include_router(support.admin_router, prefix="/admin/support", tags=["Admin Support Inbox"])
+api_router.include_router(enquiries.public_router, prefix="/public", tags=["Website enquiries (public submit)"])
+api_router.include_router(enquiries.admin_router, prefix="/admin/enquiries", tags=["Website enquiries (admin)"])

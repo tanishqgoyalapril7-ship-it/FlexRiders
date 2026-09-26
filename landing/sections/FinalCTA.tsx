@@ -5,7 +5,7 @@ import { motion, useTransform } from "framer-motion";
 import { useRef } from "react";
 import { useScrollProgress } from "@/lib/useScrollProgress";
 import markLight from "@/public/images/fr-mark-light.png";
-import { ContactButton } from "@/components/Contact";
+import EnquiryForm from "@/components/EnquiryForm";
 import { Reveal, RevealHeading } from "@/components/Reveal";
 import { useReduced } from "@/lib/useReduced";
 import s from "./FinalCTA.module.css";
@@ -18,7 +18,7 @@ export default function FinalCTA() {
   const opacity = useTransform(scrollYProgress, [0, 0.8], [0, 0.09]);
 
   return (
-    <section ref={ref} className={`theme-dark ${s.cta}`} aria-labelledby="cta-title">
+    <section ref={ref} id="enquiry" className={`theme-dark ${s.cta}`} aria-labelledby="cta-title">
       <motion.div className={s.mark} style={{ scale, opacity }} aria-hidden="true">
         <Image src={markLight} alt="" sizes="(max-width: 767px) 120vw, 1100px" />
       </motion.div>
@@ -28,20 +28,13 @@ export default function FinalCTA() {
         <RevealHeading
           id="cta-title"
           className={`display-xl ${s.title}`}
-          lines={["Ready to move rider", <span key="o" className="blue-text">operations forward?</span>]}
+          lines={["Want to promote", <span key="o" className="blue-text">your brand?</span>]}
         />
         <Reveal delay={0.15}>
-          <p className={`lead ${s.lead}`}>
-            Bring riders, brands and payments into one connected platform.
-          </p>
+          <p className={`lead ${s.lead}`}>Tell us about your campaign and our team will get in touch with you.</p>
         </Reveal>
-        <Reveal delay={0.25} className={s.ctas}>
-          <ContactButton intent="start" arrow>
-            Get Started
-          </ContactButton>
-          <ContactButton intent="talk" variant="ghost">
-            Talk to Us
-          </ContactButton>
+        <Reveal delay={0.25} className={s.form}>
+          <EnquiryForm role="business" intent="advertise" />
         </Reveal>
       </div>
     </section>

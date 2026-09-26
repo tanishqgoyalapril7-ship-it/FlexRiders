@@ -24,13 +24,30 @@ const isRecent = (value) => Boolean(value) && Date.now() - new Date(value).getTi
 // the active-campaign card shows the campaign).
 function homeStage(rider, campaigns) {
   if (rider.status === 'PENDING' || rider.status === 'UNDER_REVIEW') {
-    return { tone: 'warning', icon: 'time-outline', title: 'Application under review', text: "Our operations team is reviewing your application. You'll be notified here once it's approved." };
+    return {
+      tone: 'warning',
+      icon: 'time-outline',
+      title: 'Profile under review',
+      text: "Your profile is under review. Further FlexRiders features, like joining campaigns, will become available once your profile is approved. You'll be notified here.",
+    };
   }
   if (rider.status === 'REJECTED') {
-    return { tone: 'danger', icon: 'close-circle-outline', title: 'Application not approved', text: rider.rejection_reason || 'Please contact your operations manager for details.' };
+    return {
+      tone: 'danger',
+      icon: 'close-circle-outline',
+      title: 'Profile not approved',
+      text: rider.rejection_reason ? `Reason: ${rider.rejection_reason}` : 'Your profile was not approved.',
+      action: { label: 'Contact support', target: 'support' },
+    };
   }
   if (rider.status === 'SUSPENDED') {
-    return { tone: 'danger', icon: 'alert-circle-outline', title: 'Account suspended', text: rider.suspension_reason || 'Please contact your operations manager for details.' };
+    return {
+      tone: 'danger',
+      icon: 'alert-circle-outline',
+      title: 'Account suspended',
+      text: rider.suspension_reason ? `Reason: ${rider.suspension_reason}` : 'Your account has been suspended.',
+      action: { label: 'Contact support', target: 'support' },
+    };
   }
   if (campaigns && campaigns.active) return null;
 

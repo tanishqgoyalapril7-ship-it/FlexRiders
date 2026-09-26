@@ -271,11 +271,22 @@ def brand_impact(db: Session, brand: Brand) -> Dict:
     }
 
 
+def _unlink_enquiries(db: Session, brand_ids: Optional[List[int]]) -> None:
+    """Website enquiries are leads, not brand data: deleting a brand keeps them and clears the link."""
+    from app.models.all_models import BrandEnquiry
+
+    query = db.query(BrandEnquiry).filter(BrandEnquiry.brand_id.isnot(None))
+    if brand_ids is not None:
+        query = query.filter(BrandEnquiry.brand_id.in_(brand_ids))
+    query.update({BrandEnquiry.brand_id: None}, synchronize_session=False)
+
+
 def hard_delete_brand(db: Session, brand: Brand, admin: User) -> None:
     impact = brand_impact(db, brand)
     if not impact["can_hard_delete"]:
         raise DataAdminError("This brand has campaigns, rider assignments or payments. Deactivate it instead to keep that history.")
     name = brand.name
+    _unlink_enquiries(db, [brand.id])  # The lead stays; it just no longer points at a customer
     db.delete(brand)
     db.commit()
     log_admin_action(db=db, admin_user=admin, action="BRAND_DELETED", target_type="BRAND", target_id=str(impact["id"]), details=f"Brand {name} permanently deleted")
@@ -430,6 +441,7 @@ def _reset_brands(db: Session) -> Dict[str, int]:
     db.query(Payment).filter(Payment.brand_id.isnot(None)).update({Payment.brand_id: None}, synchronize_session=False)
     removed.update(_delete_all(db, RiderBrandAssignment))
     db.query(Rider).filter(Rider.status == RiderStatus.ACTIVE).update({Rider.status: RiderStatus.APPROVED}, synchronize_session=False)
+    _unlink_enquiries(db, None)
     removed.update(_delete_all(db, Brand))
     return removed
 

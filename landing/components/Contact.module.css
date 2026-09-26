@@ -175,3 +175,39 @@
     align-items: stretch;
   }
 }
+
+.field select {
+  width: 100%;
+  font: inherit;
+  font-size: 16px;
+  color: var(--ink);
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #d2d2d7;
+  background: #fff;
+}
+.field select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(0, 104, 216, 0.15);
+}
+.honeypot {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.sent {
+  font-size: 17px;
+  font-weight: 600;
+  color: #047857;
+  background: #ecfdf5;
+  border-radius: 14px;
+  padding: 18px 20px;
+}
+@media (max-width: 640px) {
+  .fields {
+    grid-template-columns: 1fr;
+  }
+}

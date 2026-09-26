@@ -14,7 +14,6 @@ import { useReduced } from "@/lib/useReduced";
 import { useRef, type ReactNode } from "react";
 import { useScrollProgress } from "@/lib/useScrollProgress";
 import avatar from "@/public/images/rider-avatar.webp";
-import { useContact } from "@/components/Contact";
 import { Phone, StatusPill } from "@/components/Devices";
 import { IconCheck, IconPin } from "@/components/Icons";
 import Logo from "@/components/Logo";
@@ -33,7 +32,6 @@ const enter = (delay: number, y = 24, blur = 10) => ({
 export default function Hero() {
   const ref = useRef<HTMLElement>(null);
   const reduce = useReduced();
-  const openContact = useContact();
 
   // Cursor: normalized -1..1, smoothed. Drives spotlight + depth parallax.
   const mx = useMotionValue(0);
@@ -82,31 +80,35 @@ export default function Hero() {
 
           <h1 id="hero-title" className={`display-xl ${s.title}`}>
             <motion.span {...enter(0.2, 40, 14)} className={s.line}>
-              One platform.
+              Promote your brand
             </motion.span>
             <motion.span {...enter(0.34, 40, 14)} className={`${s.line} blue-text`}>
-              Every rider.
+              with riders
+            </motion.span>
+            <motion.span {...enter(0.46, 40, 14)} className={`${s.line} blue-text`}>
+              &amp; autos.
             </motion.span>
           </h1>
 
           <motion.p {...enter(0.55)} className={`lead ${s.lead}`}>
-            Flex Riders brings rider registration, approvals, brand assignments and payment
-            tracking into one connected platform.
+            Reach customers on the road with Flex Riders: a platform connecting brands with riders
+            and vehicle owners for promotional campaigns. Create a campaign, get your brand on the
+            road, and track campaign activity from one place.
           </motion.p>
 
           <motion.div {...enter(0.7, 16, 6)} className={s.ctas}>
-            <MagneticButton onClick={() => openContact("start")} arrow>
-              Get Started
+            <MagneticButton href="#enquiry" arrow>
+              Promote Your Brand
             </MagneticButton>
-            <MagneticButton href="#problem" variant="ghost">
-              Explore Flex Riders
+            <MagneticButton href="#how-it-works" variant="ghost">
+              How It Works
             </MagneticButton>
           </motion.div>
 
           <motion.ul {...enter(0.85, 10, 4)} className={s.audiences} aria-label="Built for">
-            <li>Rider experience</li>
-            <li>Operations management</li>
-            <li>Brand advertising</li>
+            <li>Riders &amp; bikes</li>
+            <li>Autos &amp; three-wheelers</li>
+            <li>Campaign tracking</li>
           </motion.ul>
         </motion.div>
 

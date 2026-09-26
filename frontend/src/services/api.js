@@ -283,6 +283,14 @@ export const api = {
   getActivityLog: (id) => fetchWithAuth(`/campaigns/${id}/activity-log`),
   getCampaignSnapshot: (id) => fetchWithAuth(`/campaigns/${id}/snapshot`),
 
+  // Website enquiries (leads)
+  getEnquiries: (params = {}) => {
+    const query = new URLSearchParams(Object.entries(params).filter(([, v]) => v)).toString();
+    return fetchWithAuth(`/admin/enquiries${query ? `?${query}` : ''}`);
+  },
+  updateEnquiry: (id, changes) => fetchWithAuth(`/admin/enquiries/${id}`, { method: 'PATCH', body: JSON.stringify(changes) }),
+  convertEnquiry: (id, brandId) => fetchWithAuth(`/admin/enquiries/${id}/convert`, { method: 'POST', body: JSON.stringify({ brand_id: brandId || null }) }),
+
   // Support chat (admin inbox)
   getSupportRealtime: () => fetchWithAuth('/admin/support/realtime'),
   getSupportAgents: () => fetchWithAuth('/admin/support/agents'),

@@ -353,3 +353,42 @@ class SupportMessage(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
     __table_args__ = (Index("ix_support_messages_conversation_id_id", "conversation_id", "id"),)
+
+
+class EnquiryStatus:
+    NEW = "NEW"
+    CONTACTED = "CONTACTED"
+    IN_PROGRESS = "IN_PROGRESS"
+    CONVERTED = "CONVERTED"
+    CLOSED = "CLOSED"
+    ALL = (NEW, CONTACTED, IN_PROGRESS, CONVERTED, CLOSED)
+    LABELS = {NEW: "New", CONTACTED: "Contacted", IN_PROGRESS: "In progress", CONVERTED: "Converted", CLOSED: "Closed"}
+
+
+class BrandEnquiry(Base):
+    """A lead from the public website (brand promotion enquiries, plus riders / auto drivers asking to join).
+    Only admins can read it. When a brand enquiry converts, it links to the existing Brand (customer)."""
+
+    __tablename__ = "brand_enquiries"
+
+    id = Column(Integer, primary_key=True, index=True)
+    kind = Column(String(20), default="business", nullable=False, index=True)  # business, rider, driver
+    intent = Column(String(20), nullable=True)                                  # start, talk, advertise, support
+    name = Column(String(120), nullable=False)
+    company_name = Column(String(160), nullable=True)
+    phone = Column(String(20), nullable=False, index=True)
+    email = Column(String(160), nullable=True)
+    city = Column(String(80), nullable=True)
+    vehicle_interest = Column(String(20), nullable=True)  # RIDER_BIKE, AUTO, THREE_WHEELER, MULTIPLE
+    campaign_requirement = Column(String(1000), nullable=True)
+    campaign_duration = Column(String(80), nullable=True)
+    message = Column(Text, nullable=True)
+    status = Column(String(20), default=EnquiryStatus.NEW, nullable=False, index=True)
+    notes = Column(Text, nullable=True)  # Internal, admins only
+    brand_id = Column(Integer, ForeignKey("brands.id"), nullable=True)  # Set when converted to a customer
+    source_key = Column(String(64), nullable=True, index=True)  # Hashed client address, only for rate limiting
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+    updated_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    handled_by_email = Column(String(120), nullable=True)
+
+    brand = relationship("Brand")

@@ -1,6 +1,6 @@
 export const site = {
   name: "Flex Riders",
-  title: "Flex Riders — Rider Management & Payment Platform",
+  title: "Flex Riders — Promote Your Brand with Riders & Autos",
   description:
     "Flex Riders helps organizations manage rider registration, approvals, brand assignments and payment tracking from one connected platform — plus brand advertising through riders and auto-rickshaws.",
   // Set NEXT_PUBLIC_SITE_URL in production so Open Graph URLs resolve absolutely.

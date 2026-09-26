@@ -199,6 +199,17 @@ export default function Sidebar({ open = false, onClose, activeView, setActiveVi
           )}
         </div>
 
+        {/* Website enquiries (leads) */}
+        <div
+          className={`nav-item ${activeView === 'enquiries' ? 'active' : ''}`}
+          onClick={() => setActiveView('enquiries')}
+        >
+          <div className="nav-item-left">
+            <Inbox size={18} />
+            <span>Enquiries</span>
+          </div>
+        </div>
+
         {/* Support inbox */}
         <div
           className={`nav-item ${activeView === 'support' ? 'active' : ''}`}
