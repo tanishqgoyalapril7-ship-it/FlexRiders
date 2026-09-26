@@ -50,6 +50,11 @@ class User(Base):
     hashed_password = Column(String(255), nullable=True)
     role = Column(String(30), default="RIDER", nullable=False)  # SUPER_ADMIN, ADMIN, FINANCE_ADMIN, OPERATIONS_ADMIN, RIDER
     is_active = Column(Boolean, default=True)
+    # Logins issued before this moment stop working (password reset / change signs out other devices).
+    password_changed_at = Column(DateTime, nullable=True)
+    # Set by an admin password reset: the rider must choose a new password before using the app.
+    must_change_password = Column(Boolean, default=False, nullable=False, server_default="false")
+    email_verified_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -392,3 +397,22 @@ class BrandEnquiry(Base):
     handled_by_email = Column(String(120), nullable=True)
 
     brand = relationship("Brand")
+
+
+
+class EmailCode(Base):
+    """One-time 6-digit codes sent by email: password reset and email verification at registration.
+    Only a keyed hash of the code is stored; codes expire, are single use and allow a few attempts."""
+
+    __tablename__ = "email_codes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    purpose = Column(String(20), nullable=False, index=True)  # RESET_PASSWORD, VERIFY_EMAIL
+    email = Column(String(120), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    code_hash = Column(String(64), nullable=False)
+    attempts = Column(Integer, default=0, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    used_at = Column(DateTime, nullable=True)
+    request_key = Column(String(64), nullable=True, index=True)  # Hashed client address, only for rate limiting
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)

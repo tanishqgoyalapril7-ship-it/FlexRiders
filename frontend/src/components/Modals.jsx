@@ -3,6 +3,85 @@ import { api } from '../services/api';
 import { vehicleLabel } from './CampaignShared';
 import { X, CheckCircle, XCircle, AlertTriangle, FileText, Check, Shield } from 'lucide-react';
 
+/** Issues a temporary password (shown once) for a rider who can't reset by email. */
+function ResetPasswordButton({ rider }) {
+  const [step, setStep] = useState('idle'); // idle | confirm | working | done
+  const [temp, setTemp] = useState('');
+  const [error, setError] = useState('');
+  const reset = async () => {
+    setStep('working');
+    setError('');
+    try {
+      const res = await api.resetRiderPassword(rider.id);
+      setTemp(res.temporary_password);
+      setStep('done');
+    } catch (err) {
+      setError(err.message);
+      setStep('confirm');
+    }
+  };
+  return (
+    <>
+      <button className="btn-sm-view" style={{ padding: '8px 14px', fontSize: '0.82rem' }} onClick={() => setStep('confirm')}>
+        Reset Password
+      </button>
+      {step !== 'idle' ? (
+        <div className="modal-overlay" style={{ zIndex: 130 }} onClick={() => step !== 'working' && setStep('idle')}>
+          <div className="modal-dialog" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">Reset password for {rider.full_name}</span>
+            </div>
+            <div className="modal-body" style={{ fontSize: '0.88rem', color: '#475569', lineHeight: 1.55 }}>
+              {step === 'done' ? (
+                <>
+                  <p>Temporary password (shown only now):</p>
+                  <div style={{ fontFamily: 'monospace', fontSize: '1.4rem', fontWeight: 700, letterSpacing: 2, background: '#F1F5F9', borderRadius: 10, padding: '12px 16px', margin: '10px 0', color: '#0F172A', userSelect: 'all' }}>
+                    {temp}
+                  </div>
+                  <p>
+                    Read it to the rider on a call to <strong>{rider.mobile_number}</strong>. They'll be asked to choose a new password when they log in.
+                    Their other logins have been signed out.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p>
+                    Use this only after <strong>calling the rider on {rider.mobile_number}</strong> to confirm it's really them. Riders with an email can reset it
+                    themselves from the app (Forgot password).
+                  </p>
+                  <p style={{ marginTop: 8 }}>Their current password stops working and they're signed out everywhere.</p>
+                  {error ? <div className="form-error">{error}</div> : null}
+                </>
+              )}
+            </div>
+            <div className="modal-footer">
+              {step === 'done' ? (
+                <>
+                  <button className="btn-secondary" onClick={() => navigator.clipboard && navigator.clipboard.writeText(temp)}>
+                    Copy
+                  </button>
+                  <button className="btn-primary" onClick={() => setStep('idle')}>
+                    Done
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button className="btn-secondary" disabled={step === 'working'} onClick={() => setStep('idle')}>
+                    Cancel
+                  </button>
+                  <button className="btn-danger" disabled={step === 'working'} onClick={reset}>
+                    {step === 'working' ? 'Resetting…' : 'Reset Password'}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
+}
+
 /** The rider's registration selfie, loaded privately with the admin's login. */
 function RiderSelfie({ rider }) {
   const [url, setUrl] = useState(null);
@@ -271,6 +350,7 @@ export function RiderDetailModal({
               <button className="btn-sm-view" style={{ padding: '8px 14px', fontSize: '0.82rem' }} onClick={() => onEdit(rider)}>
                 Edit Details
               </button>
+              <ResetPasswordButton rider={rider} />
               {canAssign ? (
                 <button className="btn-sm-view" style={{ padding: '8px 14px', fontSize: '0.82rem' }} onClick={() => onAddToCampaign(rider)}>
                   Add to Campaign

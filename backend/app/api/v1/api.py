@@ -14,6 +14,7 @@ from app.api.v1.endpoints import (
     account_deletion,
     support,
     enquiries,
+    password,
 )
 
 api_router = APIRouter()
@@ -38,3 +39,4 @@ api_router.include_router(support.rider_router, prefix="/riders/me/support", tag
 api_router.include_router(support.admin_router, prefix="/admin/support", tags=["Admin Support Inbox"])
 api_router.include_router(enquiries.public_router, prefix="/public", tags=["Website enquiries (public submit)"])
 api_router.include_router(enquiries.admin_router, prefix="/admin/enquiries", tags=["Website enquiries (admin)"])
+api_router.include_router(password.router, prefix="/auth", tags=["Password recovery & email verification"])

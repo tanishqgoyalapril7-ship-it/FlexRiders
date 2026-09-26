@@ -31,10 +31,12 @@ export default function FinalCTA() {
           lines={["Want to promote", <span key="o" className="blue-text">your brand?</span>]}
         />
         <Reveal delay={0.15}>
-          <p className={`lead ${s.lead}`}>Tell us about your campaign and our team will get in touch with you.</p>
+          <p className={`lead ${s.lead}`}>
+            Tell us about your brand, target area and promotion requirements. Our team will help you plan a FlexRiders campaign.
+          </p>
         </Reveal>
         <Reveal delay={0.25} className={s.form}>
-          <EnquiryForm role="business" intent="advertise" />
+          <EnquiryForm role="business" intent="advertise" submitLabel="Submit an Enquiry" />
         </Reveal>
       </div>
     </section>

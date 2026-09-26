@@ -1,0 +1,151 @@
+.reach {
+  overflow: hidden;
+}
+.tag {
+  display: table;
+  margin: 56px auto 18px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.ladder {
+  list-style: none;
+  padding: 0;
+  margin: 0 auto;
+  max-width: 980px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 28px;
+}
+.step {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 28px 18px;
+  border-radius: 24px;
+  background: var(--paper);
+  text-align: center;
+}
+.input {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--fg-2);
+}
+.input b {
+  color: var(--fg);
+  font-size: 22px;
+}
+.arrow {
+  color: var(--accent);
+  font-size: 22px;
+  line-height: 1;
+}
+.output {
+  display: grid;
+  gap: 2px;
+}
+.output b {
+  font-size: clamp(40px, 4.6vw, 60px);
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  color: var(--fg);
+}
+.output span {
+  font-size: 15px;
+  color: var(--fg-2);
+}
+.next {
+  position: absolute;
+  right: -22px;
+  top: 50%;
+  translate: 0 -50%;
+  color: var(--accent);
+  font-size: 22px;
+}
+.note {
+  margin: 18px auto 0;
+  max-width: 640px;
+  text-align: center;
+  font-size: 14px;
+  color: var(--fg-2);
+}
+.scale {
+  margin: 64px auto 0;
+  max-width: 980px;
+  padding: clamp(28px, 4vw, 48px);
+  border-radius: 28px;
+  background: radial-gradient(120% 140% at 0% 0%, #10336b 0%, #0b1528 55%, #070b14 100%);
+  color: #f5f5f7;
+  text-align: center;
+}
+.scaleTitle {
+  font-size: clamp(22px, 2.4vw, 30px);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.formula {
+  margin-top: 28px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 14px 18px;
+}
+.term {
+  display: grid;
+  gap: 4px;
+  min-width: 96px;
+}
+.term b {
+  font-size: clamp(36px, 4.4vw, 56px);
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: -0.04em;
+}
+.term small {
+  font-size: 13px;
+  color: #a1a8b3;
+}
+.total b {
+  background: linear-gradient(100deg, #5fb4ff 0%, #2e9bfa 50%, #8fd0ff 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.op {
+  font-size: clamp(26px, 3vw, 36px);
+  color: #5fb4ff;
+  font-weight: 600;
+}
+.scaleNote {
+  margin: 24px auto 0;
+  max-width: 620px;
+  font-size: 13.5px;
+  color: #a1a8b3;
+}
+@media (max-width: 767px) {
+  .ladder {
+    grid-template-columns: 1fr;
+    gap: 34px;
+  }
+  .next {
+    right: auto;
+    left: 50%;
+    top: auto;
+    bottom: -30px;
+    translate: -50% 0;
+    rotate: 90deg;
+  }
+  .term {
+    min-width: 72px;
+  }
+  .formula {
+    gap: 10px 12px;
+  }
+}

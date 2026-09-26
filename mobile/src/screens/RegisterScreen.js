@@ -73,10 +73,18 @@ export default function RegisterScreen({ onBack, onRegistered, initialReferralCo
   // (it is optional while testing); if the setting can't be loaded, the selfie stays required.
   const [selfie, setSelfie] = useState(null);
   const [selfieRequired, setSelfieRequired] = useState(true);
+  // Email is required and confirmed with a 6-digit code once the server can send email.
+  const [emailRequired, setEmailRequired] = useState(false);
+  const [emailCode, setEmailCode] = useState('');
+  const [codeSentTo, setCodeSentTo] = useState('');
+  const [sendingCode, setSendingCode] = useState(false);
   useEffect(() => {
     mobileApi
       .getAppConfig()
-      .then((config) => setSelfieRequired(config.selfie_required !== false))
+      .then((config) => {
+        setSelfieRequired(config.selfie_required !== false);
+        setEmailRequired(config.email_required === true);
+      })
       .catch(() => {});
   }, []);
   const set = (key) => (value) => setForm((prev) => ({ ...prev, [key]: value }));
@@ -85,6 +93,11 @@ export default function RegisterScreen({ onBack, onRegistered, initialReferralCo
     if (step === 0) {
       if (!form.full_name.trim() || !form.mobile_number.trim()) return 'Please enter your full name and mobile number.';
       if (form.password.length < 6) return 'Please choose a password of at least 6 characters.';
+      if (emailRequired) {
+        if (!form.email.trim()) return 'Please enter your email address. It lets you reset your password if you forget it.';
+        if (codeSentTo !== form.email.trim().toLowerCase()) return 'Tap "Send code" to confirm your email address.';
+        if (!/^\d{6}$/.test(emailCode)) return 'Enter the 6-digit code we emailed you.';
+      }
       if (form.dob && ageOn(form.dob) < 18) return 'Riders must be at least 18 years old.';
     }
     if (step === 2) {
@@ -118,6 +131,7 @@ export default function RegisterScreen({ onBack, onRegistered, initialReferralCo
       const trimmed = Object.fromEntries(Object.entries(form).map(([k, v]) => [k, typeof v === 'string' ? v.trim() : v]));
       trimmed.vehicle_number = trimmed.vehicle_number ? normalizeVehicleNumber(trimmed.vehicle_number) : null;
       if (selfie) trimmed.selfie = selfie.base64;
+      if (emailRequired) trimmed.email_code = emailCode;
       const result = await mobileApi.register(trimmed);
       await onRegistered(result);
     } catch (err) {
@@ -167,7 +181,46 @@ export default function RegisterScreen({ onBack, onRegistered, initialReferralCo
             <Text style={styles.stepTitle}>Personal details</Text>
             <Field label="Full Name" required value={form.full_name} onChangeText={set('full_name')} placeholder="Your full name" />
             <Field label="Mobile Number" required keyboardType="phone-pad" value={form.mobile_number} onChangeText={set('mobile_number')} placeholder="10-digit mobile number" />
-            <Field label="Email Address" keyboardType="email-address" autoCapitalize="none" value={form.email} onChangeText={set('email')} placeholder="name@example.com" />
+            <Field
+              label={emailRequired ? 'Email Address' : 'Email Address (optional)'}
+              required={emailRequired}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              value={form.email}
+              onChangeText={set('email')}
+              placeholder="name@example.com"
+              hint="Used to reset your password if you forget it."
+            />
+            {emailRequired ? (
+              <View style={{ marginTop: -6, marginBottom: 16, gap: 10 }}>
+                <OutlineButton
+                  label={sendingCode ? 'Sending…' : codeSentTo === form.email.trim().toLowerCase() && codeSentTo ? 'Send a new code' : 'Send code'}
+                  onPress={async () => {
+                    if (!form.email.trim()) return Alert.alert('Required', 'Enter your email address first.');
+                    setSendingCode(true);
+                    try {
+                      const res = await mobileApi.sendEmailCode(form.email.trim());
+                      setCodeSentTo(form.email.trim().toLowerCase());
+                      Alert.alert('Check your email', res.message);
+                    } catch (err) {
+                      Alert.alert('Could not send the code', err.message);
+                    } finally {
+                      setSendingCode(false);
+                    }
+                  }}
+                />
+                {codeSentTo ? (
+                  <Field
+                    label="6-digit code from the email"
+                    required
+                    keyboardType="number-pad"
+                    value={emailCode}
+                    onChangeText={(v) => setEmailCode(v.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="123456"
+                  />
+                ) : null}
+              </View>
+            ) : null}
             <DateOfBirthField label="Date of Birth" value={form.dob} onChange={set('dob')} />
             <PasswordField label="Create Password" required value={form.password} onChangeText={set('password')} placeholder="At least 6 characters" />
             <Field

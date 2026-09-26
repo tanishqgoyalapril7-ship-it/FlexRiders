@@ -36,6 +36,7 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
         subject=user.id,
         role=user.role,
         rider_id=rider_sr_id,
+        password_hash=user.hashed_password,
     )
 
     return Token(
@@ -45,6 +46,7 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
         user_id=user.id,
         rider_id=rider_sr_id,
         name=user_name,
+        must_change_password=bool(user.must_change_password),
     )
 
 
@@ -96,6 +98,7 @@ def verify_otp(request: OTPVerifyRequest, db: Session = Depends(get_db)):
         subject=user.id,
         role=user.role,
         rider_id=rider_sr_id,
+        password_hash=user.hashed_password,
     )
 
     return Token(
@@ -116,6 +119,7 @@ def register_rider(request: RiderRegistrationRequest, db: Session = Depends(get_
         subject=rider.user_id,
         role="RIDER",
         rider_id=rider.rider_id,
+        password_hash=rider.user.hashed_password if rider.user else None,
     )
     return {
         "success": True,

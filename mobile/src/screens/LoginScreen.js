@@ -15,7 +15,7 @@ import { mobileApi } from '../services/api';
 import { useStyles, useTheme } from '../theme';
 import { OutlineButton, PrimaryButton, ScreenHeader } from '../components/ui';
 
-export default function LoginScreen({ initialOtpMode, onBack, onLoggedIn, onRegister }) {
+export default function LoginScreen({ initialOtpMode, onBack, onLoggedIn, onRegister, onForgot }) {
   const styles = useStyles(makeStyles);
   const { colors } = useTheme();
   const [phone, setPhone] = useState('');
@@ -61,12 +61,8 @@ export default function LoginScreen({ initialOtpMode, onBack, onLoggedIn, onRegi
     }
     setLoading(true);
     try {
-      if (otpMode) {
-        await mobileApi.verifyOtp(phone, otpCode);
-      } else {
-        await mobileApi.login(phone, password);
-      }
-      await onLoggedIn(phone);
+      const result = otpMode ? await mobileApi.verifyOtp(phone, otpCode) : await mobileApi.login(phone, password);
+      await onLoggedIn(result);
     } catch (err) {
       Alert.alert('Login failed', err.message || 'Invalid credentials');
     } finally {
@@ -115,7 +111,7 @@ export default function LoginScreen({ initialOtpMode, onBack, onLoggedIn, onRegi
             </View>
             <TouchableOpacity
               style={{ alignSelf: 'flex-end', marginTop: 10 }}
-              onPress={() => Alert.alert('Forgot password', 'Log in with OTP instead, or contact your operations manager.')}
+              onPress={() => onForgot(phone)}
             >
               <Text style={styles.link}>Forgot password?</Text>
             </TouchableOpacity>

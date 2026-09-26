@@ -49,7 +49,15 @@ def app_config():
     """Settings the rider app follows without a new build."""
     from app.core.config import settings
 
-    return {"selfie_required": bool(settings.REQUIRE_DRIVER_SELFIE)}
+    from app.services import email_service
+
+    return {
+        "selfie_required": bool(settings.REQUIRE_DRIVER_SELFIE),
+        # Once email sending is set up, registration requires an email confirmed with a code.
+        "email_required": email_service.delivery_available(),
+        # OTP login only exists for local development (there is no SMS provider).
+        "otp_login": bool(settings.ENABLE_OTP_LOGIN and not settings.VERCEL),
+    }
 
 
 @public_router.post("/account-deletion-requests")

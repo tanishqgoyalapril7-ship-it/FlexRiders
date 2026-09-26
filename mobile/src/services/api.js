@@ -76,6 +76,18 @@ const authedPost = async (path, body) => {
   return res.json();
 };
 
+// Unauthenticated POST (password recovery, email codes); errors carry the server's message.
+const publicPost = async (path, body) => {
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(formatError(data, 'Something went wrong. Please try again.'));
+  return data;
+};
+
 // Rider data is only ever fetched for the logged-in rider.
 const authedGet = async (path) => {
   const res = await fetch(`${API_BASE_URL}${path}`, { headers: { Authorization: `Bearer ${authToken}` } });
@@ -181,6 +193,16 @@ export const mobileApi = {
     const res = await fetch(`${API_BASE_URL}/public/app-config`, { timeoutMs: 10000 });
     if (!res.ok) throw new Error('config');
     return res.json();
+  },
+
+  // Password recovery (email code), forced change after an admin reset, email check at registration.
+  forgotPassword: (identifier) => publicPost('/auth/password/forgot', { identifier }),
+  resetPassword: (identifier, code, newPassword) => publicPost('/auth/password/reset', { identifier, code, new_password: newPassword }),
+  sendEmailCode: (email) => publicPost('/auth/email/verification-code', { email }),
+  changePassword: async (currentPassword, newPassword) => {
+    const data = await authedPost('/auth/password/change', { current_password: currentPassword, new_password: newPassword });
+    if (data.access_token) setAuthToken(data.access_token); // Other devices are signed out; this one continues
+    return data;
   },
 
   getProfile: () => authedGet('/riders/me'),

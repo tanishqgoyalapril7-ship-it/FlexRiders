@@ -3,7 +3,7 @@ import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 // The splash screen keeps the dark brand look in both light and dark themes.
-export default function SplashScreen({ onLogin, onLoginWithOtp, onRegister }) {
+export default function SplashScreen({ onLogin, onLoginWithOtp, onRegister, showOtp = false }) {
   return (
     <View style={styles.screen}>
       <View style={styles.glowTop} />
@@ -38,9 +38,11 @@ export default function SplashScreen({ onLogin, onLoginWithOtp, onRegister }) {
         <TouchableOpacity style={styles.primary} onPress={onLogin} activeOpacity={0.85}>
           <Text style={styles.primaryText}>Login</Text>
         </TouchableOpacity>
+        {showOtp ? (
         <TouchableOpacity style={styles.outline} onPress={onLoginWithOtp} activeOpacity={0.85}>
           <Text style={styles.outlineText}>Login with OTP</Text>
         </TouchableOpacity>
+        ) : null}
 
         <TouchableOpacity onPress={onRegister} style={{ marginTop: 20 }}>
           <Text style={styles.registerPrompt}>

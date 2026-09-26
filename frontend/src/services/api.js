@@ -310,6 +310,7 @@ export const api = {
     fetchWithAuth(`/admin/deletion-requests/${id}/reject`, { method: 'POST', body: JSON.stringify({ note }) }),
 
   // Driver selfies are private: loaded with the admin token into a local object URL (the caller revokes it).
+  resetRiderPassword: (riderId) => fetchWithAuth(`/admin/riders/${riderId}/reset-password`, { method: 'POST' }),
   getRiderSelfieUrl: async (riderId) => {
     const response = await fetch(`${API_BASE}/admin/riders/${riderId}/selfie`, {
       headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},

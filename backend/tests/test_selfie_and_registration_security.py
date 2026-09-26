@@ -237,7 +237,7 @@ def test_admin_create_storage_failure_creates_nothing(client, db_session, admin,
 
 def test_selfie_optional_while_testing_but_still_validated(client, db_session, monkeypatch):
     monkeypatch.setattr(settings, "REQUIRE_DRIVER_SELFIE", False)
-    assert client.get(f"{API}/public/app-config").json() == {"selfie_required": False}
+    assert client.get(f"{API}/public/app-config").json() == {"selfie_required": False, "email_required": False, "otp_login": settings.ENABLE_OTP_LOGIN}
     for missing in (None, ""):
         body = _body(selfie=missing)
         if missing is None:
@@ -254,7 +254,7 @@ def test_selfie_optional_while_testing_but_still_validated(client, db_session, m
 
 def test_selfie_switch_on_is_enforced_and_reported(client, db_session, monkeypatch):
     monkeypatch.setattr(settings, "REQUIRE_DRIVER_SELFIE", True)
-    assert client.get(f"{API}/public/app-config").json() == {"selfie_required": True}
+    assert client.get(f"{API}/public/app-config").json() == {"selfie_required": True, "email_required": False, "otp_login": settings.ENABLE_OTP_LOGIN}
     body = _body()
     body.pop("selfie")
     assert client.post(f"{API}/auth/register", json=body).status_code == 422

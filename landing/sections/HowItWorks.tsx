@@ -1,125 +1,96 @@
-"use client";
-
-import Image from "next/image";
-import { motion } from "framer-motion";
-import type { ReactNode } from "react";
-import avatar from "@/public/images/rider-avatar.webp";
-import { StatusPill } from "@/components/Devices";
-import { IconCheck, IconSearch } from "@/components/Icons";
+import { IconCheck } from "@/components/Icons";
+import MagneticButton from "@/components/MagneticButton";
 import { Reveal, RevealHeading } from "@/components/Reveal";
-import { demoEarnings, inr } from "@/lib/demo";
 import s from "./HowItWorks.module.css";
 
-const ease = [0.22, 1, 0.36, 1] as const;
-
-const steps: { n: string; title: string; text: string; art: ReactNode }[] = [
-  {
-    n: "01",
-    title: "Register",
-    text: "The rider creates a profile and submits their information.",
-    art: (
-      <div className={s.artForm}>
-        <i style={{ width: "62%" }} />
-        <i style={{ width: "84%" }} />
-        <i style={{ width: "48%" }} />
-        <span className={s.artBtn}>Submit</span>
-      </div>
-    ),
-  },
-  {
-    n: "02",
-    title: "Review",
-    text: "Your operations team reviews the application.",
-    art: (
-      <div className={s.artReview}>
-        <span className="avatar" style={{ width: 40, height: 40 }}>
-          <Image src={avatar} alt="" width={40} height={40} sizes="80px" />
-        </span>
-        <span className={s.lens}>
-          <IconSearch size={18} />
-        </span>
-        <StatusPill status="PENDING REVIEW" />
-      </div>
-    ),
-  },
-  {
-    n: "03",
-    title: "Assign",
-    text: "Approved riders can be assigned to brands.",
-    art: (
-      <div className={s.artAssign}>
-        <span className="avatar" style={{ width: 36, height: 36 }}>
-          <Image src={avatar} alt="" width={36} height={36} sizes="72px" />
-        </span>
-        <span className={s.wire} />
-        <span className="brand-mono" style={{ width: 36, height: 36, fontSize: 15 }}>
-          A
-        </span>
-      </div>
-    ),
-  },
-  {
-    n: "04",
-    title: "Manage",
-    text: "Track rider information and payments from one platform.",
-    art: (
-      <div className={s.artManage}>
-        <p>
-          <span>This month</span>
-          <b className="num">{inr(demoEarnings.month)}</b>
-        </p>
-        <p>
-          <span>
-            <IconCheck size={11} /> Status
-          </span>
-          <StatusPill status="ACTIVE" />
-        </p>
-      </div>
-    ),
-  },
+const business = [
+  ["Submit an enquiry", "Tell us about your brand using the enquiry form."],
+  ["Share your requirements", "What you want to promote, and where."],
+  ["Plan the campaign", "Agree the duration, area and the riders or vehicles needed."],
+  ["Campaign goes out", "The campaign is created and eligible riders take part."],
+  ["Track activity", "Campaign activity is tracked through FlexRiders."],
+  ["Review progress", "See how the campaign is progressing."],
 ];
 
+const riders = [
+  ["Register", "Create a FlexRiders account and submit your profile."],
+  ["Profile approval", "The FlexRiders team reviews your profile."],
+  ["Discover campaigns", "Approved riders see the campaigns they're eligible for."],
+  ["Join a campaign", "Join an eligible campaign while joining is open."],
+  ["Complete campaign activities", "Do the required activities and submit the campaign photos in the app."],
+  ["Track earnings", "Eligible completed campaign days show in your earnings, as per the campaign rules."],
+];
+
+const riderDuties = [
+  "Take part in approved campaigns",
+  "Follow campaign instructions",
+  "Cover the assigned or eligible areas",
+  "Complete the required daily activities",
+  "Submit the required campaign photos",
+  "Follow campaign timings and guidelines",
+  "Stay within campaign rules",
+];
+
+function Steps({ items, label }: { items: string[][]; label: string }) {
+  return (
+    <ol className={s.steps} aria-label={label}>
+      {items.map(([title, text], i) => (
+        <li key={title} className={s.step}>
+          <span className={s.n}>{i + 1}</span>
+          <div>
+            <h4 className={s.stepTitle}>{title}</h4>
+            <p className={s.stepText}>{text}</p>
+          </div>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/** How FlexRiders works, for businesses and for riders. */
 export default function HowItWorks() {
   return (
-    <section id="how-it-works" className={`section theme-light theme-paper`} aria-labelledby="how-title">
+    <section id="how-it-works" className="section theme-light theme-paper" aria-labelledby="how-title">
       <div className="container">
         <div className="section-head center">
           <Reveal>
             <p className="eyebrow">How it works</p>
           </Reveal>
-          <RevealHeading id="how-title" className="display" lines={["Four steps.", "One platform."]} />
+          <RevealHeading id="how-title" className="display" lines={["Brands and riders,", <span key="b" className="blue-text">one campaign.</span>]} />
         </div>
 
-        <motion.ol
-          className={s.steps}
-          initial="hidden"
-          whileInView="show"
-          viewport={{ once: true, amount: 0.3 }}
-        >
-          <motion.span
-            className={s.line}
-            aria-hidden="true"
-            variants={{ hidden: { scaleX: 0 }, show: { scaleX: 1 } }}
-            transition={{ duration: 1.6, ease, delay: 0.2 }}
-          />
-          {steps.map((st, i) => (
-            <motion.li
-              key={st.n}
-              variants={{
-                hidden: { opacity: 0, y: 30 },
-                show: { opacity: 1, y: 0 },
-              }}
-              transition={{ duration: 0.9, ease, delay: 0.15 + i * 0.14 }}
-            >
-              <span className={s.num}>{st.n}</span>
-              <div className={s.art} aria-hidden="true">
-                {st.art}
-              </div>
-              <h3>{st.title}</h3>
-              <p>{st.text}</p>
-            </motion.li>
-          ))}
-        </motion.ol>
+        <div className={s.tracks}>
+          <Reveal className={s.track}>
+            <p className={s.kicker}>For businesses</p>
+            <h3 className={s.trackTitle}>How it works for businesses</h3>
+            <Steps items={business} label="Steps for businesses" />
+            <MagneticButton href="#enquiry" arrow className={s.cta}>
+              Submit an Enquiry
+            </MagneticButton>
+          </Reveal>
+
+          <Reveal delay={0.1} className={s.track}>
+            <p className={s.kicker}>For riders</p>
+            <h3 className={s.trackTitle}>How riders become part of FlexRiders</h3>
+            <Steps items={riders} label="Steps for riders" />
+            <p className={s.quote}>
+              “Your profile is currently under review. Further FlexRiders features will become available once your profile is approved.”
+              <span>What new riders see while the team reviews their profile.</span>
+            </p>
+          </Reveal>
+        </div>
+
+        <Reveal delay={0.1} className={s.duties}>
+          <h3 className={s.trackTitle}>What riders do</h3>
+          <ul className={s.dutyList}>
+            {riderDuties.map((d) => (
+              <li key={d}>
+                <IconCheck size={16} />
+                {d}
+              </li>
+            ))}
+          </ul>
+        </Reveal>
       </div>
     </section>
   );

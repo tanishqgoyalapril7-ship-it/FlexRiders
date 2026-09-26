@@ -77,6 +77,23 @@ def register_new_rider(db: Session, reg: RiderRegistrationRequest) -> Rider:
     if reg.vehicle_number and db.query(Rider.id).filter(Rider.vehicle_number == reg.vehicle_number).first():
         raise HTTPException(status_code=400, detail=f"Vehicle {reg.vehicle_number} is already registered to another rider.")
 
+    # Email: unique; required and verified by code once email sending is set up (RESEND_API_KEY).
+    from app.services import email_service as mail
+
+    if reg.email and db.query(User.id).filter(User.email == reg.email).first():
+        raise HTTPException(status_code=400, detail="This email is already used by another account.")
+    email_verified = False
+    if mail.delivery_available():
+        if not reg.email:
+            raise HTTPException(status_code=422, detail="Enter your email address. It's used to reset your password if you forget it.")
+        if db.query(User.id).filter(User.phone == reg.mobile_number).first():
+            raise HTTPException(status_code=400, detail="This mobile number is already registered. Please log in instead.")
+        try:
+            mail.consume(db, mail.VERIFY, reg.email, reg.email_code or "")
+        except mail.CodeError:
+            raise HTTPException(status_code=400, detail="The email code is incorrect or has expired. Request a new code.")
+        email_verified = True
+
     # Registration only ever creates a NEW account. A number that already has one (a rider, or an admin)
     # must log in with its password: registration never returns, reuses or attaches to an existing account.
     if db.query(User.id).filter(User.phone == reg.mobile_number).first():
@@ -87,6 +104,7 @@ def register_new_rider(db: Session, reg: RiderRegistrationRequest) -> Rider:
         hashed_password=get_password_hash(reg.password),
         role=UserRole.RIDER,
         is_active=True,
+        email_verified_at=datetime.utcnow() if email_verified else None,
     )
     db.add(user)
     db.flush()

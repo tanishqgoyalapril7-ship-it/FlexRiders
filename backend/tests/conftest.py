@@ -17,6 +17,7 @@ os.environ["SLOT_NOTIFICATIONS_ENABLED"] = "false"  # Tests call the reminder se
 os.environ["SUPABASE_URL"] = ""
 os.environ["SUPABASE_SECRET_KEY"] = ""
 os.environ["CRON_SECRET"] = ""
+os.environ["RESEND_API_KEY"] = ""  # Tests never send real email
 os.environ["SECRET_KEY"] = "test-only-secret-key"
 
 from app.main import app

@@ -1,6 +1,8 @@
 import Footer from "@/components/Footer";
 import Navbar from "@/components/Navbar";
 import Advertising from "@/sections/Advertising";
+import BeyondScreen from "@/sections/BeyondScreen";
+import Reach from "@/sections/Reach";
 import Approvals from "@/sections/Approvals";
 import Brands from "@/sections/Brands";
 import Ecosystem from "@/sections/Ecosystem";
@@ -25,6 +27,9 @@ export default function Home() {
       <Navbar />
       <main id="main">
         <Hero />
+        <Reach />
+        <BeyondScreen />
+        <HowItWorks />
         <Problem />
         <Ecosystem />
         <Riders />
@@ -37,7 +42,6 @@ export default function Home() {
         <Profile />
         <Scale />
         <Security />
-        <HowItWorks />
         <FinalCTA />
       </main>
       <Footer />

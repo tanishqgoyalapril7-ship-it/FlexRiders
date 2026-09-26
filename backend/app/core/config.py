@@ -84,6 +84,10 @@ class Settings(BaseSettings):
     # Hosted: photos and banners go to Supabase Storage instead of the local disk (see storage_service).
     SUPABASE_URL: str = ""  # e.g. https://<project-ref>.supabase.co
     SUPABASE_SECRET_KEY: str = ""  # sb_secret_... (server only, never in an app)
+    # Email (password reset codes, email verification): Resend (resend.com). Without a key nothing is sent,
+    # and email at registration stays optional. The key is a server secret (Vercel env), never in an app.
+    RESEND_API_KEY: str = ""
+    EMAIL_FROM: str = "FlexRiders <noreply@flexriders.in>"
     SUPABASE_PUBLISHABLE_KEY: str = ""  # sb_publishable_... (public by design; for Realtime in the apps)
     STORAGE_BUCKET: str = "uploads"
     # Shared secret for POST /api/v1/internal/cron/slot-reminders (called every minute by Supabase pg_cron).

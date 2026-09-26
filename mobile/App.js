@@ -9,6 +9,8 @@ import { formatDate, formatDateTime, notificationStyle } from './src/utils';
 import SplashScreen from './src/screens/SplashScreen';
 import LoginScreen from './src/screens/LoginScreen';
 import RegisterScreen from './src/screens/RegisterScreen';
+import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
+import ChangePasswordScreen from './src/screens/ChangePasswordScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import EarningsScreen from './src/screens/EarningsScreen';
 import PaymentsScreen from './src/screens/PaymentsScreen';
@@ -140,7 +142,12 @@ function RiderApp() {
   const insets = useSafeAreaInsets();
   const styles = useStyles(makeStyles);
   const { colors } = useTheme();
-  const [screen, setScreen] = useState('loading'); // loading | splash | login | register | main
+  const [screen, setScreen] = useState('loading'); // loading | splash | login | forgot | change-password | register | main
+  const [forgotFor, setForgotFor] = useState('');
+  const [otpLogin, setOtpLogin] = useState(false); // Only where the server allows it (local development)
+  useEffect(() => {
+    mobileApi.getAppConfig().then((c) => setOtpLogin(c.otp_login === true)).catch(() => {});
+  }, []);
   const [loginWithOtp, setLoginWithOtp] = useState(false);
   const [tab, setTab] = useState('home');
   const [rider, setRider] = useState(EMPTY_RIDER);
@@ -192,6 +199,10 @@ function RiderApp() {
       setRider(toRider(await mobileApi.getProfile()));
     } catch (err) {
       if (err.status === 401) logout();
+      if (err.status === 403 && /new password/i.test(err.message || '')) {
+        setScreen('change-password'); // Admin reset: a new password comes first
+        return 'CHANGE_PASSWORD';
+      }
       return err.status === 404 ? false : null;
     }
     const [paymentData, notificationData, campaignData, earningsData, supportData] = await Promise.all([
@@ -234,7 +245,7 @@ function RiderApp() {
       .then(async (token) => {
         if (token) await refreshData().catch(() => null); // Offline or a bad response: open the app anyway, polling retries
       })
-      .finally(() => setScreen(getAuthToken() ? 'main' : 'splash'));
+      .finally(() => setScreen((current) => (current === 'change-password' ? current : getAuthToken() ? 'main' : 'splash')));
   }, [refreshData]);
 
   useEffect(() => {
@@ -243,8 +254,13 @@ function RiderApp() {
     return () => clearInterval(id);
   }, [screen, poll]);
 
-  const handleLoggedIn = async () => {
+  const handleLoggedIn = async (login) => {
+    if (login && login.must_change_password) {
+      setScreen('change-password');
+      return;
+    }
     const result = await refreshData();
+    if (result === 'CHANGE_PASSWORD') return;
     if (result === false) {
       Alert.alert('Complete your registration', 'This number is not registered as a rider yet. Please complete the registration form.');
       setScreen('register');
@@ -319,6 +335,10 @@ function RiderApp() {
     const onBack = () => {
       if (screen === 'login' || screen === 'register') {
         setScreen('splash');
+        return true;
+      }
+      if (screen === 'forgot') {
+        setScreen('login');
         return true;
       }
       if (screen !== 'main' || tab === 'home') return false;
@@ -405,6 +425,7 @@ function RiderApp() {
 
       {isSplash && (
         <SplashScreen
+          showOtp={otpLogin}
           onLogin={() => {
             setLoginWithOtp(false);
             setScreen('login');
@@ -423,6 +444,25 @@ function RiderApp() {
           onBack={() => setScreen('splash')}
           onLoggedIn={handleLoggedIn}
           onRegister={() => setScreen('register')}
+          onForgot={(phone) => {
+            setForgotFor(phone || '');
+            setScreen('forgot');
+          }}
+        />
+      )}
+
+      {screen === 'forgot' && (
+        <ForgotPasswordScreen initialIdentifier={forgotFor} onBack={() => setScreen('login')} onDone={() => setScreen('login')} />
+      )}
+
+      {screen === 'change-password' && (
+        <ChangePasswordScreen
+          onLogout={logout}
+          onChanged={async () => {
+            await refreshData();
+            setTab('home');
+            setScreen('main');
+          }}
         />
       )}
 

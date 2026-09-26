@@ -13,6 +13,7 @@ class Token(BaseModel):
     user_id: int
     rider_id: Optional[str] = None
     name: Optional[str] = None
+    must_change_password: bool = False  # After an admin reset: the app asks for a new password first
 
 
 class TokenPayload(BaseModel):
@@ -211,6 +212,8 @@ class RiderRegistrationRequest(BaseModel):
     # Required when settings.REQUIRE_DRIVER_SELFIE is on. The server stores it privately and links it to the new
     # rider; clients can't set a photo path themselves.
     selfie: Optional[str] = Field(None, max_length=SELFIE_MAX_BASE64)
+    # The 6-digit code emailed by /auth/email/verification-code (required once email sending is set up).
+    email_code: Optional[str] = Field(None, max_length=10)
 
     # Step 2: Work
     current_company: Optional[str] = None
@@ -254,6 +257,11 @@ class RiderRegistrationRequest(BaseModel):
     def _vehicle_number_needed(self):
         _vehicle_number_rule(self.vehicle_category, self.vehicle_number)
         return self
+
+    @field_validator("email")
+    @classmethod
+    def _valid_reg_email(cls, value):
+        return normalize_email(value)
 
     @field_validator("selfie")
     @classmethod

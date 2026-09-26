@@ -493,6 +493,30 @@ def update_rider(id: int, data: AdminRiderUpdate, db: Session = Depends(get_db),
     return get_rider_detail(rider.id, db, admin)
 
 
+@router.post("/{id}/reset-password")
+def reset_rider_password(id: int, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
+    """For riders without an email: after confirming the rider by phone, an admin issues a temporary
+    password (shown once). The rider's other logins are signed out and they must set a new password."""
+    import secrets
+
+    from app.api.v1.endpoints.password import set_password
+
+    rider = _get_rider(db, id)
+    user = rider.user
+    if not user or user.role != UserRole.RIDER:
+        raise HTTPException(status_code=400, detail="This rider has no login to reset.")
+    if not user.is_active:
+        raise HTTPException(status_code=400, detail="This rider's login is disabled.")
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789"  # No look-alike characters
+    temporary = "".join(secrets.choice(alphabet) for _ in range(10))
+    set_password(db, user, temporary)
+    user.must_change_password = True
+    db.commit()
+    log_admin_action(db=db, admin_user=admin, action="RIDER_PASSWORD_RESET", target_type="RIDER", target_id=rider.rider_id,
+                     details=f"Temporary password issued for {rider.full_name}; they must set a new one at next login")
+    return {"temporary_password": temporary, "message": "Give this password to the rider. They'll be asked to choose a new one when they log in."}
+
+
 @router.get("/{id}/selfie")
 def rider_selfie(id: int, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
     """The rider's registration selfie (private: admins only, never cached or public)."""
