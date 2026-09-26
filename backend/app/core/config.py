@@ -27,7 +27,13 @@ class Settings(BaseSettings):
         "http://127.0.0.1:5180",
         "http://127.0.0.1:8000",
     ]
-    CORS_ORIGINS: str = ""  # e.g. "https://flexriders.in,https://admin.flexriders.in"
+    CORS_ORIGINS: str = ""  # Extra origins, comma separated
+
+    def cors_origins(self) -> List[str]:
+        """Hosted: only the FlexRiders domains (plus CORS_ORIGINS). Local: the development servers too."""
+        production = ["https://flexriders.in", "https://www.flexriders.in", "https://admin.flexriders.in"]
+        extra = [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+        return list(dict.fromkeys(production + extra + ([] if self.VERCEL else self.BACKEND_CORS_ORIGINS)))
     # Run schema checks/migrations when the app starts. Default: yes locally, no on Vercel (the database
     # is migrated once, not on every cold start). "true"/"false" overrides.
     RUN_STARTUP_MIGRATIONS: str = ""

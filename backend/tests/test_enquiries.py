@@ -132,10 +132,13 @@ def test_pending_rider_cannot_join_until_approved(client, db_session, admin):
                                               "visibility": "PUBLIC"}, headers=admin).json()
     res = client.post(f"{API}/riders/me/campaigns/{c['id']}/join", json={}, headers=headers)
     assert res.status_code == 400 and "approved" in res.json()["detail"]
-    card = next(x for x in client.get(f"{API}/riders/me/campaigns", headers=headers).json()["available"] if x["id"] == c["id"])
-    assert card["can_join"] is False and "approved" in card["join_blocked_reason"]
+    data = client.get(f"{API}/riders/me/campaigns", headers=headers).json()
+    assert data["available"] == [] and "under review" in data["approval_message"]  # Not even visible before approval
+    assert client.get(f"{API}/riders/me/campaigns/{c['id']}", headers=headers).status_code == 404
     me = client.get(f"{API}/riders/me", headers=headers).json()
     client.patch(f"{API}/admin/riders/{me['id']}/approve", headers=admin)
+    assert c["id"] in [x["id"] for x in client.get(f"{API}/riders/me/campaigns", headers=headers).json()["available"]]
+    assert client.get(f"{API}/riders/me/campaigns", headers=headers).json()["approval_message"] is None
     assert client.post(f"{API}/riders/me/campaigns/{c['id']}/join", json={}, headers=headers).status_code == 200
 
 

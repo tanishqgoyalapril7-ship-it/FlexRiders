@@ -28,7 +28,7 @@ function homeStage(rider, campaigns) {
       tone: 'warning',
       icon: 'time-outline',
       title: 'Profile under review',
-      text: "Your profile is under review. Further FlexRiders features, like joining campaigns, will become available once your profile is approved. You'll be notified here.",
+      text: "Your profile is currently under review. Further FlexRiders features will become available once your profile is approved. You'll be notified here.",
     };
   }
   if (rider.status === 'REJECTED') {

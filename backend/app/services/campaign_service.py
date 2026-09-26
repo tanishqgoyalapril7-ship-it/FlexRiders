@@ -252,6 +252,18 @@ def pending_application(db: Session, rider_id: int) -> Optional[CampaignApplicat
 LIVE_JOIN_CLOSED = "Campaign has already started. New riders cannot join this campaign."
 
 
+def approval_block_message(rider: Rider) -> Optional[str]:
+    """Why an unapproved rider can't see or join campaigns (None once approved). Riders only discover
+    campaigns after their profile is approved; the wording depends on the reason."""
+    if rider.status in ELIGIBLE_RIDER_STATUSES:
+        return None
+    if rider.status == RiderStatus.REJECTED:
+        return "Your profile wasn't approved, so campaigns aren't available to you. Contact support in the app for details."
+    if rider.status == RiderStatus.SUSPENDED:
+        return "Your account is suspended, so campaigns aren't available to you. Contact support in the app for details."
+    return "Your profile is under review. Campaigns will be available once your profile has been approved by FlexRiders."
+
+
 def eligible_categories(campaign: Campaign) -> List[str]:
     """Vehicle categories allowed in this campaign; empty means all."""
     return [c for c in (campaign.eligible_vehicle_categories or "").split(",") if c in VehicleCategory.ALL]
@@ -290,12 +302,9 @@ def join_eligibility(
             return False, "Your request is awaiting admin approval."
         return False, "You already have a pending request for another campaign."
 
-    if rider.status not in ELIGIBLE_RIDER_STATUSES:  # The approval gate itself is unchanged; only the wording depends on why
-        if rider.status == RiderStatus.REJECTED:
-            return False, "Your profile wasn't approved, so you can't join campaigns. Contact support in the app for details."
-        if rider.status == RiderStatus.SUSPENDED:
-            return False, "Your account is suspended, so you can't join campaigns. Contact support in the app for details."
-        return False, "Your profile is under review. You'll be able to join campaigns once it has been approved by FlexRiders."
+    blocked = approval_block_message(rider)
+    if blocked:
+        return False, blocked
     if campaign.status in CampaignStatus.PUBLISHED and campaign.live_at and not by_admin:
         return False, LIVE_JOIN_CLOSED
     vehicle = vehicle_block_reason(campaign, rider)

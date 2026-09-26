@@ -161,3 +161,15 @@ def test_login_does_not_reveal_which_numbers_exist(client, db_session):
     wrong = client.post(f"{API}/auth/login", json={"phone": body["mobile_number"], "password": "wrongPass999"})
     assert unknown.status_code == wrong.status_code == 401
     assert unknown.json()["detail"] == wrong.json()["detail"] == "Incorrect phone number or password"
+
+
+
+def test_hosted_cors_allows_only_flexriders_domains(monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "VERCEL", "1")
+    monkeypatch.setattr(settings, "CORS_ORIGINS", "")
+    hosted = settings.cors_origins()
+    assert "https://flexriders.in" in hosted and not any("localhost" in o or "127.0.0.1" in o for o in hosted)
+    monkeypatch.setattr(settings, "VERCEL", "")
+    assert "http://localhost:5180" in settings.cors_origins()  # Local development still works

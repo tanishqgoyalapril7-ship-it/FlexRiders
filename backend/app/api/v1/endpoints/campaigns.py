@@ -1207,7 +1207,9 @@ def rider_campaigns(rider: Rider = Depends(get_current_rider), db: Session = Dep
     vehicle_open = or_(Campaign.eligible_vehicle_categories.is_(None), Campaign.eligible_vehicle_categories == "")
     if rider.vehicle_category:
         vehicle_open = or_(vehicle_open, ("," + Campaign.eligible_vehicle_categories + ",").like(f"%,{rider.vehicle_category},%"))
-    candidates = query.filter(vehicle_open).order_by(Campaign.start_date, Campaign.id).all()
+    # Riders only discover campaigns once their profile is approved.
+    approval_message = svc.approval_block_message(rider)
+    candidates = [] if approval_message else query.filter(vehicle_open).order_by(Campaign.start_date, Campaign.id).all()
     public, hidden = [], {}
     for c in candidates:
         svc.sync_campaign_status(db, c, today)
@@ -1259,6 +1261,7 @@ def rider_campaigns(rider: Rider = Depends(get_current_rider), db: Session = Dep
 
     return {
         "available": [_rider_campaign_card(db, c, rider) for c in public if not active or c.id != active.campaign_id],
+        "approval_message": approval_message,  # Shown instead of the list until the profile is approved
         "active": active_data,
         "pending_request": {**_rider_campaign_card(db, pending.campaign, rider), "my_request": _rider_request_dict(pending)} if pending else None,
         "history": history,
@@ -1285,7 +1288,10 @@ def _rider_visible_campaign(db: Session, campaign_id: int, rider: Rider, joining
         raise HTTPException(status_code=404, detail="Campaign not found")
     svc.sync_campaign_status(db, campaign)
     if joining:
-        return campaign  # join_eligibility gives the specific refusal (vehicle, started, ended, ...)
+        return campaign  # join_eligibility gives the specific refusal (approval, vehicle, started, ended, ...)
+    approval = svc.approval_block_message(rider)
+    if approval:
+        raise HTTPException(status_code=404, detail=approval)
     if svc.vehicle_block_reason(campaign, rider):
         raise HTTPException(status_code=404, detail=VEHICLE_HIDDEN)
     hidden = svc.rider_visibility(campaign)

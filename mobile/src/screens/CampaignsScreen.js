@@ -170,6 +170,14 @@ export default function CampaignsScreen({ data, onOpen, onChanged }) {
               <PendingRequestCard campaign={data.pending_request} onOpen={onOpen} onChanged={onChanged} />
             </>
           ) : null}
+          {data && data.approval_message ? (
+            <>
+              <SectionHeader title="Campaigns" />
+              {/* Riders only see campaigns once their profile is approved (enforced by the server). */}
+              <EmptyState icon="time-outline" title="Profile not approved yet" message={data.approval_message} />
+            </>
+          ) : (
+            <>
           <SectionHeader title={`Available Campaigns (${available.length})`} />
           {available.length === 0 ? (
             <EmptyState icon="megaphone-outline" title="No campaigns right now" message="New campaigns will appear here as soon as they're published." />
@@ -179,6 +187,8 @@ export default function CampaignsScreen({ data, onOpen, onChanged }) {
                 <AvailableCampaignCard key={c.id} campaign={c} onOpen={onOpen} onChanged={onChanged} />
               ))}
             </View>
+          )}
+            </>
           )}
         </>
       )}

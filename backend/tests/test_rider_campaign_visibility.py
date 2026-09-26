@@ -94,15 +94,17 @@ def test_visibility_rules_for_dates_status_and_rider_state(client, db_session):
     cancelled = _campaign(client, admin, brand["id"], visibility="PUBLIC")
     client.post(f"{API}/campaigns/{cancelled['id']}/cancel", headers=admin)
 
-    # A rider still awaiting approval sees campaigns but can't join yet.
+    # A rider still awaiting approval sees no campaigns at all (the list explains why), and can't open one.
     pending_rider, pending_headers = _rider(client, admin, status="PENDING")
-    listed = available_ids(client, pending_headers)
-    # Only upcoming campaigns are listed: never ones that have started, ended, been paused or cancelled.
-    assert set(listed) & {upcoming["id"], started["id"], ended["id"], paused["id"], cancelled["id"]} == {upcoming["id"]}
-    assert listed[upcoming["id"]]["can_join"] is False and "approved" in listed[upcoming["id"]]["join_blocked_reason"]
+    data = client.get(f"{API}/riders/me/campaigns", headers=pending_headers).json()
+    assert data["available"] == [] and "under review" in data["approval_message"]
+    res = client.get(f"{API}/riders/me/campaigns/{upcoming['id']}", headers=pending_headers)
+    assert res.status_code == 404 and "under review" in res.json()["detail"]
 
     _, headers = _rider(client, admin)
     listed = available_ids(client, headers)
+    # Only upcoming campaigns are listed: never ones that have started, ended, been paused or cancelled.
+    assert set(listed) & {upcoming["id"], started["id"], ended["id"], paused["id"], cancelled["id"]} == {upcoming["id"]}
     assert listed[upcoming["id"]]["can_join"] is True  # Joining before the start date is allowed
     assert started["id"] not in listed and paused["id"] not in listed and ended["id"] not in listed
     # Nor can they be opened directly (e.g. an old link or notification).

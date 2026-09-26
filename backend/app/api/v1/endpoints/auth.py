@@ -84,16 +84,9 @@ def verify_otp(request: OTPVerifyRequest, db: Session = Depends(get_db)):
     if user and not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This account has been deactivated. Contact support.")
     if not user:
-        # Create user if logging in first time via OTP as Rider
-        user = User(
-            phone=request.phone.strip(),
-            role=UserRole.RIDER,
-            hashed_password=get_password_hash("Rider@123"),
-            is_active=True,
-        )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
+        # OTP never creates accounts (that left logins without a rider profile, blocking later registration,
+        # with a known default password). New riders register with a password and selfie.
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="This number isn't registered yet. Please register first.")
 
     rider = db.query(Rider).filter(Rider.user_id == user.id).first()
     rider_sr_id = rider.rider_id if rider else None
