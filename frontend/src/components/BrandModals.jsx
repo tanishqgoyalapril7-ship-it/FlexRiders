@@ -52,6 +52,7 @@ export function BrandFormModal({ brand, onClose, onSaved }) {
     logo: brand?.logo || '',
     contact_person: brand?.contact_person || '',
     contact_number: brand?.contact_number || '',
+    contract_amount: brand && brand.contract_amount !== undefined ? brand.contract_amount : '',
     is_active: brand ? brand.is_active : true,
     public_assets_approved: brand ? Boolean(brand.public_assets_approved) : false,
   });
@@ -72,7 +73,11 @@ export function BrandFormModal({ brand, onClose, onSaved }) {
     setSaving(true);
     setError('');
     try {
-      const saved = editing ? await api.updateBrand(brand.id, form) : await api.createBrand(form);
+      const payload = {
+        ...form,
+        contract_amount: form.contract_amount !== '' ? Number(form.contract_amount) : 0,
+      };
+      const saved = editing ? await api.updateBrand(brand.id, payload) : await api.createBrand(payload);
       onSaved(saved);
     } catch (err) {
       setError(err.message);
@@ -102,6 +107,19 @@ export function BrandFormModal({ brand, onClose, onSaved }) {
                 <input className="form-input" value={form.code} onChange={set('code')} placeholder="e.g. ZEP-001" />
                 <span className="form-hint">Leave blank to generate one from the name.</span>
               </div>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Total Contracted Amount (₹)</label>
+              <input
+                type="number"
+                min="0"
+                step="any"
+                className="form-input"
+                value={form.contract_amount}
+                onChange={set('contract_amount')}
+                placeholder="e.g. 50000"
+              />
+              <span className="form-hint">Sets up the Brand's accounting & payment account. Payments received will be tracked against this contract.</span>
             </div>
             <div className="form-group">
               <label className="form-label">Description</label>

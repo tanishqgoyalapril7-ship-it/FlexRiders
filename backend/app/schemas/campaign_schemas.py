@@ -140,7 +140,8 @@ class BrandPaymentCreate(BaseModel):
     kind: str = Field(..., pattern="^(RECEIVED|REFUND|CREDIT)$")
     amount: float = Field(..., gt=0, le=100_000_000)
     record_date: date
-    # How the money moved (UPI, BANK_TRANSFER, IMPS, RTGS, CHEQUE, CASH, OTHER). Required for money received.
+    campaign_id: Optional[int] = None  # Null for general brand-level payments, or set for campaign-specific payments
+    # How the money moved (UPI, BANK_TRANSFER, IMPS, RTGS, CHEQUE, CASH, CARD, OTHER). Required for money received.
     payment_mode: Optional[str] = Field(None, max_length=20)
     reference: Optional[str] = Field(None, max_length=120)  # Transaction ID / UTR / cheque number
     note: Optional[str] = Field(None, max_length=500)

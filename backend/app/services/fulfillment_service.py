@@ -360,6 +360,96 @@ def brand_financials(db: Session, campaign: Campaign, today: Optional[date] = No
     }
 
 
+def brand_account_financials(db: Session, brand, today: Optional[date] = None) -> Dict:
+    """Consolidated Brand Payment Account financials across campaigns and general brand payments.
+
+    Total Contract Value = max(brand.contract_amount, sum of campaign contracts)
+    Total Paid = net received (received - refunded) across all payments (campaign-specific and brand-level)
+    Remaining = max(contract_value - credits - net_received, 0)
+    Payment Status = PENDING, PARTIALLY_PAID, PAID, OVERDUE, CANCELLED, REFUNDED
+    """
+    from sqlalchemy import or_
+
+    campaigns = db.query(Campaign).filter(Campaign.brand_id == brand.id).all()
+    campaign_ids = [c.id for c in campaigns]
+
+    query = db.query(BrandPaymentRecord).filter(
+        BrandPaymentRecord.status != BrandPaymentRecordStatus.CANCELLED
+    )
+    if campaign_ids:
+        query = query.filter(
+            or_(
+                BrandPaymentRecord.brand_id == brand.id,
+                BrandPaymentRecord.campaign_id.in_(campaign_ids),
+            )
+        )
+    else:
+        query = query.filter(BrandPaymentRecord.brand_id == brand.id)
+
+    records = query.all()
+    unique_records = list({r.id: r for r in records}.values())
+
+    total = lambda kind: round(sum(r.amount for r in unique_records if r.kind == kind), 2)
+    received = total(BrandPaymentKind.RECEIVED)
+    refunded = total(BrandPaymentKind.REFUND)
+    credits = total(BrandPaymentKind.CREDIT)
+
+    campaign_contract_total = round(sum(c.brand_contract_value or 0.0 for c in campaigns), 2)
+    brand_contract_amount = round(getattr(brand, "contract_amount", 0.0) or 0.0, 2)
+    contract_value = max(brand_contract_amount, campaign_contract_total)
+
+    net_received = round(received - refunded, 2)
+    outstanding = round(max(contract_value - credits - net_received, 0.0), 2)
+
+    curr_date = today or today_ist()
+    overdue = any(
+        c.brand_payment_due_date and curr_date > c.brand_payment_due_date and (c.brand_contract_value or 0) > 0
+        for c in campaigns
+    ) and outstanding > 0
+
+    all_cancelled = bool(campaigns) and all(c.status == CampaignStatus.CANCELLED for c in campaigns)
+
+    if all_cancelled and net_received <= 0:
+        status = "CANCELLED"
+    elif refunded > 0 and net_received <= 0:
+        status = "REFUNDED"
+    elif overdue:
+        status = "OVERDUE"
+    elif contract_value > 0:
+        if net_received <= 0:
+            status = "PENDING"
+        elif outstanding > 0:
+            status = "PARTIALLY_PAID"
+        else:
+            status = "PAID"
+    elif contract_value == 0:
+        if net_received > 0:
+            status = "PAID"
+        else:
+            status = "PENDING"
+    else:
+        status = "PAID" if outstanding <= 0 else "PARTIALLY_PAID"
+
+    return {
+        "brand_id": brand.id,
+        "brand_name": brand.name,
+        "contract_value": contract_value,
+        "brand_contract_amount": brand_contract_amount,
+        "campaign_contract_total": campaign_contract_total,
+        "received": received,
+        "refunded": refunded,
+        "credits": credits,
+        "net_received": net_received,
+        "total_paid": net_received,
+        "outstanding": outstanding,
+        "remaining_amount": outstanding,
+        "overdue": overdue,
+        "payment_status": status,
+        "campaigns_count": len(campaigns),
+        "payments_count": len(unique_records),
+    }
+
+
 def rider_financials(db: Session, campaign: Campaign) -> Dict:
     payouts = db.query(CampaignPayout).filter(CampaignPayout.campaign_id == campaign.id).all()
     earned = round(sum(p.total_amount for p in payouts), 2)

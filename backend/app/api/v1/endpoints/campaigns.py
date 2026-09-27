@@ -1672,7 +1672,7 @@ def list_brand_payments(campaign_id: int, db: Session = Depends(get_db), admin: 
     return {
         "summary": fs.brand_financials(db, campaign),
         "records": [_brand_payment_dict(r) for r in records],
-        "modes": [{"value": k, "label": v} for k, v in BrandPaymentMode.LABELS.items()],
+        "modes": [{"value": k, "label": v} for k, v in BrandPaymentMode.LABELS.items() if k != "CARD"],
     }
 
 
@@ -1689,7 +1689,9 @@ def add_brand_payment(
     summary = fs.brand_financials(db, campaign)
     if payload.kind == BrandPaymentKind.REFUND and payload.amount > summary["net_received"]:
         raise HTTPException(status_code=400, detail="A refund cannot be more than the amount received.")
-    db.add(BrandPaymentRecord(campaign_id=campaign.id, created_by_id=admin.id, status=BrandPaymentRecordStatus.RECORDED, **payload.model_dump()))
+    data = payload.model_dump()
+    data.pop("campaign_id", None)
+    db.add(BrandPaymentRecord(campaign_id=campaign.id, brand_id=campaign.brand_id, created_by_id=admin.id, status=BrandPaymentRecordStatus.RECORDED, **data))
     db.commit()
     mode = f" by {BrandPaymentMode.LABELS[payload.payment_mode]}" if payload.payment_mode else ""
     log_admin_action(db=db, admin_user=admin, action=f"BRAND_PAYMENT_{payload.kind}", target_type="CAMPAIGN", target_id=str(campaign.id),

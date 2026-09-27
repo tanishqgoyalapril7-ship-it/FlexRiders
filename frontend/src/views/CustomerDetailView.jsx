@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ArrowLeft, Briefcase, Phone, User, CalendarDays, Megaphone, Users, Wallet, Flag, Image as ImageIcon, RotateCcw, Pencil } from 'lucide-react';
+import { ArrowLeft, Briefcase, Phone, User, CalendarDays, Megaphone, Users, Wallet, Flag, Image as ImageIcon, RotateCcw, Pencil, Plus, X } from 'lucide-react';
 import { api } from '../services/api';
 import { toast } from '../components/Feedback';
 import { BrandLogo } from '../components/BrandModals';
@@ -52,12 +52,194 @@ function Progress({ pct }) {
   );
 }
 
+function RecordBrandPaymentModal({ brandId, brandName, campaigns = [], summary, onClose, onSaved }) {
+  const [form, setForm] = useState({
+    kind: 'RECEIVED',
+    amount: '',
+    payment_mode: 'UPI',
+    record_date: new Date().toISOString().slice(0, 10),
+    campaign_id: '',
+    reference: '',
+    note: '',
+  });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const set = (key) => (e) => setForm((prev) => ({ ...prev, [key]: e.target.value }));
+
+  const remaining = summary ? summary.remaining_amount : 0;
+  const contractValue = summary ? summary.contract_value : 0;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    const amountNum = Number(form.amount);
+    if (!amountNum || amountNum <= 0) {
+      setError('Amount must be greater than 0.');
+      return;
+    }
+    if (form.kind === 'RECEIVED' && !form.payment_mode) {
+      setError('Please select a payment mode.');
+      return;
+    }
+    if (form.kind === 'RECEIVED' && contractValue > 0 && amountNum > remaining + 0.01) {
+      setError(`Payment cannot exceed the remaining balance of ${formatINR(remaining)}.`);
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      await api.recordBrandPayment(brandId, {
+        kind: form.kind,
+        amount: amountNum,
+        payment_mode: form.payment_mode || null,
+        record_date: form.record_date,
+        campaign_id: form.campaign_id ? Number(form.campaign_id) : null,
+        reference: form.reference.trim() || null,
+        note: form.note.trim() || null,
+      });
+      toast.success('Payment recorded successfully.');
+      onSaved();
+    } catch (err) {
+      setError(err.message || 'Failed to record payment');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={onClose} style={{ zIndex: 115 }}>
+      <div className="modal-dialog" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 520 }}>
+        <div className="modal-header">
+          <div>
+            <span className="modal-title">Record Payment for {brandName}</span>
+            <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: 2 }}>
+              Contract: {formatINR(contractValue)} • Remaining: {formatINR(remaining)}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ color: '#94A3B8' }} aria-label="Close">
+            <X size={20} />
+          </button>
+        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body">
+            {error ? <div className="form-error">{error}</div> : null}
+            <div className="form-row-2">
+              <div className="form-group">
+                <label className="form-label">Type *</label>
+                <select className="form-input" value={form.kind} onChange={set('kind')}>
+                  <option value="RECEIVED">Payment Received</option>
+                  <option value="REFUND">Refund to Brand</option>
+                  <option value="CREDIT">Credit / Adjustment</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Amount (₹) *</label>
+                <input
+                  type="number"
+                  min="0.01"
+                  step="any"
+                  className="form-input"
+                  value={form.amount}
+                  onChange={set('amount')}
+                  placeholder="e.g. 20000"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div className="form-row-2">
+              <div className="form-group">
+                <label className="form-label">Payment Mode{form.kind === 'RECEIVED' ? ' *' : ''}</label>
+                <select className="form-input" value={form.payment_mode} onChange={set('payment_mode')}>
+                  {form.kind !== 'RECEIVED' ? <option value="">—</option> : null}
+                  <option value="UPI">UPI</option>
+                  <option value="BANK_TRANSFER">Bank Transfer / NEFT</option>
+                  <option value="IMPS">IMPS</option>
+                  <option value="RTGS">RTGS</option>
+                  <option value="CASH">Cash</option>
+                  <option value="CHEQUE">Cheque</option>
+                  <option value="CARD">Card</option>
+                  <option value="OTHER">Other</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Payment Date *</label>
+                <input type="date" className="form-input" value={form.record_date} onChange={set('record_date')} />
+              </div>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Link to Campaign (Optional)</label>
+              <select className="form-input" value={form.campaign_id} onChange={set('campaign_id')}>
+                <option value="">General Brand Payment (No Campaign)</option>
+                {campaigns.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              <span className="form-hint" style={{ fontSize: '0.72rem', color: '#64748B' }}>
+                Leave as General Brand Payment or select a specific campaign this money is allocated to.
+              </span>
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Transaction / Reference ID</label>
+              <input
+                className="form-input"
+                value={form.reference}
+                onChange={set('reference')}
+                placeholder="UTR number, UPI ref, cheque number, or receipt"
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Notes</label>
+              <input
+                className="form-input"
+                value={form.note}
+                onChange={set('note')}
+                placeholder="e.g. 50% advance for festive campaign"
+              />
+            </div>
+
+            <div className="form-hint" style={{ fontSize: '0.74rem', color: '#64748B', marginTop: 8 }}>
+              Every payment creates a separate ledger entry. Previous payments are never overwritten.
+              Brand payments are recorded against brand receivables and do not affect rider payouts.
+            </div>
+          </div>
+          <div className="modal-footer">
+            <button type="button" className="btn-secondary" onClick={onClose} disabled={busy}>
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="btn-primary"
+              disabled={busy || !form.amount || Number(form.amount) <= 0 || (form.kind === 'RECEIVED' && !form.payment_mode)}
+            >
+              {busy ? 'Recording…' : 'Record Payment'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 /** One customer (brand): profile, campaigns, delivery, money and activity. Every figure comes from the server. */
 export default function CustomerDetailView({ brandId, onBack, onOpenCampaign, onEditBrand, onShowRiders }) {
   const [tab, setTab] = useState('overview');
   const [filters, setFilters] = useState(EMPTY_FILTERS);
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
+  const [paymentAccountData, setPaymentAccountData] = useState(null);
+  const [showRecordPayment, setShowRecordPayment] = useState(false);
+
+  const loadPaymentAccount = () => {
+    api
+      .getBrandPaymentAccount(brandId)
+      .then(setPaymentAccountData)
+      .catch((err) => console.error('Failed to load brand payment account', err));
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -65,10 +247,36 @@ export default function CustomerDetailView({ brandId, onBack, onOpenCampaign, on
       .getBrandDashboard(brandId, filters)
       .then((res) => !cancelled && (setData(res), setError('')))
       .catch((err) => !cancelled && setError(err.message));
+    loadPaymentAccount();
     return () => {
       cancelled = true;
     };
   }, [brandId, filters]);
+
+  const refreshAll = () => {
+    api
+      .getBrandDashboard(brandId, filters)
+      .then((res) => {
+        setData(res);
+        setError('');
+      })
+      .catch((err) => setError(err.message));
+    loadPaymentAccount();
+  };
+
+  const handleCancelBrandPayment = (record) => {
+    const reason = window.prompt(
+      `Cancel entry of ${formatINR(record.amount)} (${record.payment_mode_label || record.payment_mode || 'Payment'}) from ${formatDate(record.record_date)}?\n\nThis entry will stay in audit history with your reason, but stops counting towards the totals. Reason:`
+    );
+    if (!reason || !reason.trim()) return;
+    api
+      .cancelBrandPaymentRecord(brandId, record.id, reason.trim())
+      .then(() => {
+        toast.success('Payment entry cancelled.');
+        refreshAll();
+      })
+      .catch((err) => toast.error(err.message));
+  };
 
   const setFilter = (key) => (e) => setFilters((prev) => ({ ...prev, [key]: e.target.value }));
   const hasFilters = JSON.stringify(filters) !== JSON.stringify(EMPTY_FILTERS);
@@ -292,89 +500,198 @@ export default function CustomerDetailView({ brandId, onBack, onOpenCampaign, on
 
       {tab === 'payments' && (
         <>
-          <div className="card">
-            <div className="kpi-grid">
-              <div className="kpi"><div className="kpi-label">Contracted (customer)</div><div className="kpi-value">{formatINR(t.contract_value)}</div></div>
-              <div className="kpi"><div className="kpi-label">Received (net of refunds)</div><div className="kpi-value positive">{formatINR(t.received)}</div></div>
-              <div className="kpi"><div className="kpi-label">Outstanding from customer</div><div className={`kpi-value ${t.outstanding ? 'negative' : ''}`}>{formatINR(t.outstanding)}</div></div>
-              <div className="kpi"><div className="kpi-label">Rider payouts earned</div><div className="kpi-value">{formatINR(t.rider_earned)}</div></div>
-              <div className="kpi"><div className="kpi-label">Rider payouts paid</div><div className="kpi-value">{formatINR(t.rider_paid)}</div></div>
-              <div className="kpi"><div className="kpi-label">Rider payouts pending</div><div className="kpi-value">{formatINR(t.rider_pending)}</div></div>
-            </div>
-          </div>
-          <div className="card">
-            <div className="card-title-text" style={{ marginBottom: 10 }}>By campaign</div>
-            <div className="table-responsive">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Campaign</th>
-                    <th>Contract</th>
-                    <th>Received</th>
-                    <th>Outstanding</th>
-                    <th>Customer payment</th>
-                    <th>Rider payouts earned</th>
-                    <th>Paid</th>
-                    <th>Pending</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {campaigns.map((c) => (
-                    <tr key={c.id} style={{ cursor: 'pointer' }} onClick={() => onOpenCampaign(c.id)}>
-                      <td><strong>{c.name}</strong></td>
-                      <td>{formatINR(c.brand.contract_value)}</td>
-                      <td>{formatINR(c.brand.net_received)}</td>
-                      <td>{formatINR(c.brand.outstanding)}</td>
-                      <td><StatusPill status={c.brand.payment_status} label={brandStatusLabel(c.brand.payment_status)} /></td>
-                      <td>{formatINR(c.rider_payout.earned)}</td>
-                      <td>{formatINR(c.rider_payout.paid)}</td>
-                      <td>{formatINR(c.rider_payout.pending)}</td>
-                    </tr>
-                  ))}
-                  {campaigns.length === 0 ? (
-                    <tr><td colSpan={8}><EmptyState icon={Wallet}>No campaigns {hasFilters ? 'match these filters' : 'yet'}.</EmptyState></td></tr>
-                  ) : null}
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <div className="card">
-            <div className="card-title-text" style={{ marginBottom: 10 }}>Transactions</div>
-            <div className="table-responsive">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Date</th>
-                    <th>Type</th>
-                    <th>Campaign</th>
-                    <th>Rider</th>
-                    <th>Amount</th>
-                    <th>Reference</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {payments.map((p, i) => (
-                    <tr key={`${p.type}-${i}`}>
-                      <td style={{ whiteSpace: 'nowrap' }}>{formatDate(p.date)}</td>
-                      <td>
-                        {PAYMENT_LABELS[p.type] || titleCase(p.type)}
-                        {p.payment_mode ? <div style={{ fontSize: '0.72rem', color: '#64748B' }}>{titleCase(p.payment_mode)}</div> : null}
-                      </td>
-                      <td>{p.campaign_name}</td>
-                      <td>{p.rider_name || '—'}</td>
-                      <td style={{ fontWeight: 700, color: p.type === 'BRAND_RECEIVED' ? '#047857' : undefined }}>{formatINR(p.amount)}</td>
-                      <td style={{ fontSize: '0.8rem' }}>{p.reference || '—'}</td>
-                      <td>{p.status ? <StatusPill status={p.status} /> : '—'}</td>
-                    </tr>
-                  ))}
-                  {payments.length === 0 ? (
-                    <tr><td colSpan={7}><EmptyState icon={Wallet}>No payments recorded{hasFilters ? ' for these filters' : ''}.</EmptyState></td></tr>
-                  ) : null}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          {(() => {
+            const summary = paymentAccountData?.summary || {
+              contract_value: t.contract_value,
+              total_paid: t.received,
+              remaining_amount: t.outstanding,
+              payment_status: t.payment_status || 'PENDING',
+            };
+            const brandRecords = paymentAccountData?.records || [];
+
+            return (
+              <>
+                <div className="card">
+                  <div className="card-header-bar" style={{ marginBottom: 14 }}>
+                    <div>
+                      <span className="card-title-text" style={{ fontSize: '1.05rem' }}>Brand Payment Account</span>
+                      <div style={{ fontSize: '0.78rem', color: '#64748B', marginTop: 2 }}>
+                        Accounting ledger and commercial contract balance for {brand.name}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                      <StatusPill
+                        status={summary.payment_status}
+                        label={summary.remaining_amount === 0 && summary.contract_value > 0 ? 'Paid in Full' : brandStatusLabel(summary.payment_status)}
+                      />
+                      <button className="btn-primary" onClick={() => setShowRecordPayment(true)}>
+                        <Plus size={15} />
+                        Record Payment
+                      </button>
+                    </div>
+                  </div>
+                  <div className="kpi-grid">
+                    <div className="kpi">
+                      <div className="kpi-label">Total Contract Value</div>
+                      <div className="kpi-value">{formatINR(summary.contract_value)}</div>
+                    </div>
+                    <div className="kpi">
+                      <div className="kpi-label">Total Paid</div>
+                      <div className="kpi-value positive">{formatINR(summary.total_paid)}</div>
+                    </div>
+                    <div className="kpi">
+                      <div className="kpi-label">Remaining Amount</div>
+                      <div className={`kpi-value ${summary.remaining_amount > 0 ? 'negative' : 'positive'}`}>
+                        {summary.remaining_amount === 0 ? 'Paid in Full' : formatINR(summary.remaining_amount)}
+                      </div>
+                    </div>
+                    <div className="kpi">
+                      <div className="kpi-label">Payment Status</div>
+                      <div className="kpi-value" style={{ fontSize: '1.15rem' }}>
+                        {summary.remaining_amount === 0 && summary.contract_value > 0 ? 'Paid in Full' : brandStatusLabel(summary.payment_status)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="card">
+                  <div className="card-header-bar" style={{ marginBottom: 12 }}>
+                    <div>
+                      <span className="card-title-text">Payment History</span>
+                      <div style={{ fontSize: '0.76rem', color: '#64748B', marginTop: 2 }}>
+                        Immutable ledger of payments received from, refunded to, or credited to {brand.name}
+                      </div>
+                    </div>
+                    <button className="btn-primary" style={{ padding: '6px 12px', fontSize: '0.8rem' }} onClick={() => setShowRecordPayment(true)}>
+                      <Plus size={14} />
+                      Record Payment
+                    </button>
+                  </div>
+
+                  {brandRecords.length === 0 ? (
+                    <EmptyState icon={Wallet}>No payments recorded yet.</EmptyState>
+                  ) : (
+                    <div className="table-responsive">
+                      <table className="data-table">
+                        <thead>
+                          <tr>
+                            <th>Payment ID</th>
+                            <th>Date</th>
+                            <th>Type</th>
+                            <th>Amount</th>
+                            <th>Payment Mode</th>
+                            <th>Reference ID</th>
+                            <th>Campaign</th>
+                            <th>Status</th>
+                            <th>Notes</th>
+                            <th>Added By</th>
+                            <th>Created At</th>
+                            <th>Action</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {brandRecords.map((r) => {
+                            const cancelled = r.status === 'CANCELLED';
+                            return (
+                              <tr key={r.id} style={cancelled ? { opacity: 0.6 } : null}>
+                                <td style={{ fontFamily: 'monospace', fontWeight: 600 }}>#BP-{r.id}</td>
+                                <td style={{ whiteSpace: 'nowrap' }}>{formatDate(r.record_date)}</td>
+                                <td>
+                                  <StatusPill status={r.kind === 'RECEIVED' ? 'PAID' : r.kind === 'REFUND' ? 'REFUNDED' : 'CREDIT_ISSUED'} label={r.kind} />
+                                </td>
+                                <td>
+                                  <strong style={{ color: r.kind === 'RECEIVED' ? '#047857' : undefined, textDecoration: cancelled ? 'line-through' : undefined }}>
+                                    {formatINR(r.amount)}
+                                  </strong>
+                                </td>
+                                <td style={{ fontSize: '0.82rem' }}>{r.payment_mode_label || r.payment_mode || '—'}</td>
+                                <td style={{ fontSize: '0.8rem', fontFamily: 'monospace' }}>{r.reference || '—'}</td>
+                                <td style={{ fontSize: '0.82rem' }}>
+                                  {r.campaign_id ? (
+                                    <span style={{ color: '#2563EB', cursor: 'pointer', fontWeight: 500 }} onClick={() => onOpenCampaign(r.campaign_id)}>
+                                      {r.campaign_name}
+                                    </span>
+                                  ) : (
+                                    <span style={{ color: '#64748B', fontStyle: 'italic' }}>General Brand Payment</span>
+                                  )}
+                                </td>
+                                <td>
+                                  {cancelled ? (
+                                    <span title={`${r.cancel_reason || ''}${r.cancelled_by ? ` — ${r.cancelled_by}` : ''}`}>
+                                      <StatusPill status="CANCELLED" label="Cancelled" />
+                                      <div style={{ fontSize: '0.72rem', color: '#64748B', marginTop: 2 }}>{r.cancel_reason}</div>
+                                    </span>
+                                  ) : (
+                                    <StatusPill status="PAID" label="Recorded" />
+                                  )}
+                                </td>
+                                <td style={{ fontSize: '0.8rem', maxWidth: 180 }}>{r.note || '—'}</td>
+                                <td style={{ fontSize: '0.78rem', color: '#64748B' }}>{r.created_by || '—'}</td>
+                                <td style={{ fontSize: '0.75rem', color: '#94A3B8', whiteSpace: 'nowrap' }}>{formatWhen(r.created_at)}</td>
+                                <td>
+                                  {!cancelled ? (
+                                    <button className="btn-sm-view" onClick={() => handleCancelBrandPayment(r)} title="Cancel this entry">
+                                      Cancel
+                                    </button>
+                                  ) : (
+                                    <span style={{ fontSize: '0.75rem', color: '#94A3B8' }}>Cancelled</span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                <div className="card">
+                  <div className="card-header-bar" style={{ marginBottom: 10 }}>
+                    <div>
+                      <span className="card-title-text">Campaigns Financial Breakdown</span>
+                      <div style={{ fontSize: '0.78rem', color: '#64748B' }}>
+                        Separate breakdown of brand contract delivery vs. rider payouts earned and paid
+                      </div>
+                    </div>
+                  </div>
+                  <div className="table-responsive">
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>Campaign</th>
+                          <th>Brand Contract</th>
+                          <th>Net Received</th>
+                          <th>Outstanding</th>
+                          <th>Customer Status</th>
+                          <th>Rider Payouts Earned</th>
+                          <th>Rider Paid</th>
+                          <th>Rider Pending</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {campaigns.map((c) => (
+                          <tr key={c.id} style={{ cursor: 'pointer' }} onClick={() => onOpenCampaign(c.id)}>
+                            <td><strong>{c.name}</strong></td>
+                            <td>{formatINR(c.brand.contract_value)}</td>
+                            <td>{formatINR(c.brand.net_received)}</td>
+                            <td>{formatINR(c.brand.outstanding)}</td>
+                            <td><StatusPill status={c.brand.payment_status} label={brandStatusLabel(c.brand.payment_status)} /></td>
+                            <td>{formatINR(c.rider_payout.earned)}</td>
+                            <td>{formatINR(c.rider_payout.paid)}</td>
+                            <td>{formatINR(c.rider_payout.pending)}</td>
+                          </tr>
+                        ))}
+                        {campaigns.length === 0 ? (
+                          <tr><td colSpan={8}><EmptyState icon={Wallet}>No campaigns {hasFilters ? 'match these filters' : 'yet'}.</EmptyState></td></tr>
+                        ) : null}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
+            );
+          })()}
         </>
       )}
 
@@ -413,6 +730,25 @@ export default function CustomerDetailView({ brandId, onBack, onOpenCampaign, on
             </table>
           </div>
         </div>
+      )}
+
+      {showRecordPayment && (
+        <RecordBrandPaymentModal
+          brandId={brand.id}
+          brandName={brand.name}
+          campaigns={campaigns}
+          summary={paymentAccountData?.summary || {
+            contract_value: t.contract_value,
+            total_paid: t.received,
+            remaining_amount: t.outstanding,
+            payment_status: t.payment_status || 'PENDING',
+          }}
+          onClose={() => setShowRecordPayment(false)}
+          onSaved={() => {
+            setShowRecordPayment(false);
+            refreshAll();
+          }}
+        />
       )}
     </div>
   );

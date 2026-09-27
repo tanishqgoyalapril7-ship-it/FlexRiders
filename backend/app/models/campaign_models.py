@@ -116,8 +116,18 @@ class BrandPaymentMode:
     RTGS = "RTGS"
     CHEQUE = "CHEQUE"
     CASH = "CASH"
+    CARD = "CARD"
     OTHER = "OTHER"
-    LABELS = {UPI: "UPI", BANK_TRANSFER: "Bank Transfer / NEFT", IMPS: "IMPS", RTGS: "RTGS", CHEQUE: "Cheque", CASH: "Cash", OTHER: "Other"}
+    LABELS = {
+        UPI: "UPI",
+        BANK_TRANSFER: "Bank Transfer / NEFT",
+        IMPS: "IMPS",
+        RTGS: "RTGS",
+        CHEQUE: "Cheque",
+        CASH: "Cash",
+        CARD: "Card",
+        OTHER: "Other",
+    }
     ALL = tuple(LABELS)
 
 
@@ -445,7 +455,8 @@ class BrandPaymentRecord(Base):
     __tablename__ = "brand_payment_records"
 
     id = Column(Integer, primary_key=True, index=True)
-    campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=False, index=True)
+    brand_id = Column(Integer, ForeignKey("brands.id"), nullable=True, index=True)
+    campaign_id = Column(Integer, ForeignKey("campaigns.id"), nullable=True, index=True)
     kind = Column(String(20), nullable=False)  # RECEIVED, REFUND, CREDIT
     amount = Column(Float, nullable=False)
     record_date = Column(Date, nullable=False)
@@ -460,6 +471,8 @@ class BrandPaymentRecord(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    brand = relationship("Brand", back_populates="brand_payments", foreign_keys=[brand_id])
+    campaign = relationship("Campaign", foreign_keys=[campaign_id])
     created_by = relationship("User", foreign_keys=[created_by_id])
     cancelled_by = relationship("User", foreign_keys=[cancelled_by_id])
 

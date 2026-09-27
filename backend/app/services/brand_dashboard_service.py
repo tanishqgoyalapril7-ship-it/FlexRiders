@@ -112,9 +112,18 @@ def _sum(rows: List[Dict], key: str, sub: Optional[str] = None) -> float:
     return round(sum((r[sub][key] if sub else r[key]) or 0 for r in rows), 2)
 
 
-def totals(rows: List[Dict]) -> Dict:
+def totals(rows: List[Dict], brand_fin: Optional[Dict] = None) -> Dict:
     contracted = sum(r["contracted_rider_days"] for r in rows)
     delivered_in_contract = sum(min(r["delivered_rider_days"], r["contracted_rider_days"]) for r in rows)
+    c_val = _sum(rows, "contract_value", "brand")
+    rec = _sum(rows, "net_received", "brand")
+    out = _sum(rows, "outstanding", "brand")
+    status = "PAID" if out <= 0 else "PARTIALLY_PAID"
+    if brand_fin:
+        c_val = max(c_val, brand_fin["contract_value"])
+        rec = brand_fin["total_paid"]
+        out = brand_fin["remaining_amount"]
+        status = brand_fin["payment_status"]
     return {
         "campaigns": len(rows),
         "live_campaigns": sum(1 for r in rows if r["status"] == "ACTIVE"),
@@ -130,26 +139,43 @@ def totals(rows: List[Dict]) -> Dict:
         "pending_photos": sum(r["pending_photos"] for r in rows),
         "rejected_photos": sum(r["rejected_photos"] for r in rows),
         "rider_days_without_approval": sum(r["rider_days_without_approval"] for r in rows),
-        "contract_value": _sum(rows, "contract_value", "brand"),
-        "received": _sum(rows, "net_received", "brand"),
-        "outstanding": _sum(rows, "outstanding", "brand"),
+        "contract_value": c_val,
+        "received": rec,
+        "outstanding": out,
+        "payment_status": status,
         "rider_earned": _sum(rows, "earned", "rider_payout"),
         "rider_paid": _sum(rows, "paid", "rider_payout"),
         "rider_pending": _sum(rows, "pending", "rider_payout"),
     }
 
 
-def payments(db: Session, campaigns: List[Campaign]) -> List[Dict]:
+def payments(db: Session, campaigns: List[Campaign], brand: Optional[Brand] = None, is_filtered: bool = False) -> List[Dict]:
     """Money from the customer (brand payment records) and payouts made to riders, newest first."""
     ids = [c.id for c in campaigns]
     names = {c.id: c.name for c in campaigns}
-    if not ids:
+    
+    brand_records_query = db.query(BrandPaymentRecord)
+    if is_filtered:
+        if ids:
+            brand_records_query = brand_records_query.filter(BrandPaymentRecord.campaign_id.in_(ids))
+        else:
+            return []
+    elif brand and ids:
+        brand_records_query = brand_records_query.filter(or_(BrandPaymentRecord.brand_id == brand.id, BrandPaymentRecord.campaign_id.in_(ids)))
+    elif brand:
+        brand_records_query = brand_records_query.filter(BrandPaymentRecord.brand_id == brand.id)
+    elif ids:
+        brand_records_query = brand_records_query.filter(BrandPaymentRecord.campaign_id.in_(ids))
+    else:
         return []
+
+    brand_recs = list({r.id: r for r in brand_records_query.all()}.values())
+
     rows = [
         {
             "type": "BRAND_" + r.kind,  # BRAND_RECEIVED / BRAND_REFUND / BRAND_CREDIT
             "campaign_id": r.campaign_id,
-            "campaign_name": names.get(r.campaign_id),
+            "campaign_name": names.get(r.campaign_id) if r.campaign_id else "General Brand Payment",
             "amount": r.amount,
             "date": r.record_date.isoformat(),
             "reference": r.reference,
@@ -159,7 +185,7 @@ def payments(db: Session, campaigns: List[Campaign]) -> List[Dict]:
             "status": "CANCELLED" if r.status == "CANCELLED" else None,
             "rider_name": None,
         }
-        for r in db.query(BrandPaymentRecord).filter(BrandPaymentRecord.campaign_id.in_(ids)).all()
+        for r in brand_recs
     ] + [
         {
             "type": "RIDER_PAYOUT",
@@ -172,7 +198,7 @@ def payments(db: Session, campaigns: List[Campaign]) -> List[Dict]:
             "status": p.status,
             "rider_name": p.rider.full_name if p.rider else None,
         }
-        for p in db.query(Payment).filter(Payment.campaign_id.in_(ids)).all()
+        for p in (db.query(Payment).filter(Payment.campaign_id.in_(ids)).all() if ids else [])
     ]
     return sorted(rows, key=lambda r: r["date"] or "", reverse=True)
 
@@ -212,13 +238,15 @@ def dashboard(db: Session, brand: Brand, **filters) -> Dict:
     all_campaigns = db.query(Campaign).filter(Campaign.brand_id == brand.id).order_by(Campaign.start_date.desc(), Campaign.id.desc()).all()
     all_campaigns = [svc.sync_campaign_status(db, c) for c in all_campaigns]
     shown = filter_campaigns(all_campaigns, **filters)
+    is_filtered = len(shown) != len(all_campaigns)
     rows = [campaign_row(db, c) for c in shown]
+    brand_fin = None if is_filtered else fs.brand_account_financials(db, brand)
     return {
         "campaigns": rows,
-        "totals": totals(rows),
-        "payments": payments(db, shown),
+        "totals": totals(rows, brand_fin=brand_fin),
+        "payments": payments(db, shown, brand=brand, is_filtered=is_filtered),
         "activity": activity(db, brand, shown),
         # For the filter dropdown: every campaign of this customer, whatever the filters.
         "campaign_options": [{"id": c.id, "name": c.name} for c in all_campaigns],
-        "filtered": len(shown) != len(all_campaigns),
+        "filtered": is_filtered,
     }

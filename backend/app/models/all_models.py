@@ -149,11 +149,13 @@ class Brand(Base):
     is_active = Column(Boolean, default=True)
     # The brand's logo is only shown on public pages once an admin confirms FlexRiders may use it.
     public_assets_approved = Column(Boolean, default=False, nullable=True)
+    contract_amount = Column(Float, default=0.0, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     assignments = relationship("RiderBrandAssignment", back_populates="brand")
     payments = relationship("Payment", back_populates="brand")
+    brand_payments = relationship("BrandPaymentRecord", back_populates="brand", foreign_keys="[BrandPaymentRecord.brand_id]")
 
 
 class RiderBrandAssignment(Base):

@@ -16,8 +16,16 @@ from app.services import data_admin_service as das
 from datetime import datetime, date
 from typing import List, Optional
 
-from app.models.campaign_models import Campaign
+from app.models.campaign_models import (
+    Campaign,
+    BrandPaymentRecord,
+    BrandPaymentRecordStatus,
+    BrandPaymentMode,
+    BrandPaymentKind,
+)
+from app.schemas.campaign_schemas import BrandPaymentCreate, BrandPaymentCancel
 from app.services import brand_dashboard_service as dash
+from app.services import fulfillment_service as fs
 
 router = APIRouter()
 
@@ -33,7 +41,8 @@ def _current_rider_count(db: Session, brand_id: int) -> int:
     )
 
 
-def _brand_response(db: Session, brand: Brand) -> BrandResponse:
+def _brand_response(db: Session, brand: Brand, include_financials: bool = True) -> BrandResponse:
+    fin = fs.brand_account_financials(db, brand) if include_financials else None
     return BrandResponse(
         id=brand.id,
         name=brand.name,
@@ -44,9 +53,14 @@ def _brand_response(db: Session, brand: Brand) -> BrandResponse:
         contact_number=brand.contact_number,
         is_active=brand.is_active,
         public_assets_approved=bool(brand.public_assets_approved),
+        contract_amount=float(getattr(brand, "contract_amount", 0.0) or 0.0),
         created_at=brand.created_at,
         updated_at=brand.updated_at,
         active_riders_count=_current_rider_count(db, brand.id),
+        total_contract_value=fin["contract_value"] if fin else 0.0,
+        total_paid=fin["total_paid"] if fin else 0.0,
+        remaining_amount=fin["remaining_amount"] if fin else 0.0,
+        payment_status=fin["payment_status"] if fin else "PENDING",
     )
 
 
@@ -108,6 +122,7 @@ def create_brand(
         contact_number=_clean(brand_in.contact_number),
         is_active=brand_in.is_active,
         public_assets_approved=bool(brand_in.public_assets_approved),
+        contract_amount=float(brand_in.contract_amount or 0.0),
     )
     db.add(brand)
     db.commit()
@@ -140,8 +155,10 @@ def get_brand_detail(
         .order_by(RiderBrandAssignment.assignment_date.desc())
         .all()
     )
+    fin = fs.brand_account_financials(db, brand)
     return {
         **_brand_response(db, brand).model_dump(),
+        "payment_account": fin,
         "assignments": [
             {
                 "id": a.id,
@@ -187,6 +204,8 @@ def update_brand(
     if brand_in.is_active is not None:
         # Deactivating only blocks new assignments; current and past assignments are kept.
         brand.is_active = brand_in.is_active
+    if brand_in.contract_amount is not None:
+        brand.contract_amount = float(brand_in.contract_amount)
     assets_changed = brand_in.public_assets_approved is not None and bool(brand.public_assets_approved) != brand_in.public_assets_approved
     if brand_in.public_assets_approved is not None:
         brand.public_assets_approved = brand_in.public_assets_approved
@@ -391,3 +410,188 @@ def unassign_rider_brand(
         )
 
     return {"success": True, "message": "Brand assignment ended", "rider_status": rider.status}
+
+
+# ==================== BRAND PAYMENT TRACKING ENDPOINTS ====================
+
+@router.get("/{id}/payments")
+def get_brand_payments(
+    id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
+    """Lists the brand's payment account summary, history of payments (brand-level and campaign-level),
+    available campaigns for linking, and supported payment modes."""
+    brand = db.query(Brand).filter(Brand.id == id).first()
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+
+    campaigns = db.query(Campaign).filter(Campaign.brand_id == brand.id).order_by(Campaign.name).all()
+    camp_dict = {c.id: c.name for c in campaigns}
+    camp_ids = list(camp_dict.keys())
+
+    query = db.query(BrandPaymentRecord)
+    if camp_ids:
+        query = query.filter(or_(BrandPaymentRecord.brand_id == brand.id, BrandPaymentRecord.campaign_id.in_(camp_ids)))
+    else:
+        query = query.filter(BrandPaymentRecord.brand_id == brand.id)
+
+    records = query.order_by(BrandPaymentRecord.record_date.desc(), BrandPaymentRecord.id.desc()).all()
+    unique_records = list({r.id: r for r in records}.values())
+    unique_records.sort(key=lambda r: (r.record_date, r.id), reverse=True)
+
+    summary = fs.brand_account_financials(db, brand)
+
+    return {
+        "summary": summary,
+        "records": [
+            {
+                "id": r.id,
+                "brand_id": brand.id,
+                "campaign_id": r.campaign_id,
+                "campaign_name": camp_dict.get(r.campaign_id) if r.campaign_id else "General Brand Payment",
+                "kind": r.kind,
+                "amount": r.amount,
+                "record_date": r.record_date.isoformat(),
+                "payment_mode": r.payment_mode,
+                "payment_mode_label": BrandPaymentMode.LABELS.get(r.payment_mode) if r.payment_mode else (r.payment_mode or "—"),
+                "reference": r.reference,
+                "note": r.note,
+                "status": r.status or BrandPaymentRecordStatus.RECORDED,
+                "cancel_reason": r.cancel_reason,
+                "cancelled_at": r.cancelled_at.isoformat() if r.cancelled_at else None,
+                "cancelled_by": r.cancelled_by.email if r.cancelled_by else None,
+                "created_by": r.created_by.email if r.created_by else None,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+                "updated_at": r.updated_at.isoformat() if r.updated_at else None,
+            }
+            for r in unique_records
+        ],
+        "campaigns": [{"id": c.id, "name": c.name} for c in campaigns],
+        "modes": [{"value": k, "label": v} for k, v in BrandPaymentMode.LABELS.items()],
+    }
+
+
+@router.get("/{id}/payment-summary")
+def get_brand_payment_summary(
+    id: int,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
+    """Returns the consolidated financial summary for a brand."""
+    brand = db.query(Brand).filter(Brand.id == id).first()
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+    return fs.brand_account_financials(db, brand)
+
+
+@router.post("/{id}/payments")
+def record_brand_payment(
+    id: int,
+    payload: BrandPaymentCreate,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
+    """Records a payment received from, refunded to, or credited to the brand.
+    Can be general to the brand or linked to a specific campaign."""
+    brand = db.query(Brand).filter(Brand.id == id).first()
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+
+    campaign = None
+    if payload.campaign_id:
+        campaign = db.query(Campaign).filter(Campaign.id == payload.campaign_id, Campaign.brand_id == brand.id).first()
+        if not campaign:
+            raise HTTPException(status_code=400, detail="The selected campaign does not belong to this brand.")
+
+    summary = fs.brand_account_financials(db, brand)
+
+    # Validations
+    if payload.kind == BrandPaymentKind.REFUND and payload.amount > summary["net_received"] + 0.001:
+        raise HTTPException(status_code=400, detail=f"A refund cannot exceed the net amount received (₹{summary['net_received']:,.2f}).")
+
+    if payload.kind == BrandPaymentKind.RECEIVED and summary["contract_value"] > 0:
+        if payload.amount > summary["remaining_amount"] + 0.01:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Payment amount ₹{payload.amount:,.2f} exceeds remaining amount of ₹{summary['remaining_amount']:,.2f}."
+            )
+
+    record = BrandPaymentRecord(
+        brand_id=brand.id,
+        campaign_id=campaign.id if campaign else None,
+        kind=payload.kind,
+        amount=round(payload.amount, 2),
+        record_date=payload.record_date,
+        payment_mode=payload.payment_mode,
+        reference=_clean(payload.reference),
+        note=_clean(payload.note),
+        status=BrandPaymentRecordStatus.RECORDED,
+        created_by_id=admin.id,
+    )
+    db.add(record)
+    db.commit()
+
+    mode_label = BrandPaymentMode.LABELS.get(payload.payment_mode, payload.payment_mode) if payload.payment_mode else ""
+    mode_str = f" via {mode_label}" if mode_label else ""
+    camp_str = f" for campaign {campaign.name}" if campaign else " (General Account)"
+    ref_str = f" (Ref: {payload.reference})" if payload.reference else ""
+
+    log_admin_action(
+        db=db,
+        admin_user=admin,
+        action=f"BRAND_PAYMENT_{payload.kind}",
+        target_type="BRAND",
+        target_id=str(brand.id),
+        details=f"{payload.kind.title()} ₹{payload.amount:,.2f}{mode_str}{camp_str} for {brand.name}{ref_str}",
+    )
+
+    return get_brand_payments(id, db, admin)
+
+
+@router.post("/{id}/payments/{payment_id}/cancel")
+def cancel_brand_payment_entry(
+    id: int,
+    payment_id: int,
+    payload: BrandPaymentCancel,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
+    """Cancels an erroneous brand payment entry. The record remains in audit history with reason and author, but stops counting."""
+    brand = db.query(Brand).filter(Brand.id == id).first()
+    if not brand:
+        raise HTTPException(status_code=404, detail="Brand not found")
+
+    campaigns = db.query(Campaign.id).filter(Campaign.brand_id == brand.id).all()
+    camp_ids = [c[0] for c in campaigns]
+
+    record = db.query(BrandPaymentRecord).filter(
+        BrandPaymentRecord.id == payment_id,
+        or_(BrandPaymentRecord.brand_id == brand.id, BrandPaymentRecord.campaign_id.in_(camp_ids)),
+    ).first()
+
+    if not record:
+        raise HTTPException(status_code=404, detail="Payment record not found")
+    if record.status == BrandPaymentRecordStatus.CANCELLED:
+        raise HTTPException(status_code=400, detail="This record is already cancelled.")
+
+    summary = fs.brand_account_financials(db, brand)
+    if record.kind == BrandPaymentKind.RECEIVED and summary["received"] - record.amount < summary["refunded"] - 0.001:
+        raise HTTPException(status_code=400, detail="Cancelling this payment would leave total refunds greater than received. Cancel the refund first.")
+
+    record.status = BrandPaymentRecordStatus.CANCELLED
+    record.cancel_reason = payload.reason.strip()
+    record.cancelled_at = datetime.utcnow()
+    record.cancelled_by_id = admin.id
+    db.commit()
+
+    log_admin_action(
+        db=db,
+        admin_user=admin,
+        action="BRAND_PAYMENT_CANCELLED",
+        target_type="BRAND",
+        target_id=str(brand.id),
+        details=f"Cancelled {record.kind.title()} ₹{record.amount:,.2f} of {record.record_date:%d %b %Y} for brand {brand.name}: {record.cancel_reason}",
+    )
+
+    return get_brand_payments(id, db, admin)

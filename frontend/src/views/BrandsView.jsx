@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
-import { Briefcase, Plus, Users, Phone, Search, Trash2 } from 'lucide-react';
+import { Briefcase, Plus, Users, Phone, Search, Trash2, Wallet } from 'lucide-react';
 import { BrandLogo } from '../components/BrandModals';
 
 export default function BrandsView({ brands = [], onCreateBrand, onViewBrand, onShowRiders, onEditBrand, onAssignRider, onToggleActive, onDeleteBrand }) {
@@ -117,6 +117,19 @@ export default function BrandsView({ brands = [], onCreateBrand, onViewBrand, on
                       </span>
                     </div>
                   ) : null}
+                  {(b.total_contract_value > 0 || (b.contract_amount || 0) > 0 || b.total_paid > 0) && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '0.76rem', color: '#475569', marginTop: '6px', paddingTop: '6px', borderTop: '1px dashed #CBD5E1' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <Wallet size={13} color="#6366F1" />
+                        <span style={{ fontWeight: 600, color: b.remaining_amount === 0 && (b.total_contract_value || 0) > 0 ? '#059669' : b.total_paid > 0 ? '#D97706' : '#64748B' }}>
+                          {b.remaining_amount === 0 && (b.total_contract_value || 0) > 0 ? 'Paid in Full' : b.payment_status || 'PENDING'}
+                        </span>
+                      </div>
+                      <span style={{ color: '#0F172A' }}>
+                        <strong>₹{Number(b.total_paid || 0).toLocaleString('en-IN')}</strong> / ₹{Number(b.total_contract_value || b.contract_amount || 0).toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 

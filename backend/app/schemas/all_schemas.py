@@ -68,6 +68,7 @@ class BrandBase(BaseModel):
     contact_number: Optional[str] = None
     is_active: bool = True
     public_assets_approved: bool = False  # Logo may be shown on public pages (rights confirmed)
+    contract_amount: Optional[float] = 0.0
 
 
 class BrandCreate(BrandBase):
@@ -83,6 +84,7 @@ class BrandUpdate(BaseModel):
     contact_number: Optional[str] = None
     is_active: Optional[bool] = None
     public_assets_approved: Optional[bool] = None
+    contract_amount: Optional[float] = None
 
 
 class BrandResponse(BrandBase):
@@ -90,6 +92,10 @@ class BrandResponse(BrandBase):
     created_at: datetime
     updated_at: Optional[datetime] = None
     active_riders_count: Optional[int] = 0
+    total_contract_value: Optional[float] = 0.0
+    total_paid: Optional[float] = 0.0
+    remaining_amount: Optional[float] = 0.0
+    payment_status: Optional[str] = "PENDING"
 
     model_config = ConfigDict(from_attributes=True)
 

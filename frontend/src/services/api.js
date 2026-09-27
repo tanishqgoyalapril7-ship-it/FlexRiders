@@ -142,6 +142,19 @@ export const api = {
       body: JSON.stringify(brandData),
     }),
 
+  getBrandPaymentAccount: (brandId) => fetchWithAuth(`/brands/${brandId}/payments`),
+  getBrandPaymentSummary: (brandId) => fetchWithAuth(`/brands/${brandId}/payment-summary`),
+  recordBrandPayment: (brandId, data) =>
+    fetchWithAuth(`/brands/${brandId}/payments`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  cancelBrandPaymentRecord: (brandId, paymentId, reason) =>
+    fetchWithAuth(`/brands/${brandId}/payments/${paymentId}/cancel`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    }),
+
   createBrand: (brandData) =>
     fetchWithAuth('/brands', {
       method: 'POST',
