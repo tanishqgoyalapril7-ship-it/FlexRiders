@@ -104,7 +104,7 @@ def test_forgot_password_by_sms_resets_and_logs_in(client, db_session, gateway):
 def test_fast2sms_is_used_when_its_key_is_set(client, db_session, monkeypatch):
     monkeypatch.setattr(settings, "SMS_GATEWAY_URL", "")
     monkeypatch.setattr(settings, "FAST2SMS_API_KEY", "f2s-key")
-    monkeypatch.setattr(sms, "PER_CLIENT_PER_HOUR", 100)  # Earlier tests in this file already used this client's codes
+    monkeypatch.setattr(settings, "SMS_PER_CLIENT_PER_HOUR", 100)  # Earlier tests in this file already used this client's codes
     calls = []
 
     def fake_post(url, headers=None, json=None, timeout=None):
@@ -127,7 +127,7 @@ def test_fast2sms_dlt_route_uses_the_approved_sender_and_template(client, db_ses
     monkeypatch.setattr(settings, "FAST2SMS_API_KEY", "f2s-key")
     monkeypatch.setattr(settings, "FAST2SMS_SENDER_ID", "FLXRDR")
     monkeypatch.setattr(settings, "FAST2SMS_TEMPLATE_ID", "171234")
-    monkeypatch.setattr(sms, "PER_CLIENT_PER_HOUR", 100)
+    monkeypatch.setattr(settings, "SMS_PER_CLIENT_PER_HOUR", 100)
     calls = []
     monkeypatch.setattr(sms.httpx, "post", lambda url, headers=None, json=None, timeout=None: calls.append(json) or httpx.Response(200, json={"return": True}))
     assert client.post(f"{API}/auth/phone/verification-code", json={"phone": "9410000008"}).status_code == 200
@@ -141,7 +141,7 @@ def test_twilio_verify_sends_and_checks_the_code(client, db_session, monkeypatch
     monkeypatch.setattr(settings, "TWILIO_ACCOUNT_SID", "AC123")
     monkeypatch.setattr(settings, "TWILIO_AUTH_TOKEN", "tw-token")
     monkeypatch.setattr(settings, "TWILIO_VERIFY_SERVICE_SID", "VA456")
-    monkeypatch.setattr(sms, "PER_CLIENT_PER_HOUR", 100)
+    monkeypatch.setattr(settings, "SMS_PER_CLIENT_PER_HOUR", 100)
     calls = []
 
     def fake_post(url, data=None, auth=None, timeout=None, **kw):
@@ -174,7 +174,7 @@ def test_plain_twilio_sms_with_a_twilio_number(client, db_session, monkeypatch):
     monkeypatch.setattr(settings, "TWILIO_ACCOUNT_SID", "AC123")
     monkeypatch.setattr(settings, "TWILIO_AUTH_TOKEN", "tw-token")
     monkeypatch.setattr(settings, "TWILIO_FROM_NUMBER", "+15550001111")
-    monkeypatch.setattr(sms, "PER_CLIENT_PER_HOUR", 100)
+    monkeypatch.setattr(settings, "SMS_PER_CLIENT_PER_HOUR", 100)
     calls = []
 
     def fake_post(url, data=None, auth=None, timeout=None, **kw):
@@ -194,7 +194,7 @@ def test_plain_twilio_sms_with_a_twilio_number(client, db_session, monkeypatch):
 def test_local_test_mode_shows_the_code_and_never_runs_hosted(client, db_session, monkeypatch):
     monkeypatch.setattr(settings, "SMS_GATEWAY_URL", "")
     monkeypatch.setattr(settings, "SMS_TEST_MODE", True)
-    monkeypatch.setattr(sms, "PER_CLIENT_PER_HOUR", 100)
+    monkeypatch.setattr(settings, "SMS_PER_CLIENT_PER_HOUR", 100)
     monkeypatch.setattr(sms.httpx, "post", lambda *a, **k: pytest.fail("test mode must not send anything"))
     assert client.get(f"{API}/public/app-config").json()["phone_verification"] is True
     res = client.post(f"{API}/auth/phone/verification-code", json={"phone": "9410000011"}).json()
@@ -209,3 +209,68 @@ def test_local_test_mode_shows_the_code_and_never_runs_hosted(client, db_session
     # Never on a hosted server.
     monkeypatch.setattr(settings, "VERCEL", "1")
     assert sms.test_mode() is False
+
+
+def test_twofactor_texts_our_code(client, db_session, monkeypatch):
+    monkeypatch.setattr(settings, "SMS_GATEWAY_URL", "")
+    monkeypatch.setattr(settings, "TWOFACTOR_API_KEY", "2f-key")
+    monkeypatch.setattr(settings, "SMS_PER_CLIENT_PER_HOUR", 100)
+    urls = []
+
+    def fake_post(url, timeout=None, **kw):
+        urls.append(url)
+        return httpx.Response(200, json={"Status": "Success", "Details": "session-1"})
+
+    monkeypatch.setattr(sms.httpx, "post", fake_post)
+    assert client.get(f"{API}/public/app-config").json()["sms_code_length"] == 4
+    assert client.post(f"{API}/auth/phone/verification-code", json={"phone": "9410000012"}).status_code == 200
+    m = re.fullmatch(r"https://2factor\.in/API/V1/2f-key/SMS/919410000012/(\d{4})", urls[-1])
+    assert m
+    assert client.post(f"{API}/auth/phone/verify-code", json={"phone": "9410000012", "code": m.group(1)}).status_code == 200
+    # An error reply from 2Factor (e.g. no balance) is reported, not treated as sent.
+    monkeypatch.setattr(sms.httpx, "post", lambda *a, **k: httpx.Response(200, json={"Status": "Error", "Details": "Insufficient balance"}))
+    assert client.post(f"{API}/auth/phone/verification-code", json={"phone": "9410000013"}).status_code == 503
+
+
+def test_limits_can_be_switched_off_for_local_testing(client, db_session, gateway, monkeypatch):
+    monkeypatch.setattr(settings, "SMS_PER_NUMBER_PER_HOUR", 0)
+    monkeypatch.setattr(settings, "SMS_PER_CLIENT_PER_HOUR", 0)
+    for _ in range(5):
+        assert client.post(f"{API}/auth/phone/verification-code", json={"phone": "9410000014"}).status_code == 200
+
+
+def test_brand_signup_needs_the_sms_code(client, db_session, gateway, monkeypatch):
+    monkeypatch.setattr(settings, "SMS_PER_CLIENT_PER_HOUR", 100)  # Earlier tests in this file used this client's codes
+    body = {"full_name": "Brand Owner", "company_name": f"Sms Brand {len(gateway)}", "mobile_number": "9410000015",
+            "email": "owner9410000015@example.com", "password": "brandPass1"}
+    assert "Verify your mobile" in client.post(f"{API}/customer/auth/signup", json=body).json()["detail"]
+    client.post(f"{API}/auth/phone/verification-code", json={"phone": "9410000015"})
+    proof = client.post(f"{API}/auth/phone/verify-code", json={"phone": "9410000015", "code": code_in(gateway[-1])}).json()["phone_proof"]
+    # A proof for one number can't be used for another.
+    assert client.post(f"{API}/customer/auth/signup", json={**body, "mobile_number": "9410000016", "phone_proof": proof}).status_code == 400
+    res = client.post(f"{API}/customer/auth/signup", json={**body, "phone_proof": proof})
+    assert res.status_code == 200 and res.json()["role"] == "CUSTOMER"
+    # The number now has an account, so no new sign-up code is sent for it.
+    assert client.post(f"{API}/auth/phone/verification-code", json={"phone": "9410000015"}).status_code == 400
+
+
+def test_msg91_texts_our_code_with_the_approved_template(client, db_session, monkeypatch):
+    monkeypatch.setattr(settings, "SMS_GATEWAY_URL", "")
+    monkeypatch.setattr(settings, "TWOFACTOR_API_KEY", "2f-key")  # MSG91 is used before 2Factor
+    monkeypatch.setattr(settings, "MSG91_AUTH_KEY", "m91-key")
+    monkeypatch.setattr(settings, "MSG91_TEMPLATE_ID", "tmpl-1")
+    monkeypatch.setattr(settings, "SMS_PER_CLIENT_PER_HOUR", 100)
+    calls = []
+
+    def fake_post(url, params=None, headers=None, json=None, timeout=None, **kw):
+        calls.append({"url": url, "key": (headers or {}).get("authkey"), **(params or {})})
+        return httpx.Response(200, json={"type": "success", "request_id": "r1"})
+
+    monkeypatch.setattr(sms.httpx, "post", fake_post)
+    assert client.post(f"{API}/auth/phone/verification-code", json={"phone": "9410000017"}).status_code == 200
+    c = calls[-1]
+    assert c["url"] == sms.MSG91_OTP_URL and c["key"] == "m91-key" and c["template_id"] == "tmpl-1"
+    assert c["mobile"] == "919410000017" and c["otp_expiry"] == 10
+    assert client.post(f"{API}/auth/phone/verify-code", json={"phone": "9410000017", "code": c["otp"]}).status_code == 200
+    monkeypatch.setattr(sms.httpx, "post", lambda *a, **k: httpx.Response(200, json={"type": "error", "message": "Invalid template"}))
+    assert client.post(f"{API}/auth/phone/verification-code", json={"phone": "9410000018"}).status_code == 503

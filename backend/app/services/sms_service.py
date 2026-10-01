@@ -1,4 +1,4 @@
-"""SMS one-time codes sent through Twilio Verify (preferred when set), Fast2SMS or an SMS gateway phone (github.com/mdakashhossain1/SMS-Gateway-Free):
+"""SMS one-time codes sent through Twilio Verify (preferred when set), Twilio SMS, MSG91, 2Factor, Fast2SMS or an SMS gateway phone (github.com/mdakashhossain1/SMS-Gateway-Free):
 an Android phone with a SIM runs the gateway app, and this server calls its HTTP API, so the phone sends a
 real SMS immediately:
 
@@ -26,20 +26,22 @@ from app.core.config import settings
 from app.models.all_models import EmailCode
 
 log = logging.getLogger("app.sms")
+# httpx logs each request URL at INFO, and 2Factor puts the API key in the URL: keep it out of the logs.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 VERIFY = "VERIFY_PHONE"  # Sign-up: prove the rider owns the number
 LOGIN = "LOGIN_PHONE"  # OTP login
 RESET = "RESET_PHONE"  # Forgot password by SMS
 PHONE_PURPOSES = (VERIFY, LOGIN, RESET)
 FAST2SMS_URL = "https://www.fast2sms.com/dev/bulkV2"
+TWOFACTOR_URL = "https://2factor.in/API/V1"
+MSG91_OTP_URL = "https://control.msg91.com/api/v5/otp"
 TWILIO_VERIFY_URL = "https://verify.twilio.com/v2/Services"
 TWILIO_MESSAGES_URL = "https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json"
 TWILIO_CODE = "twilio-verify"  # Stored instead of a code hash: Twilio holds and checks the code
 CODE_DIGITS = 4
 CODE_TTL = timedelta(minutes=10)  # Same as Twilio Verify's code lifetime
 MAX_ATTEMPTS = 5
-PER_NUMBER_PER_HOUR = 3
-PER_CLIENT_PER_HOUR = 10
 PROOF_TTL_SECONDS = 30 * 60  # A verified number must be used to register within 30 minutes
 
 
@@ -65,12 +67,20 @@ def code_length() -> int:
     return settings.TWILIO_VERIFY_CODE_LENGTH if twilio() else CODE_DIGITS
 
 
+def msg91() -> bool:
+    return bool(settings.MSG91_AUTH_KEY and settings.MSG91_TEMPLATE_ID)
+
+
+def twofactor() -> bool:
+    return bool(settings.TWOFACTOR_API_KEY)
+
+
 def fast2sms() -> bool:
     return bool(settings.FAST2SMS_API_KEY)
 
 
 def real_provider() -> bool:
-    return twilio() or twilio_sms() or fast2sms() or bool(settings.SMS_GATEWAY_URL and settings.SMS_GATEWAY_API_KEY)
+    return twilio() or twilio_sms() or msg91() or twofactor() or fast2sms() or bool(settings.SMS_GATEWAY_URL and settings.SMS_GATEWAY_API_KEY)
 
 
 def test_mode() -> bool:
@@ -175,9 +185,51 @@ def send_twilio_sms(phone10: str, message: str) -> None:
         raise SmsError("We couldn't send the SMS right now. Please try again in a minute.")
 
 
+def send_msg91_otp(phone10: str, code: str) -> None:
+    """Texts our code through MSG91's OTP API with the approved template (##OTP## = the code)."""
+    number = re.sub(r"\D", "", settings.SMS_COUNTRY_CODE) + phone10
+    try:
+        res = httpx.post(
+            MSG91_OTP_URL,
+            params={"template_id": settings.MSG91_TEMPLATE_ID, "mobile": number, "otp": code, "otp_expiry": int(CODE_TTL.total_seconds() // 60)},
+            headers={"authkey": settings.MSG91_AUTH_KEY, "Content-Type": "application/json"},
+            json={},
+            timeout=15,
+        )
+        body = res.json() if res.content else {}
+    except (httpx.HTTPError, ValueError) as e:
+        log.warning("MSG91 unreachable: %s", e.__class__.__name__)
+        raise SmsError("We couldn't send the SMS right now. Please try again in a minute.")
+    if res.status_code >= 300 or body.get("type") != "success":
+        log.warning("MSG91 returned %s: %s", res.status_code, str(body.get("message"))[:200])
+        raise SmsError("We couldn't send the SMS right now. Please try again in a minute.")
+
+
+def send_twofactor_otp(phone10: str, code: str) -> None:
+    """Texts our code through 2Factor's OTP SMS. Raises SmsError on failure."""
+    # Digits only (91XXXXXXXXXX): a "+" in the URL path is read as a space, and the SMS never arrives.
+    number = re.sub(r"\D", "", settings.SMS_COUNTRY_CODE) + phone10
+    url = f"{TWOFACTOR_URL}/{settings.TWOFACTOR_API_KEY}/SMS/{number}/{code}"
+    if settings.TWOFACTOR_TEMPLATE:
+        url += f"/{settings.TWOFACTOR_TEMPLATE}"
+    try:
+        res = httpx.post(url, timeout=15)
+        body = res.json() if res.content else {}
+    except (httpx.HTTPError, ValueError) as e:
+        log.warning("2Factor unreachable: %s", e.__class__.__name__)
+        raise SmsError("We couldn't send the SMS right now. Please try again in a minute.")
+    if res.status_code >= 300 or body.get("Status") != "Success":
+        log.warning("2Factor returned %s: %s", res.status_code, str(body.get("Details"))[:200])  # Never logs the key
+        raise SmsError("We couldn't send the SMS right now. Please try again in a minute.")
+
+
 def deliver_code(phone10: str, code: str) -> None:
     if twilio_sms():
         send_twilio_sms(phone10, f"{code} is your FlexRiders verification code. It expires in 10 minutes. Never share it with anyone.")
+    elif msg91():
+        send_msg91_otp(phone10, code)
+    elif twofactor():
+        send_twofactor_otp(phone10, code)
     elif fast2sms():
         send_fast2sms_otp(phone10, code)
     else:
@@ -192,7 +244,8 @@ def rate_limited(db: Session, purpose: str, phone10: str, request_key: str) -> b
     since = datetime.utcnow() - timedelta(hours=1)
     per_number = db.query(func.count(EmailCode.id)).filter(EmailCode.purpose == purpose, EmailCode.email == phone10, EmailCode.created_at >= since).scalar()
     per_client = db.query(func.count(EmailCode.id)).filter(EmailCode.purpose.in_(PHONE_PURPOSES), EmailCode.request_key == request_key, EmailCode.created_at >= since).scalar()
-    return per_number >= PER_NUMBER_PER_HOUR or per_client >= PER_CLIENT_PER_HOUR
+    per_number_limit, per_client_limit = settings.SMS_PER_NUMBER_PER_HOUR, settings.SMS_PER_CLIENT_PER_HOUR
+    return bool(per_number_limit and per_number >= per_number_limit) or bool(per_client_limit and per_client >= per_client_limit)
 
 
 def send_code(db: Session, purpose: str, phone10: str, request_key: str, user_id: Optional[int] = None) -> Optional[str]:

@@ -166,7 +166,7 @@ function Picker({ label, value, options, onChange, placeholder = 'Select' }) {
   );
 }
 
-function CodeBoxes({ value, onChange, length = 6 }) {
+export function CodeBoxes({ value, onChange, length = 6 }) {
   const s = useStyles(makeStyles);
   const input = useRef(null);
   return (
@@ -390,6 +390,9 @@ export default function RiderSignup({ onBack, onLogin, onRegistered, initialRefe
         <Text style={[s.prompt, { marginTop: 22 }]}>
           Didn't receive code?{' '}
           {wait > 0 ? <Text style={{ fontWeight: '700' }}>Resend in 0:{String(wait).padStart(2, '0')}s</Text> : <LinkText onPress={sendPhoneCode}>Resend</LinkText>}
+        </Text>
+        <Text style={[s.prompt, { marginTop: 10 }]}>
+          Wrong number? <LinkText onPress={() => setStep('account')}>Change it</LinkText>
         </Text>
       </>,
       <Button label={t('Verify')} disabled={phoneCode.length !== smsLen} loading={busy} onPress={verifyPhone} />

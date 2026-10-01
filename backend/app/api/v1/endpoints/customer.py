@@ -183,6 +183,12 @@ def customer_signup(request: CustomerSignupRequest, db: Session = Depends(get_db
     phone = request.mobile_number.strip()
     email = request.email.strip() if request.email else None
 
+    # The mobile number is verified by an SMS code (same rule as rider sign-up) once SMS is set up.
+    from app.services import sms_service as sms
+
+    if sms.configured() and not sms.check_proof(sms.ten_digits(phone), request.phone_proof):
+        raise HTTPException(status_code=400, detail="Verify your mobile number with the SMS code first.")
+
     # Check for existing user with this phone or email
     if db.query(User).filter(User.phone == phone).first():
         raise HTTPException(

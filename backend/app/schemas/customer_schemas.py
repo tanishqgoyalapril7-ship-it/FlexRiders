@@ -14,6 +14,8 @@ class CustomerSignupRequest(BaseModel):
     confirm_password: Optional[str] = None
     gst_number: Optional[str] = None
     company_address: Optional[str] = None
+    # Proof the mobile number was verified by SMS code (from /auth/phone/verify-code); needed when SMS is set up.
+    phone_proof: Optional[str] = Field(None, max_length=200)
 
 
 class CustomerLocationItem(BaseModel):

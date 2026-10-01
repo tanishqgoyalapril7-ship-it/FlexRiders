@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { mobileApi } from '../../services/api';
 import { useStyles, useTheme } from '../../theme';
 import { Button, Field, Header, LinkText, Screen, Title } from '../../components/ds';
+import { CodeBoxes } from '../onboarding/RiderSignup';
 
 function strength(pw) {
   let n = 0;
@@ -13,24 +14,80 @@ function strength(pw) {
   return Math.min(n, 4);
 }
 
-/** Brand sign-up (same look as the rider app): company, contact, login details. */
+/** Brand sign-up (same look as the rider app): company, contact, login details, then (when SMS is set up)
+ * the mobile number is verified with an SMS code before the account is created. */
 export default function CustomerSignupScreen({ onBack, onSignedUp, onOpenLogin }) {
   const s = useStyles(makeStyles);
   const { colors } = useTheme();
   const [f, setF] = useState({ company: '', name: '', mobile: '', email: '', password: '', gst: '', address: '' });
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [step, setStep] = useState('form'); // form | verify
+  const [smsOn, setSmsOn] = useState(false);
+  const [codeLen, setCodeLen] = useState(4);
+  const [code, setCode] = useState('');
+  const [sentAt, setSentAt] = useState(0);
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    mobileApi
+      .getAppConfig()
+      .then((c) => {
+        setSmsOn(Boolean(c.phone_verification));
+        setCodeLen(c.sms_code_length || 4);
+      })
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
+    if (step !== 'verify') return undefined;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [step]);
   const set = (k) => (v) => setF((p) => ({ ...p, [k]: v }));
   const score = strength(f.password);
   const bars = [colors.danger, colors.warning, colors.success, colors.success];
 
+  const mobile = f.mobile.replace(/\D/g, '');
+
+  const sendCode = async () => {
+    setLoading(true);
+    try {
+      const res = await mobileApi.sendPhoneCode(mobile);
+      if (res && res.test_code) Alert.alert('Test mode', `No SMS is sent in test mode. Your code is ${res.test_code}.`);
+      if (res && res.code_length) setCodeLen(res.code_length);
+      setCode('');
+      setSentAt(Date.now());
+      setNow(Date.now());
+      setStep('verify');
+    } catch (err) {
+      Alert.alert('Could not send code', err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const submit = async () => {
-    const mobile = f.mobile.replace(/\D/g, '');
     if (f.company.trim().length < 2) return Alert.alert('Brand name', 'Enter your company or brand name.');
     if (f.name.trim().length < 2) return Alert.alert('Contact person', 'Enter the contact person’s full name.');
     if (mobile.length !== 10) return Alert.alert('Mobile number', 'Enter a valid 10-digit mobile number.');
     if (!/^\S+@\S+\.\S+$/.test(f.email.trim())) return Alert.alert('Email', 'Enter a valid email address.');
     if (f.password.length < 6) return Alert.alert('Password', 'Use at least 6 characters.');
+    if (smsOn) return sendCode(); // The account is created after the number is verified
+    return createAccount(null);
+  };
+
+  const verifyAndCreate = async () => {
+    setLoading(true);
+    let proof;
+    try {
+      proof = (await mobileApi.verifyPhoneCode(mobile, code)).phone_proof;
+    } catch (err) {
+      setLoading(false);
+      return Alert.alert('Wrong code', err.message);
+    }
+    return createAccount(proof);
+  };
+
+  const createAccount = async (phoneProof) => {
     setLoading(true);
     try {
       const result = await mobileApi.customerSignup({
@@ -41,6 +98,7 @@ export default function CustomerSignupScreen({ onBack, onSignedUp, onOpenLogin }
         password: f.password,
         gst_number: f.gst.trim() ? f.gst.trim().toUpperCase() : undefined,
         company_address: f.address.trim() || undefined,
+        phone_proof: phoneProof || undefined,
       });
       onSignedUp(result);
     } catch (err) {
@@ -50,9 +108,30 @@ export default function CustomerSignupScreen({ onBack, onSignedUp, onOpenLogin }
     }
   };
 
+  if (step === 'verify') {
+    const wait = Math.max(0, 45 - Math.floor((now - sentAt) / 1000));
+    return (
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+        <Screen footer={<Button label="Verify & Create Account" disabled={code.length !== codeLen} loading={loading} onPress={verifyAndCreate} />}>
+          <Header onBack={() => setStep('form')} circle={false} />
+          <View style={{ height: 40 }} />
+          <Title sub={`We have sent a ${codeLen}-digit code by SMS to +91 ${mobile.slice(0, 5)} ${mobile.slice(5)}`}>Verify Your Number</Title>
+          <CodeBoxes value={code} onChange={setCode} length={codeLen} />
+          <Text style={[s.prompt, { marginTop: 22 }]}>
+            Didn't receive code?{' '}
+            {wait > 0 ? <Text style={{ fontWeight: '700' }}>Resend in 0:{String(wait).padStart(2, '0')}s</Text> : <LinkText onPress={sendCode}>Resend</LinkText>}
+          </Text>
+          <Text style={[s.prompt, { marginTop: 10 }]}>
+            Wrong number? <LinkText onPress={() => setStep('form')}>Change it</LinkText>
+          </Text>
+        </Screen>
+      </KeyboardAvoidingView>
+    );
+  }
+
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-      <Screen footer={<Button label="Create Brand Account" onPress={submit} loading={loading} />}>
+      <Screen footer={<Button label={smsOn ? 'Continue' : 'Create Brand Account'} onPress={submit} loading={loading} />}>
         <Header onBack={onBack} circle={false} />
         <View style={{ height: 12 }} />
         <Title sub="Launch hyper-local campaigns with verified riders. Every campaign is reviewed by FlexRiders before it goes live.">Create Brand Account</Title>

@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
     formats: ["image/avif", "image/webp"],
   },
   // One domain for everything: flexriders.in is this site; /admin (and public /campaign pages) are
-  // served by the admin dashboard deployment, and /api/v1 + /uploads by the backend. Each is only
+  // served by the admin dashboard deployment (as is the /brand portal), and /api/v1 + /uploads by the backend. Each is only
   // forwarded once its address is configured.
   async rewrites() {
     const admin = process.env.ADMIN_APP_URL?.replace(/\/$/, "");
@@ -20,6 +20,9 @@ const nextConfig: NextConfig = {
             { source: "/admin", destination: `${admin}/admin/` },
             { source: "/admin/:path*", destination: `${admin}/admin/:path*` },
             { source: "/campaign/:slug", destination: `${admin}/admin/` },
+            // Brand web portal (campaigns, riders, photos, routes) for brands without the Android app
+            { source: "/brand", destination: `${admin}/admin/` },
+            { source: "/brand/:path*", destination: `${admin}/admin/` },
           ]
         : []),
       ...(api

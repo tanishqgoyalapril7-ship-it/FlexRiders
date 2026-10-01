@@ -104,6 +104,8 @@ export default function PublicCampaignPage({ slug }) {
     );
   }
 
+  // CMP-000015 -> 15: the brand portal opens this campaign after the brand logs in.
+  const brandCampaignId = Number((String(data.code || '').match(/(\d+)$/) || [])[1]) || null;
   const facts = [
     [Hash, 'Campaign ID', data.code],
     [Users, 'Riders', `${data.riders.joined} / ${data.riders.required}`],
@@ -131,6 +133,13 @@ export default function PublicCampaignPage({ slug }) {
           <span className={`pub-pill ${STATUS_TONE[data.status] || ''}`}>{data.status_label}</span>
         </div>
         {data.description ? <p className="pub-desc">{data.description}</p> : null}
+
+        {brandCampaignId ? (
+          <div className="pub-brand-login">
+            <span>Is this your campaign? See the riders, all approved photos and rider routes.</span>
+            <a href={`/brand/campaign/${brandCampaignId}`}>Brand login →</a>
+          </div>
+        ) : null}
 
         <div className="pub-facts">
           {facts.map(([Icon, label, value]) => (

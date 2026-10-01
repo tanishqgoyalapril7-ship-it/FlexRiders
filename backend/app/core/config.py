@@ -69,6 +69,19 @@ class Settings(BaseSettings):
     # the phone screen (and in the server log) instead of being texted. Ignored on hosted servers (VERCEL) and
     # whenever a real SMS provider is set.
     SMS_TEST_MODE: bool = False
+    # SMS codes allowed per number and per device/network each hour (0 = no limit, e.g. for local testing).
+    # Keep them on wherever real riders use the app: they stop SMS spam and protect the SMS balance.
+    SMS_PER_NUMBER_PER_HOUR: int = 3
+    SMS_PER_CLIENT_PER_HOUR: int = 10
+    # Or 2Factor (2factor.in, Indian numbers): the API key from its dashboard; it texts the code the server
+    # makes, using 2Factor's OTP template (or TWOFACTOR_TEMPLATE, the name of your own approved template).
+    TWOFACTOR_API_KEY: str = ""
+    # Or MSG91 (msg91.com → OTP → Templates): the Auth Key (profile → Authkey) and the MSG91 Template ID of an
+    # approved OTP template whose code placeholder is ##OTP##. MSG91 texts the code the server makes. Used
+    # before 2Factor when both are set.
+    MSG91_AUTH_KEY: str = ""
+    MSG91_TEMPLATE_ID: str = ""
+    TWOFACTOR_TEMPLATE: str = ""
     # DLT route (needed when the account has no OTP route): the approved sender ID (header, e.g. FLXRDR) and
     # the Fast2SMS message ID of the approved OTP template, whose only variable {#var#} is the code.
     FAST2SMS_SENDER_ID: str = ""
