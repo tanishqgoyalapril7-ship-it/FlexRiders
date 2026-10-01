@@ -12,6 +12,8 @@ class Token(BaseModel):
     role: str
     user_id: int
     rider_id: Optional[str] = None
+    brand_id: Optional[int] = None
+    brand_name: Optional[str] = None
     name: Optional[str] = None
     must_change_password: bool = False  # After an admin reset: the app asks for a new password first
 
@@ -96,6 +98,13 @@ class BrandResponse(BrandBase):
     total_paid: Optional[float] = 0.0
     remaining_amount: Optional[float] = 0.0
     payment_status: Optional[str] = "PENDING"
+    # The brand's own sign-in (brand app), when it has one; brands can also exist only as admin records.
+    has_account: bool = False
+    account_email: Optional[str] = None
+    account_phone: Optional[str] = None
+    campaigns_count: int = 0
+    live_campaigns_count: int = 0
+    requested_campaigns_count: int = 0
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -206,12 +215,19 @@ def decode_selfie(value: Optional[str]):
     raise ValueError("The selfie must be a photo (JPEG or PNG). Please take it again.")
 
 
+class WorkingAreaInput(BaseModel):
+    label: str = Field(..., min_length=2, max_length=200)
+    lat: float = Field(..., ge=-90, le=90)
+    lng: float = Field(..., ge=-180, le=180)
+
+
 class RiderRegistrationRequest(BaseModel):
     # Step 1: Personal
     full_name: str
     mobile_number: str
     email: Optional[str] = None
     dob: Optional[str] = None
+    gender: Optional[str] = Field(None, pattern="^(MALE|FEMALE|OTHER)?$")
     # Required, no default: a missing password must never become a known one.
     password: str = Field(..., min_length=6, max_length=128)
     # Driver selfie taken with the phone camera: base64 JPEG / PNG / WebP (a data: URL prefix is fine).
@@ -220,6 +236,8 @@ class RiderRegistrationRequest(BaseModel):
     selfie: Optional[str] = Field(None, max_length=SELFIE_MAX_BASE64)
     # The 6-digit code emailed by /auth/email/verification-code (required once email sending is set up).
     email_code: Optional[str] = Field(None, max_length=10)
+    # Proof from /auth/phone/verify-code that the rider received the SMS code (required once SMS is set up).
+    phone_proof: Optional[str] = Field(None, max_length=200)
     # "I agree to the FlexRiders Terms & Conditions and Privacy Policy." Must be true to register.
     accept_terms: bool = False
 
@@ -234,10 +252,12 @@ class RiderRegistrationRequest(BaseModel):
     referral_code: Optional[str] = None  # A friend's Refer & Earn code
 
     # Step 3: Location
-    primary_city: str = "Gurugram"
+    primary_city: str = ""  # What the rider entered; never assumed
     primary_area: Optional[str] = None
     additional_locations: Optional[str] = None
-    preferred_radius: Optional[str] = "10 km"
+    preferred_radius: Optional[str] = "10 km"  # Legacy; the app no longer asks for a travel radius
+    # Up to 3 areas the rider usually works in, each picked from the area search ({label, lat, lng}).
+    working_areas: Optional[List[WorkingAreaInput]] = Field(None, max_length=3)
 
     # Step 4: Payment
     upi_id: Optional[str] = None
@@ -299,6 +319,7 @@ class AdminRiderCreate(BaseModel):
     password: str = Field(..., min_length=6, max_length=128)
     email: Optional[str] = None
     dob: Optional[str] = None
+    gender: Optional[str] = Field(None, pattern="^(MALE|FEMALE|OTHER)?$")
     current_company: Optional[str] = None
     current_role: Optional[str] = "Rider"
     vehicle_type: Optional[str] = None
@@ -348,6 +369,7 @@ class AdminRiderUpdate(BaseModel):
     mobile_number: Optional[str] = None
     email: Optional[str] = None
     dob: Optional[str] = None
+    gender: Optional[str] = Field(None, pattern="^(MALE|FEMALE|OTHER)?$")
     current_company: Optional[str] = None
     current_role: Optional[str] = None
     vehicle_type: Optional[str] = None
@@ -438,6 +460,7 @@ class RiderResponse(BaseModel):
     email: Optional[str] = None
     profile_photo: Optional[str] = None
     dob: Optional[str] = None
+    gender: Optional[str] = None
     current_company: Optional[str] = None
     current_role: Optional[str] = None
     experience_years: Optional[int] = 0
@@ -474,6 +497,7 @@ class RiderDetailResponse(RiderResponse):
 class RiderProfileUpdateRequest(BaseModel):
     # The driver selfie (profile_photo) is set only at registration; profile edits can't change or remove it.
     dob: Optional[str] = None
+    gender: Optional[str] = Field(None, pattern="^(MALE|FEMALE|OTHER)?$")
     primary_area: Optional[str] = None
     additional_locations: Optional[str] = None
     preferred_radius: Optional[str] = None
@@ -487,6 +511,26 @@ class RiderProfileUpdateRequest(BaseModel):
     @classmethod
     def _valid_vehicle_category(cls, value):
         return normalize_vehicle_category(value)
+
+
+class RiderVehicleChangeRequest(BaseModel):
+    """A rider switching to a different vehicle (type, model and registration number together)."""
+    vehicle_category: str
+    vehicle_type: Optional[str] = Field(None, max_length=50)  # Model, e.g. "Honda Activa"
+    vehicle_number: Optional[str] = None
+
+    @field_validator("vehicle_category")
+    @classmethod
+    def _valid_vehicle_category(cls, value):
+        category = normalize_vehicle_category(value)
+        if not category:
+            raise ValueError("Choose your vehicle type.")
+        return category
+
+    @field_validator("vehicle_number")
+    @classmethod
+    def _valid_vehicle_number(cls, value):
+        return normalize_vehicle_number(value)
 
 
 # ==================== PAYMENT SCHEMAS ====================

@@ -1,6 +1,7 @@
 from app.models.all_models import (
     User,
     Rider,
+    RiderWorkingArea,
     RiderDocument,
     Brand,
     RiderBrandAssignment,

@@ -6,7 +6,42 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from app.models.campaign_models import CampaignCategory, VehicleCategory
 
 
-class CampaignBase(BaseModel):
+class GeoTargetFields(BaseModel):
+    """Campaign target and radius expansion. Coordinates come from the area search or a map pin."""
+    target_lat: Optional[float] = Field(None, ge=-90, le=90)
+    target_lng: Optional[float] = Field(None, ge=-180, le=180)
+    initial_radius_km: Optional[float] = Field(None, gt=0, le=100)
+    max_radius_km: Optional[float] = Field(None, gt=0, le=100)
+    expansion_step_km: Optional[float] = Field(None, gt=0, le=50)
+    expansion_interval_min: Optional[int] = Field(None, ge=5, le=10080)
+    daily_start_time: Optional[str] = Field(None, max_length=20)
+    daily_end_time: Optional[str] = Field(None, max_length=20)
+
+    @model_validator(mode="after")
+    def check_geo(self):
+        if (self.target_lat is None) != (self.target_lng is None):
+            raise ValueError("Pick the target location again: both latitude and longitude are needed")
+        if self.target_lat is not None and not self.initial_radius_km:
+            raise ValueError("Set an initial radius for the target location")
+        from app.services.geo_service import validate_geo_config
+
+        problem = validate_geo_config(self.initial_radius_km, self.max_radius_km, self.expansion_step_km, self.expansion_interval_min)
+        if problem:
+            raise ValueError(problem)
+        return self
+
+
+class GeoActionRequest(BaseModel):
+    action: str = Field(..., pattern="^(expand|pause|resume|set)$")
+    radius_km: Optional[float] = Field(None, gt=0, le=100)
+
+
+class CampaignReviewRequest(BaseModel):
+    action: str = Field(..., pattern="^(approve|reject|request_changes)$")
+    note: Optional[str] = Field(None, max_length=1000)
+
+
+class CampaignBase(GeoTargetFields):
     name: str = Field(..., min_length=3, max_length=150)
     brand_id: int
     description: Optional[str] = None
@@ -69,8 +104,52 @@ class CampaignCreate(CampaignBase):
     publish_standard_terms: bool = False
 
 
-class CampaignUpdate(CampaignBase):
-    pass
+class CampaignUpdate(GeoTargetFields):
+    name: Optional[str] = Field(None, min_length=3, max_length=150)
+    brand_id: Optional[int] = None
+    description: Optional[str] = None
+    rules: Optional[str] = None
+    image_url: Optional[str] = None
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
+    total_slots: Optional[int] = Field(None, ge=1, le=10000)
+    daily_rate: Optional[float] = Field(None, gt=0, le=100000)
+    brand_contract_value: Optional[float] = Field(None, ge=0)
+    allow_payout_beyond_contract: Optional[bool] = None
+    continue_after_fulfillment: Optional[bool] = None
+    location_area: Optional[str] = Field(None, max_length=200)
+    eligible_vehicle_categories: Optional[List[str]] = None
+    campaign_category: Optional[str] = Field(None, max_length=30)
+    public_image_approved: Optional[bool] = None
+    brand_payment_due_date: Optional[date] = None
+    photo_slot_windows: Optional[Dict[str, List[str]]] = None
+
+    @field_validator("campaign_category")
+    @classmethod
+    def _valid_category(cls, value):
+        if not value:
+            return None
+        value = value.strip().upper().replace(" ", "_")
+        if value not in CampaignCategory.ALL:
+            raise ValueError(f"Campaign category must be one of: {', '.join(CampaignCategory.LABELS.values())}")
+        return value
+
+    @field_validator("eligible_vehicle_categories")
+    @classmethod
+    def _valid_categories(cls, value):
+        if not value:
+            return None
+        from app.schemas.all_schemas import normalize_vehicle_category
+
+        cleaned = set()
+        for v in value:
+            try:
+                code = normalize_vehicle_category(str(v))
+            except ValueError:
+                raise ValueError(f"Unknown vehicle category: {v}")
+            if code:
+                cleaned.add(code)
+        return [c for c in VehicleCategory.ALL if c in cleaned] or None
 
 
 class ReasonRequest(BaseModel):
@@ -109,6 +188,8 @@ class JoinCampaignRequest(BaseModel):
     tshirt_size: Optional[str] = Field(None, max_length=10)
     pickup_location_id: Optional[int] = None
     terms_version: Optional[int] = None  # The Terms & Conditions version the rider read and accepted
+    lat: Optional[float] = Field(None, ge=-90, le=90)  # The rider's current location, for geo-targeted campaigns
+    lng: Optional[float] = Field(None, ge=-180, le=180)
 
 
 class TermsPublishRequest(BaseModel):

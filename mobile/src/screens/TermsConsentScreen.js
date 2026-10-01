@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { mobileApi } from '../services/api';
 import { useStyles, useTheme } from '../theme';
 import { OutlineButton, PrimaryButton } from '../components/ui';
+import { Header } from '../components/ds';
 
 export const TERMS_URL = 'https://flexriders.in/terms';
 export const PRIVACY_URL = 'https://flexriders.in/privacy';
@@ -54,6 +55,7 @@ export default function TermsConsentScreen({ consent, onAccepted, onLogout }) {
   };
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.padded}>
+      <Header onBack={onLogout} circle={false} />
       <Text style={styles.title}>Terms & Privacy</Text>
       <Text style={styles.subtitle}>
         {consent && consent.accepted

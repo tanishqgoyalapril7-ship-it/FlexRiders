@@ -7,11 +7,11 @@ import os
 import re
 import uuid
 from datetime import date, datetime, timedelta
-from typing import Optional
+from typing import Optional, Tuple
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile
 from sqlalchemy import func, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.api.deps import get_current_admin, get_current_rider
 from app.core.config import settings
@@ -61,6 +61,8 @@ from app.schemas.campaign_schemas import (
     BrandPaymentCancel,
     BrandPaymentCreate,
     CampaignCreate,
+    CampaignReviewRequest,
+    GeoActionRequest,
     CampaignVideoConfirm,
     CampaignVideoLink,
     CampaignVideoUploadRequest,
@@ -76,6 +78,7 @@ from app.schemas.campaign_schemas import (
     TermsPublishRequest,
 )
 from app.services import fulfillment_service as fs
+from app.services import geo_service as geo
 from app.services import data_admin_service as das
 from app.services import kit_service as ks
 from app.services import route_service as routes
@@ -176,6 +179,7 @@ def _rider_brief(rider: Rider) -> dict:
 def _campaign_dict(db: Session, campaign: Campaign, with_stats: bool = True) -> dict:
     data = {
         "id": campaign.id,
+        "code": svc.campaign_code(campaign.id),
         "name": campaign.name,
         "brand_id": campaign.brand_id,
         "brand_name": campaign.brand.name if campaign.brand else None,
@@ -218,10 +222,48 @@ def _campaign_dict(db: Session, campaign: Campaign, with_stats: bool = True) -> 
         "cancelled_at": campaign.cancelled_at,
         "created_at": campaign.created_at,
         "updated_at": campaign.updated_at,
+        "brand_status": svc.brand_status(campaign),
+        "submitted_at": campaign.submitted_at,
+        "approved_at": campaign.approved_at,
+        "approved_by": campaign.approved_by.email if campaign.approved_by else None,
+        "admin_feedback": campaign.admin_feedback,
+        "requested_by_brand": svc._created_by_brand(campaign),
+        # What the brand asked for in its request (admin view only; riders never get these).
+        "campaign_type": campaign.campaign_type,
+        "campaign_objective": campaign.campaign_objective,
+        "estimated_budget": campaign.estimated_budget,
+        "expected_rider_rate": campaign.expected_rider_rate,
+        "instructions": campaign.instructions,
+        "daily_start_time": campaign.daily_start_time,
+        "daily_end_time": campaign.daily_end_time,
+        "geo": _geo_dict(db, campaign),
     }
     if with_stats:
         data["stats"] = svc.campaign_stats(db, campaign)
     return data
+
+
+def _geo_dict(db: Session, campaign: Campaign) -> dict:
+    """Target, radii and what the expansion engine is doing (same values for admin, brand and riders)."""
+    remaining = svc.remaining_slots(db, campaign)
+    state = geo.expansion_state(campaign, remaining, accepting=campaign.status == CampaignStatus.OPEN)
+    return {
+        "targeted": geo.is_targeted(campaign),
+        "target_lat": campaign.target_lat,
+        "target_lng": campaign.target_lng,
+        "target_label": campaign.location_area,
+        "initial_radius_km": campaign.initial_radius_km,
+        "current_radius_km": geo.current_radius(campaign),
+        "max_radius_km": campaign.max_radius_km,
+        "expansion_step_km": campaign.expansion_step_km,
+        "expansion_interval_min": campaign.expansion_interval_min,
+        "expansion_paused": bool(campaign.expansion_paused),
+        "expansion_mode": state["mode"],
+        "expansion_label": state["label"],
+        "next_expansion_at": state["next_expansion_at"],
+        "required_riders": svc.slot_capacity(campaign),
+        "filled_riders": svc.slots_reserved(db, campaign.id),
+    }
 
 
 def _video_brief(campaign: Campaign) -> Optional[dict]:
@@ -473,6 +515,7 @@ def list_campaigns(
     end_to: Optional[date] = None,
     category: Optional[str] = None,
     vehicle: Optional[str] = None,  # Campaigns this vehicle type can join (restricted to it, or open to all)
+    scope: str = "campaigns",  # campaigns: admin-created + approved; requests: brand requests awaiting a decision
     db: Session = Depends(get_db),
     admin: User = Depends(get_current_admin),
 ):
@@ -481,7 +524,13 @@ def list_campaigns(
             vehicle = normalize_vehicle_category(vehicle)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
-    query = db.query(Campaign).join(Brand, Campaign.brand_id == Brand.id)
+    creator = aliased(User)
+    query = db.query(Campaign).join(Brand, Campaign.brand_id == Brand.id).outerjoin(creator, Campaign.created_by_id == creator.id)
+    # A brand's campaign stays in Campaign Requests until approved, then the same row joins the Campaigns list.
+    if scope == "requests":
+        query = query.filter(svc.brand_request_filter(creator), Campaign.status.in_(svc.REQUEST_STATUSES + (CampaignStatus.REJECTED,)))
+    else:
+        query = query.filter(~svc.brand_request_filter(creator))
     category = (category or "").strip().upper().replace(" ", "_")
     if category and category != "ALL":
         if category == CampaignCategory.STANDARD:
@@ -522,6 +571,44 @@ def all_join_requests(
     return [_application_dict(db, a) for a in query.order_by(CampaignApplication.requested_at.desc()).limit(500).all()]
 
 
+@router.get("/realtime")
+def campaigns_realtime(admin: User = Depends(get_current_admin)):
+    """The admin dashboard's campaign signal channel (requests, slots, status, routes, photos)."""
+    from app.services.realtime_service import admin_campaign_config
+
+    return admin_campaign_config()
+
+
+@router.get("/photo-queue")
+def photo_queue(
+    status: str = "PENDING",
+    campaign_id: Optional[int] = None,
+    limit: int = Query(60, ge=1, le=200),
+    before_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+    admin: User = Depends(get_current_admin),
+):
+    """Proof photos across all campaigns for the Photo Verification page, newest first, paged by id."""
+    query = db.query(CampaignActivityPhoto)
+    if status and status != "ALL":
+        query = query.filter(CampaignActivityPhoto.status == status)
+    if campaign_id:
+        query = query.filter(CampaignActivityPhoto.campaign_id == campaign_id)
+    if before_id:
+        query = query.filter(CampaignActivityPhoto.id < before_id)
+    photos = query.order_by(CampaignActivityPhoto.id.desc()).limit(limit).all()
+    names = dict(db.query(Campaign.id, Campaign.name).filter(Campaign.id.in_({p.campaign_id for p in photos})).all()) if photos else {}
+    total = db.query(func.count(CampaignActivityPhoto.id)).filter(CampaignActivityPhoto.status == PhotoStatus.PENDING).scalar()
+    return {
+        "pending_total": total,
+        "photos": [
+            {**_photo_dict(p), "campaign_id": p.campaign_id, "campaign_code": svc.campaign_code(p.campaign_id), "campaign_name": names.get(p.campaign_id)}
+            for p in photos
+        ],
+        "next_before_id": photos[-1].id if len(photos) == limit else None,
+    }
+
+
 @router.get("/standard-terms")
 def standard_terms(admin: User = Depends(get_current_admin)):
     """FlexRiders' standard campaign terms, for previewing before they're published on a campaign."""
@@ -531,7 +618,9 @@ def standard_terms(admin: User = Depends(get_current_admin)):
 @router.get("/summary")
 def campaign_summary(db: Session = Depends(get_db), admin: User = Depends(get_current_admin)):
     """Campaign figures for the admin dashboard overview card."""
-    campaigns = [svc.sync_campaign_status(db, c) for c in db.query(Campaign).all()]
+    everything = [svc.sync_campaign_status(db, c) for c in db.query(Campaign).all()]
+    brand_requests = sum(1 for c in everything if svc.is_brand_request(c) and c.status == CampaignStatus.PENDING_APPROVAL)
+    campaigns = [c for c in everything if not svc.is_brand_request(c)]  # Requests aren't campaigns until approved
     counts = {}
     for c in campaigns:
         counts[c.status] = counts.get(c.status, 0) + 1
@@ -557,6 +646,7 @@ def campaign_summary(db: Session = Depends(get_db), admin: User = Depends(get_cu
         "draft_campaigns": counts.get(CampaignStatus.DRAFT, 0),
         "total_assigned_riders": assigned,
         "pending_requests": requests,
+        "brand_requests": brand_requests,
         "total_campaign_payout": round(float(generated), 2),
         "total_campaign_paid": round(float(paid), 2),
     }
@@ -574,6 +664,8 @@ def create_campaign(
         status=CampaignStatus.DRAFT,
         visibility=CampaignVisibility.DRAFT,
         created_by_id=admin.id,
+        approved_at=datetime.utcnow(),
+        approved_by_id=admin.id,
     )
     db.add(campaign)
     db.commit()
@@ -603,32 +695,64 @@ def update_campaign(
     if campaign.status in CampaignStatus.CLOSED:
         raise HTTPException(status_code=400, detail="Completed or cancelled campaigns cannot be edited.")
     if campaign.contracted_rider_days is not None and (
-        payload.total_slots != campaign.total_slots
-        or payload.start_date != campaign.start_date
-        or payload.end_date != campaign.end_date
+        (payload.total_slots is not None and payload.total_slots != campaign.total_slots)
+        or (payload.start_date is not None and payload.start_date != campaign.start_date)
+        or (payload.end_date is not None and payload.end_date != campaign.end_date)
     ):
         raise HTTPException(
             status_code=400,
             detail="Required riders and contract dates are locked once a campaign is published. "
             "Use replacement slots or an extension instead.",
         )
-    if payload.total_slots < svc.slots_used(db, campaign.id):
-        raise HTTPException(status_code=400, detail="Total slots cannot be lower than the number of approved riders.")
-    if payload.brand_id != campaign.brand_id:
+    if payload.total_slots is not None and payload.total_slots < svc.slots_reserved(db, campaign.id) - (campaign.extra_replacement_slots or 0):
+        raise HTTPException(status_code=400, detail="Total slots cannot be lower than the riders already approved or waiting for approval.")
+    if payload.brand_id is not None and payload.brand_id != campaign.brand_id:
         _require_active_brand(db, payload.brand_id)
+    new_start = payload.start_date if payload.start_date is not None else campaign.start_date
+    new_end = payload.end_date if payload.end_date is not None else campaign.end_date
+    if new_end < new_start:
+        raise HTTPException(status_code=400, detail="End date must be on or after the start date")
     before = {"eligible vehicles": _vehicle_label(campaign), "category": campaign.campaign_category or CampaignCategory.STANDARD,
-              "public banner": bool(campaign.public_image_approved)}
+              "public banner": bool(campaign.public_image_approved), "target": campaign.location_area,
+              "initial radius": campaign.initial_radius_km, "max radius": campaign.max_radius_km,
+              "expansion": (campaign.expansion_step_km, campaign.expansion_interval_min)}
+    old_capacity = svc.slot_capacity(campaign)
+
     for field, value in _campaign_fields(payload, only_set=True).items():
         setattr(campaign, field, value)
+    _normalise_geo(campaign)
     db.commit()
+
     fs.recalculate_campaign_payouts(db, campaign)  # payout-beyond-contract may have changed
     svc.sync_campaign_status(db, campaign)
     after = {"eligible vehicles": _vehicle_label(campaign), "category": campaign.campaign_category or CampaignCategory.STANDARD,
-             "public banner": bool(campaign.public_image_approved)}
+             "public banner": bool(campaign.public_image_approved), "target": campaign.location_area,
+             "initial radius": campaign.initial_radius_km, "max radius": campaign.max_radius_km,
+             "expansion": (campaign.expansion_step_km, campaign.expansion_interval_min)}
     changes = "; ".join(f"{k}: {before[k]} → {after[k]}" for k in before if before[k] != after[k])
     log_admin_action(db=db, admin_user=admin, action="CAMPAIGN_UPDATED", target_type="CAMPAIGN", target_id=str(campaign.id),
                      details=f"{campaign.name} updated" + (f" ({changes})" if changes else ""))
+    from app.services.realtime_service import broadcast_campaign_update
+    broadcast_campaign_update(campaign, "campaign_updated")
+    if svc.slot_capacity(campaign) > old_capacity:
+        svc.notify_slots_available(db, campaign)  # Admin raised capacity
     return _campaign_dict(db, campaign)
+
+
+def _normalise_geo(campaign: Campaign) -> None:
+    """Keeps the expansion state consistent after the target or radii were edited."""
+    if not geo.is_targeted(campaign):
+        campaign.current_radius_km = None
+        campaign.radius_updated_at = None
+        return
+    if campaign.max_radius_km is not None and campaign.max_radius_km < campaign.initial_radius_km:
+        raise HTTPException(status_code=400, detail="Maximum radius can't be smaller than the initial radius.")
+    if campaign.current_radius_km is not None:
+        low = float(campaign.initial_radius_km)
+        high = float(campaign.max_radius_km or max(low, campaign.current_radius_km))
+        campaign.current_radius_km = min(max(float(campaign.current_radius_km), low), high)
+    if campaign.status in CampaignStatus.PUBLISHED and campaign.radius_updated_at is None:
+        geo.start_expansion_clock(campaign)
 
 
 @router.post("/{campaign_id}/image")
@@ -814,6 +938,54 @@ def share_campaign(
     return _share_dict(campaign)
 
 
+@router.post("/{campaign_id}/review")
+def review_campaign_request(
+    campaign_id: int, payload: CampaignReviewRequest, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)
+):
+    """Approve, reject or send back a brand's campaign request. Approval keeps the same campaign (ID and
+    brand) as an approved draft; it goes live for riders only when an admin publishes it."""
+    campaign = _get_campaign(db, campaign_id)
+    _run(lambda: svc.review_brand_request(db, campaign, admin, payload.action, payload.note))
+    return _campaign_dict(db, campaign)
+
+
+@router.post("/{campaign_id}/geo")
+def campaign_geo_action(
+    campaign_id: int, payload: GeoActionRequest, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)
+):
+    """Expand now, pause/resume automatic expansion, or set the current radius."""
+    campaign = _get_campaign(db, campaign_id)
+    _run(lambda: svc.set_radius(db, campaign, admin, payload.action, payload.radius_km))
+    return _geo_dict(db, campaign)
+
+
+@router.get("/{campaign_id}/matching")
+def campaign_matching(
+    campaign_id: int, limit: int = Query(100, ge=1, le=500), db: Session = Depends(get_db), admin: User = Depends(get_current_admin)
+):
+    """Riders this campaign currently reaches, in priority order, with why (admins only; riders never see
+    their tier)."""
+    campaign = _get_campaign(db, campaign_id)
+    if not geo.is_targeted(campaign):
+        return {"geo": _geo_dict(db, campaign), "riders": []}
+    rows = []
+    for rider, match in geo.riders_in_reach(db, campaign, limit=limit):
+        can_join, reason = svc.join_eligibility(db, campaign, rider)
+        rows.append({
+            "rider": {"id": rider.id, "rider_id": rider.rider_id, "full_name": rider.full_name, "status": rider.status,
+                      "vehicle_category": rider.vehicle_category},
+            "tier": match["tier"],
+            "tier_label": geo.TIER_LABELS[match["tier"]],
+            "distance_km": match["distance_km"],
+            "location_at": rider.last_located_at,
+            "working_area": match["working_area"],
+            "working_area_distance_km": match["working_area_distance_km"],
+            "can_join": can_join and not svc.rider_visibility(campaign),
+            "reason": svc.rider_visibility(campaign) or reason,
+        })
+    return {"geo": _geo_dict(db, campaign), "riders": rows}
+
+
 @public_router.get("/{slug}")
 def public_campaign(slug: str, db: Session = Depends(get_db)):
     """The brand-facing campaign page. Only fields meant for the public: no riders, admins, payouts,
@@ -828,6 +1000,12 @@ def public_campaign(slug: str, db: Session = Depends(get_db)):
     return {
         "slug": campaign.public_slug,
         "campaign_id": campaign.id,
+        "code": svc.campaign_code(campaign.id),
+        "riders": {"joined": svc.slots_used(db, campaign.id), "required": campaign.total_slots},
+        # Campaign-level area only: the target and radius, never rider positions or routes.
+        "area": {"lat": campaign.target_lat, "lng": campaign.target_lng, "radius_km": geo.current_radius(campaign)}
+        if geo.is_targeted(campaign) else None,
+        "approved_photos": _public_photos(db, campaign, limit=12),
         "name": campaign.name,
         # Third-party logos and banners appear only once an admin confirms FlexRiders may use them publicly.
         "brand": {
@@ -860,6 +1038,36 @@ def public_campaign(slug: str, db: Session = Depends(get_db)):
         },
         "app_link": f"superriders://campaign/{campaign.id}",
     }
+
+
+def _public_photos(db: Session, campaign: Campaign, limit: int = 12, before_id: Optional[int] = None) -> dict:
+    """Approved proof photos only (never pending or rejected), without rider identity."""
+    query = db.query(CampaignActivityPhoto).filter(
+        CampaignActivityPhoto.campaign_id == campaign.id, CampaignActivityPhoto.status == PhotoStatus.APPROVED
+    )
+    total = query.count()
+    if before_id:
+        query = query.filter(CampaignActivityPhoto.id < before_id)
+    photos = query.order_by(CampaignActivityPhoto.id.desc()).limit(limit).all()
+    return {
+        "total": total,
+        "items": [
+            {"id": p.id, "photo_url": p.photo_url, "date": p.activity.activity_date.isoformat(),
+             "slot_label": PhotoSlot.LABELS.get(p.slot) if p.slot else None}
+            for p in photos
+        ],
+        "next_before_id": photos[-1].id if len(photos) == limit else None,
+    }
+
+
+@public_router.get("/{slug}/photos")
+def public_campaign_photos(
+    slug: str, before_id: Optional[int] = None, limit: int = Query(24, ge=1, le=60), db: Session = Depends(get_db)
+):
+    campaign = db.query(Campaign).filter(Campaign.public_slug == slug, Campaign.public_share_enabled == True).first()  # noqa: E712
+    if not campaign or campaign.status == CampaignStatus.DRAFT:
+        raise HTTPException(status_code=404, detail="This campaign page isn't available.")
+    return _public_photos(db, campaign, limit=limit, before_id=before_id)
 
 
 @router.get("/{campaign_id}/rider-visibility")
@@ -899,7 +1107,7 @@ def campaign_routes(
     db: Session = Depends(get_db),
     admin: User = Depends(get_current_admin),
 ):
-    """Route lines for one day: one rider (assignment_id) or all riders. Coordinates only, no statistics."""
+    """Route lines for one day: one rider (assignment_id) or all riders, with first/last fix and distance."""
     campaign = _get_campaign(db, campaign_id)
     return {
         "campaign": {"id": campaign.id, "name": campaign.name},
@@ -1286,18 +1494,73 @@ def _participation_status(db: Session, campaign: Campaign, rider: Rider) -> Opti
     return application.status if application else None
 
 
-def _rider_campaign_card(db: Session, campaign: Campaign, rider: Rider) -> dict:
-    can_join, reason = svc.join_eligibility(db, campaign, rider)
+def _requirement_lines(campaign: Campaign) -> list:
+    """Rider requirements exactly as set on the campaign (rules, plus a brand request's structured
+    requirements). Nothing is added that the campaign didn't specify."""
+    lines = [line.strip() for line in (campaign.rules or "").splitlines() if line.strip()]
+    try:
+        req = json.loads(campaign.rider_requirements) if campaign.rider_requirements else {}
+    except ValueError:
+        req = {}
+    if isinstance(req, dict):
+        if req.get("min_age") and req.get("max_age"):
+            lines.append(f"Age {req['min_age']}–{req['max_age']}")
+        if req.get("driving_license_required") or req.get("driving_license"):
+            lines.append("Valid driving licence")
+        if req.get("gender") and req["gender"] not in ("ANY", "Any"):
+            lines.append(f"{str(req['gender']).title()} riders")
+        if req.get("experience"):
+            lines.append(str(req["experience"]))
+        if req.get("languages"):
+            lines.append("Languages: " + ", ".join(req["languages"]))
+        if req.get("other_requirements"):
+            lines.append(str(req["other_requirements"]))
+    return list(dict.fromkeys(lines))
+
+
+def _daily_hours(campaign: Campaign) -> Optional[float]:
+    start, end = geo.parse_clock(campaign.daily_start_time), geo.parse_clock(campaign.daily_end_time)
+    if not start or not end:
+        return None
+    minutes = (end[0] * 60 + end[1]) - (start[0] * 60 + start[1])
+    return round(minutes / 60, 1) if minutes > 0 else None
+
+
+def _rider_campaign_card(db: Session, campaign: Campaign, rider: Rider, rider_coords: Optional[Tuple[float, float]] = None) -> dict:
+    current = rider_coords or geo.fresh_rider_location(rider)
+    can_join, reason = svc.join_eligibility(db, campaign, rider, rider_coords=current)
     data = _campaign_dict(db, campaign, with_stats=False)
-    # What the brand pays is internal: riders see only their own payout (daily_rate).
-    for private in ("brand_contract_value", "brand_payment_due_date", "allow_payout_beyond_contract", "created_at", "updated_at"):
+    # What the brand pays and internal review details are private: riders see only their own payout.
+    for private in ("brand_contract_value", "brand_payment_due_date", "allow_payout_beyond_contract", "created_at", "updated_at",
+                    "admin_feedback", "approved_by", "brand_status", "requested_by_brand", "submitted_at", "approved_at",
+                    "estimated_budget", "expected_rider_rate", "campaign_objective"):
         data.pop(private, None)
+    geo_data = data.pop("geo")
     used = svc.slots_used(db, campaign.id)
+    reserved = svc.slots_reserved(db, campaign.id)
+    capacity = svc.slot_capacity(campaign)
+    match = geo.rider_match(campaign, current, geo.working_areas_of(rider))
+    starts_at = geo.parse_campaign_start_datetime(campaign.start_date, campaign.daily_start_time)
+    seconds_to_start = (starts_at - geo.now_ist()).total_seconds()
+    brand = campaign.brand
     data.update(
         {
-            "filled_slots": used,
-            "slot_capacity": svc.slot_capacity(campaign),
-            "remaining_slots": max(svc.slot_capacity(campaign) - used, 0),
+            "brand_logo": brand.logo if brand else None,
+            "target": {"lat": campaign.target_lat, "lng": campaign.target_lng, "radius_km": geo_data["current_radius_km"]}
+            if geo_data["targeted"] else None,
+            # Where the rider stands, without the internal priority tier.
+            "distance_km": match["distance_km"],
+            "in_my_area": bool(match["working_area"]),
+            "my_area_label": match["working_area"],
+            "starts_at": starts_at.isoformat(),
+            "seconds_to_start": max(int(seconds_to_start), 0),
+            "opening_soon": 0 < seconds_to_start <= settings.OPENING_SOON_HOURS * 3600,
+            "daily_hours": _daily_hours(campaign),
+            "requirements": _requirement_lines(campaign),
+            "filled_slots": reserved,
+            "approved_riders": used,
+            "slot_capacity": capacity,
+            "remaining_slots": max(capacity - reserved, 0),
             "target_reached": svc.target_reached(db, campaign),
             "my_status": _participation_status(db, campaign, rider),
             "can_join": can_join,
@@ -1314,15 +1577,50 @@ def _rider_campaign_card(db: Session, campaign: Campaign, rider: Rider) -> dict:
     return data
 
 
+def _save_rider_location(db: Session, rider: Rider, coords: Optional[Tuple[float, float]]) -> None:
+    """Keeps the rider's latest location while the app is in use (written at most every 2 minutes unless
+    they moved more than 200 m), for matching them to geo-targeted campaigns."""
+    if not coords:
+        return
+    now = datetime.utcnow()
+    prev = (rider.last_lat, rider.last_lng) if geo.valid_coords(rider.last_lat, rider.last_lng) else None
+    if prev and rider.last_located_at and now - rider.last_located_at < timedelta(minutes=2) and geo.haversine_km(prev, coords) < 0.2:
+        return
+    rider.last_lat, rider.last_lng, rider.last_located_at = coords[0], coords[1], now
+    db.commit()
+
+
+def _coords(lat: Optional[float], lng: Optional[float]) -> Optional[Tuple[float, float]]:
+    if lat is None or lng is None:
+        return None
+    if not geo.valid_coords(lat, lng):
+        raise HTTPException(status_code=400, detail="Invalid location.")
+    return float(lat), float(lng)
+
+
 @rider_router.get("")
-def rider_campaigns(rider: Rider = Depends(get_current_rider), db: Session = Depends(get_db)):
+def rider_campaigns(
+    lat: Optional[float] = None,
+    lng: Optional[float] = None,
+    rider: Rider = Depends(get_current_rider),
+    db: Session = Depends(get_db),
+):
+    """The rider's campaigns. lat/lng: the device's current location (sent while the app is open). Geo-
+    targeted campaigns are listed only once they reach the rider (current location or a working area);
+    those matching both come first. Untargeted campaigns are listed for every eligible rider."""
     today = svc.today_ist()
+    rider_coords = _coords(lat, lng)
+    _save_rider_location(db, rider, rider_coords)
+    current = rider_coords or geo.fresh_rider_location(rider)
+    working_areas = geo.working_areas_of(rider)
+
     # Every non-closed campaign is checked with the same rule the admin page uses (svc.rider_visibility),
-    # so the logged reasons match exactly why a campaign is hidden.
+    # so the logged reasons match exactly why a campaign is hidden. Upcoming campaigns, plus today's until
+    # their daily start time.
     query = db.query(Campaign).filter(
         ~Campaign.status.in_((CampaignStatus.COMPLETED, CampaignStatus.CANCELLED)),
         Campaign.visibility == CampaignVisibility.PUBLIC,
-        Campaign.start_date > today,  # Only upcoming campaigns are ever listed (see svc.rider_visibility)
+        Campaign.start_date >= today,
     )
     # Vehicle eligibility decides visibility too: only campaigns open to all vehicles or to this rider's
     # vehicle come back from the database (the stored list is canonical codes, e.g. "AUTO,TWO_WHEELER").
@@ -1332,27 +1630,39 @@ def rider_campaigns(rider: Rider = Depends(get_current_rider), db: Session = Dep
     # Riders only discover campaigns once their profile is approved.
     approval_message = svc.approval_block_message(rider)
     candidates = [] if approval_message else query.filter(vehicle_open).order_by(Campaign.start_date, Campaign.id).all()
-    public, hidden = [], {}
+    active = svc.current_assignment(db, rider.id)
+    public, hidden, cards = [], {}, []
     for c in candidates:
         svc.sync_campaign_status(db, c, today)
         reason = svc.rider_visibility(c, today) or svc.vehicle_block_reason(c, rider)
+        tier = None
+        if not reason and geo.is_targeted(c):
+            match = geo.rider_match(c, current, working_areas)
+            reason, tier = (None, match["tier"]) if match["in_reach"] else (f"Out of reach ({match['reason']})", None)
         if reason:
             hidden[c.id] = reason
-        else:
-            public.append(c)
+            continue
+        public.append(c)
+        if not active or c.id != active.campaign_id:
+            cards.append((tier or 5, _rider_campaign_card(db, c, rider, rider_coords=current)))
+
     if settings.CAMPAIGN_VISIBILITY_LOG:
         visibility_log.info(
             "rider campaigns: rider=%s (%s, status=%s) today=%s returned=%s hidden=%s",
             rider.rider_id, rider.id, rider.status, today,
             [(c.id, c.status) for c in public], hidden,
         )
+    # Best match first (both signals, then current location, then working area, then expanded reach,
+    # then untargeted), nearest first within a tier, then soonest start.
+    cards.sort(key=lambda tc: (tc[0], tc[1]["distance_km"] if tc[1]["distance_km"] is not None else 1e9, tc[1]["starts_at"]))
+    targeted_needs_location = not current and not working_areas and any(geo.is_targeted(c) for c in candidates)
 
-    active = svc.current_assignment(db, rider.id)
     active_data = None
     if active:
         svc.sync_campaign_status(db, active.campaign, today)
         progress = svc.rider_progress(active, today, accepting=_accepting(db, active.campaign))
-        active_data = {**_rider_campaign_card(db, active.campaign, rider), "progress": {k: v for k, v in progress.items() if k != "days"}}
+        active_data = {**_rider_campaign_card(db, active.campaign, rider, rider_coords=current),
+                       "progress": {k: v for k, v in progress.items() if k != "days"}}
 
     pending = svc.pending_application(db, rider.id)
     past = (
@@ -1380,12 +1690,23 @@ def rider_campaigns(rider: Rider = Depends(get_current_rider), db: Session = Dep
         {**_campaign_dict(db, a.campaign, with_stats=False), "my_status": a.status, "rejection_reason": a.rejection_reason, "ended_at": a.rejected_at}
         for a in rejected
     ]
+    for h in history:
+        for private in ("brand_contract_value", "brand_payment_due_date", "admin_feedback", "approved_by", "geo",
+                        "estimated_budget", "expected_rider_rate", "campaign_objective"):
+            h.pop(private, None)
+
+    from app.services.realtime_service import campaign_realtime_config
 
     return {
-        "available": [_rider_campaign_card(db, c, rider) for c in public if not active or c.id != active.campaign_id],
+        "available": [card for _, card in cards],
         "approval_message": approval_message,  # Shown instead of the list until the profile is approved
+        "location_message": "Location permission is required to show campaigns near you." if targeted_needs_location else None,
+        "my_location": {"lat": current[0], "lng": current[1], "live": rider_coords is not None} if current else None,
+        "working_areas": working_areas,
+        "realtime": campaign_realtime_config(),
         "active": active_data,
-        "pending_request": {**_rider_campaign_card(db, pending.campaign, rider), "my_request": _rider_request_dict(pending)} if pending else None,
+        "pending_request": {**_rider_campaign_card(db, pending.campaign, rider, rider_coords=current),
+                            "my_request": _rider_request_dict(pending)} if pending else None,
         "history": history,
     }
 
@@ -1427,9 +1748,17 @@ VEHICLE_HIDDEN = "This campaign is not available for your vehicle."
 
 
 @rider_router.get("/{campaign_id}")
-def rider_campaign_detail(campaign_id: int, rider: Rider = Depends(get_current_rider), db: Session = Depends(get_db)):
+def rider_campaign_detail(
+    campaign_id: int,
+    lat: Optional[float] = None,
+    lng: Optional[float] = None,
+    rider: Rider = Depends(get_current_rider),
+    db: Session = Depends(get_db),
+):
     campaign = _rider_visible_campaign(db, campaign_id, rider)
-    data = _rider_campaign_card(db, campaign, rider)
+    rider_coords = _coords(lat, lng)
+    _save_rider_location(db, rider, rider_coords)
+    data = _rider_campaign_card(db, campaign, rider, rider_coords=rider_coords)
     assignment = (
         db.query(CampaignAssignment)
         .filter(CampaignAssignment.campaign_id == campaign.id, CampaignAssignment.rider_id == rider.id)
@@ -1496,8 +1825,10 @@ def join_campaign(
     size = payload.tshirt_size if payload else None
     location_id = payload.pickup_location_id if payload else None
     terms_version = payload.terms_version if payload else None
-    _run(lambda: svc.request_to_join(db, campaign, rider, size, location_id, terms_version))
-    return _rider_campaign_card(db, campaign, rider)
+    rider_coords = _coords(payload.lat, payload.lng) if payload else None
+    _save_rider_location(db, rider, rider_coords)
+    _run(lambda: svc.request_to_join(db, campaign, rider, size, location_id, terms_version, rider_coords=rider_coords))
+    return _rider_campaign_card(db, campaign, rider, rider_coords=rider_coords)
 
 
 @rider_router.post("/{campaign_id}/terms/accept")
@@ -1535,7 +1866,38 @@ def upload_route_points(
         kept = routes.record_points(db, assignment, [p.model_dump() for p in payload.points])
     except routes.RouteError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    if kept:
+        from app.services.realtime_service import broadcast_admin_update
+
+        broadcast_admin_update(assignment.campaign, "route_points", assignment_id=assignment.id)
     return {"received": len(payload.points), "stored": kept}
+
+
+@rider_router.get("/{campaign_id}/my-route")
+def my_route(
+    campaign_id: int, day: Optional[date] = Query(None, alias="date"), rider: Rider = Depends(get_current_rider), db: Session = Depends(get_db)
+):
+    """The rider's own recorded route for a day (default today): the trail, first/last fix and distance,
+    all from the points their phone uploaded."""
+    assignment = (
+        db.query(CampaignAssignment)
+        .filter(CampaignAssignment.campaign_id == campaign_id, CampaignAssignment.rider_id == rider.id)
+        .order_by(CampaignAssignment.id.desc())
+        .first()
+    )
+    if not assignment:
+        raise HTTPException(status_code=404, detail="You are not part of this campaign.")
+    day = day or svc.today_ist()
+    found = routes.routes_for_day(db, assignment.campaign, day, assignment.id)
+    route = found[0] if found else None
+    return {
+        "date": day.isoformat(),
+        "points": route["points"] if route else [],
+        "started_at": route["started_at"] if route else None,
+        "ended_at": route["ended_at"] if route else None,
+        "distance_km": route["distance_km"] if route else 0,
+        "point_count": route["point_count"] if route else 0,
+    }
 
 
 @rider_router.post("/{campaign_id}/activity")
@@ -1562,6 +1924,9 @@ async def submit_daily_proof(
     # never overwrites a rejected photo (its history stays), and duplicates are caught by content hash.
     photo_url = _store_image(content, extension, f"campaign-proofs/{campaign_id}/{rider.id}")
     activity = _run(lambda: svc.submit_activity(db, assignment, photo_url, content_hash, slot))
+    from app.services.realtime_service import broadcast_admin_update
+
+    broadcast_admin_update(assignment.campaign, "photo_submitted")
     counts = svc.photo_counts(activity)
     return {
         "id": activity.id,

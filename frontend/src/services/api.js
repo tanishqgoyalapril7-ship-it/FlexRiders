@@ -50,6 +50,12 @@ export const api = {
     if (!response.ok) throw new Error(data.detail || 'This campaign page is not available.');
     return data;
   },
+  getPublicCampaignPhotos: async (slug, beforeId) => {
+    const response = await fetch(`${API_BASE}/public/campaigns/${encodeURIComponent(slug)}/photos${beforeId ? `?before_id=${beforeId}` : ''}`);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.detail || 'Unable to load photos.');
+    return data;
+  },
   // Auth
   login: async (phone, password) => {
     const data = await fetchWithAuth('/auth/login', {
@@ -218,6 +224,18 @@ export const api = {
   getCampaign: (id) => fetchWithAuth(`/campaigns/${id}`),
   createCampaign: (data) => fetchWithAuth('/campaigns', { method: 'POST', body: JSON.stringify(data) }),
   updateCampaign: (id, data) => fetchWithAuth(`/campaigns/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  // Brand requests, geo-targeting and photo verification
+  reviewCampaign: (id, action, note) => fetchWithAuth(`/campaigns/${id}/review`, { method: 'POST', body: JSON.stringify({ action, note }) }),
+  campaignGeoAction: (id, action, radiusKm) =>
+    fetchWithAuth(`/campaigns/${id}/geo`, { method: 'POST', body: JSON.stringify({ action, radius_km: radiusKm ?? null }) }),
+  getCampaignMatching: (id) => fetchWithAuth(`/campaigns/${id}/matching`),
+  getPhotoQueue: (params = {}) => {
+    const query = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== '' && v != null)).toString();
+    return fetchWithAuth(`/campaigns/photo-queue${query ? `?${query}` : ''}`);
+  },
+  searchAreas: (q) => fetchWithAuth(`/geo/search?q=${encodeURIComponent(q)}`),
+  getGeoDefaults: () => fetchWithAuth('/geo/defaults'),
+  getCampaignRealtime: () => fetchWithAuth('/campaigns/realtime'),
   getRouteDates: (id, assignmentId) => fetchWithAuth(`/campaigns/${id}/route-dates${assignmentId ? `?assignment_id=${assignmentId}` : ''}`),
   getRoutes: (id, date, assignmentId) =>
     fetchWithAuth(`/campaigns/${id}/routes?date=${date}${assignmentId ? `&assignment_id=${assignmentId}` : ''}`),
@@ -360,6 +378,20 @@ export const api = {
   // Driver selfies are private: loaded with the admin token into a local object URL (the caller revokes it).
   getRiderConsents: (id) => fetchWithAuth(`/admin/riders/${id}/consents`),
   resetRiderPassword: (riderId) => fetchWithAuth(`/admin/riders/${riderId}/reset-password`, { method: 'POST' }),
+  getRiderDocuments: (riderId) => fetchWithAuth(`/admin/riders/${riderId}/documents`),
+  getRiderDocumentFile: async (riderId, docId) => {
+    const response = await fetch(`${API_BASE}/admin/riders/${riderId}/documents/${docId}/file`, {
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      cache: 'no-store',
+    });
+    if (!response.ok) throw new Error('Could not load the document');
+    return response.blob();
+  },
+  reviewRiderDocument: (riderId, docId, approve, note) =>
+    fetchWithAuth(`/admin/riders/${riderId}/documents/${docId}/${approve ? 'verify' : 'reject'}`, {
+      method: 'POST',
+      body: approve ? undefined : JSON.stringify({ note }),
+    }),
   getRiderSelfieUrl: async (riderId) => {
     const response = await fetch(`${API_BASE}/admin/riders/${riderId}/selfie`, {
       headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},

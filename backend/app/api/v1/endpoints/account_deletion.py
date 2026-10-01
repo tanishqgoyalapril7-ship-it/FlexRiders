@@ -49,14 +49,17 @@ def app_config():
     """Settings the rider app follows without a new build."""
     from app.core.config import settings
 
-    from app.services import consent_service, email_service
+    from app.services import consent_service, email_service, sms_service
 
     return {
         "selfie_required": bool(settings.REQUIRE_DRIVER_SELFIE),
         # Once email sending is set up, registration requires an email confirmed with a code.
         "email_required": email_service.delivery_available(),
-        # OTP login only exists for local development (there is no SMS provider).
-        "otp_login": bool(settings.ENABLE_OTP_LOGIN and not settings.VERCEL),
+        # Once the SMS gateway is set up, registration verifies the mobile number with an SMS code.
+        "phone_verification": sms_service.configured(),
+        "sms_code_length": sms_service.code_length(),
+        # OTP login: real SMS codes via the gateway, or the fixed code in local development.
+        "otp_login": sms_service.configured() or bool(settings.ENABLE_OTP_LOGIN and not settings.VERCEL),
         # Platform Terms & Privacy the registration checkbox refers to.
         **consent_service.current(),
     }

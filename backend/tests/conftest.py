@@ -19,6 +19,11 @@ os.environ["SUPABASE_SECRET_KEY"] = ""
 os.environ["CRON_SECRET"] = ""
 os.environ["RESEND_API_KEY"] = ""  # Tests never send real email
 os.environ["SECRET_KEY"] = "test-only-secret-key"
+# No real SMS from tests, and no SMS at all unless a test turns a provider on.
+for _key in ("SMS_GATEWAY_URL", "SMS_GATEWAY_API_KEY", "FAST2SMS_API_KEY", "TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN",
+             "TWILIO_VERIFY_SERVICE_SID", "TWILIO_FROM_NUMBER"):
+    os.environ[_key] = ""
+os.environ["SMS_TEST_MODE"] = "false"
 
 from app.main import app
 from app.core.database import Base, get_db

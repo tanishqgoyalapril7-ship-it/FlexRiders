@@ -146,6 +146,8 @@ def system_settings(admin: User = Depends(get_current_admin)):
         {"group": "Campaigns", "label": "Behind target below (% of expected)", "value": f"{settings.FULFILLMENT_AT_RISK_PCT:g}%"},
         {"group": "Campaigns", "label": "Rider at risk below (% of their days)", "value": f"{settings.RIDER_BEHIND_PCT:g}%"},
         {"group": "Campaigns", "label": "Rider inactive after missed days", "value": settings.INACTIVE_MISSED_DAYS},
+        {"group": "Campaigns", "label": "New campaign radius (default)", "value": f"{settings.CAMPAIGN_DEFAULT_INITIAL_RADIUS_KM:g} km, +{settings.CAMPAIGN_DEFAULT_EXPANSION_STEP_KM:g} km every {settings.CAMPAIGN_DEFAULT_EXPANSION_INTERVAL_MIN} min, up to {settings.CAMPAIGN_DEFAULT_MAX_RADIUS_KM:g} km"},
+        {"group": "Campaigns", "label": "Rider location counts as current for", "value": f"{settings.RIDER_LOCATION_MAX_AGE_MIN} minutes"},
         {"group": "Campaigns", "label": "Low sample: fewer than", "value": f"{settings.LOW_SAMPLE_MIN_DAYS} days or {settings.LOW_SAMPLE_MIN_RIDER_DAYS} rider-days"},
         {"group": "Payments", "label": "Payment processing", "value": "Recorded manually (no payment gateway connected)"},
     ]

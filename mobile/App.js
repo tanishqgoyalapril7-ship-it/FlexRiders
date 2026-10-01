@@ -1,17 +1,22 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, BackHandler, Linking, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, BackHandler, Linking, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { registerRootComponent } from 'expo';
 import { Ionicons } from '@expo/vector-icons';
-import { getAuthToken, loadStoredToken, mobileApi, setAuthToken } from './src/services/api';
+import { getAuthRole, getAuthToken, loadStoredToken, mobileApi, setAuthToken } from './src/services/api';
 import { ThemeProvider, useStyles, useTheme } from './src/theme';
 import { formatDate, formatDateTime, notificationStyle } from './src/utils';
-import SplashScreen from './src/screens/SplashScreen';
+import { BootSplash, LanguageScreen, LocationPrompt, RoleScreen, Walkthrough } from './src/screens/onboarding/Onboarding';
+import RiderSignup from './src/screens/onboarding/RiderSignup';
+import TshirtScreen from './src/screens/rider/TshirtScreen';
+import { vehicleCategoryLabel } from './src/components/formFields';
+import { VerificationStatus, WorkingAreasScreen } from './src/screens/onboarding/Verification';
+import { LanguageProvider, useT } from './src/i18n';
 import LoginScreen from './src/screens/LoginScreen';
-import RegisterScreen from './src/screens/RegisterScreen';
 import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
 import ChangePasswordScreen from './src/screens/ChangePasswordScreen';
 import TermsConsentScreen from './src/screens/TermsConsentScreen';
+import ChangeVehicleScreen from './src/screens/rider/ChangeVehicleScreen';
 import HomeScreen from './src/screens/HomeScreen';
 import EarningsScreen from './src/screens/EarningsScreen';
 import PaymentsScreen from './src/screens/PaymentsScreen';
@@ -24,6 +29,10 @@ import { stopRoute } from './src/services/routeTracker';
 import SupportScreen from './src/screens/SupportScreen';
 import CampaignsScreen from './src/screens/CampaignsScreen';
 import CampaignDetailScreen from './src/screens/CampaignDetailScreen';
+import { acquireLocation, getLocationStatus, openLocationSettings, watchLocation } from './src/services/locationService';
+import { subscribeSignals } from './src/services/realtime';
+import CustomerApp from './src/screens/customer/CustomerApp';
+import CustomerSignupScreen from './src/screens/customer/CustomerSignupScreen';
 
 const REFRESH_INTERVAL_MS = 4000;
 
@@ -52,6 +61,7 @@ const EMPTY_RIDER = {
   assigned_at: null,
   rejection_reason: '',
   suspension_reason: '',
+  has_photo: false,
 };
 
 // Notifications open from the Home bell (and Profile → Settings), not from the tab bar.
@@ -59,10 +69,13 @@ const TABS = [
   { key: 'home', label: 'Home', icon: 'home' },
   { key: 'campaigns', label: 'Campaigns', icon: 'megaphone' },
   { key: 'earnings', label: 'Earnings', icon: 'wallet' },
-  { key: 'profile', label: 'Profile', icon: 'person' },
+  { key: 'profile', label: 'You', icon: 'person' },
 ];
 // Screens reached from a tab keep that tab highlighted.
-const TAB_OF_SCREEN = { campaign: 'campaigns', payments: 'earnings', refer: 'profile' };
+const TAB_OF_SCREEN = {
+  campaign: 'campaigns', payments: 'earnings', refer: 'profile', verification: 'profile', vehicle: 'profile', 'change-vehicle': 'profile',
+  areas: 'profile', tshirt: 'profile', language: 'profile', activity: 'campaigns', active: 'campaigns',
+};
 
 const toRider = (profile) => {
   const current = (profile.brand_history || []).find((a) => a.is_current);
@@ -90,6 +103,7 @@ const toRider = (profile) => {
     assigned_at: current ? current.assignment_date : null,
     rejection_reason: profile.rejection_reason || '',
     suspension_reason: profile.suspension_reason || '',
+    has_photo: Boolean(profile.profile_photo),
   };
 };
 
@@ -130,6 +144,7 @@ const toNotification = (n) => ({
   supportId: n.category === 'SUPPORT' && /^\d+$/.test(n.reference_id || '') ? Number(n.reference_id) : null,
   unread: !n.is_read,
   timeLabel: formatDateTime(n.created_at),
+  createdAt: n.created_at,
   ...notificationStyle(n.category, n.title),
 });
 
@@ -143,10 +158,15 @@ function RiderApp() {
   const insets = useSafeAreaInsets();
   const styles = useStyles(makeStyles);
   const { colors } = useTheme();
-  const [screen, setScreen] = useState('loading'); // loading | splash | login | forgot | change-password | terms | register | main
+  const [screen, setScreen] = useState('loading');
+  const { t: translate, chosen: languageChosen } = useT();
+  const [introStep, setIntroStep] = useState('walk');
+  // loading | intro | splash | login | forgot | change-password | terms | register | main
+  // Signed out: the walkthrough shows on every launch; the language step only until a language is chosen.
   const [consent, setConsent] = useState(null); // Terms & Privacy status when a newer version needs accepting
   const consentChecked = useRef(false); // Checked once per login, not on every background refresh
   const [forgotFor, setForgotFor] = useState('');
+  const [forgotReturnScreen, setForgotReturnScreen] = useState('login');
   const [otpLogin, setOtpLogin] = useState(false); // Only where the server allows it (local development)
   useEffect(() => {
     mobileApi.getAppConfig().then((c) => setOtpLogin(c.otp_login === true)).catch(() => {});
@@ -179,11 +199,15 @@ function RiderApp() {
   }, []);
   const [earnings, setEarnings] = useState(EMPTY_EARNINGS);
   const [campaignId, setCampaignId] = useState(null);
+  // The device's current location (only read while the rider uses the app) and why it may be missing.
+  const activeLocationRef = useRef(null);
+  const [deviceLocation, setDeviceLocation] = useState(null);
+  const [locationState, setLocationState] = useState('UNKNOWN'); // see locationService: SERVICES_OFF, DENIED, …, AVAILABLE
 
   const logout = useCallback(async () => {
     // Stop location sharing and upload the last points while still signed in.
     await stopRoute().catch(() => {});
-    setAuthToken('');
+    setAuthToken('', '');
     consentChecked.current = false;
     setConsent(null);
     setRider(EMPTY_RIDER);
@@ -219,10 +243,11 @@ function RiderApp() {
         return 'TERMS';
       }
     }
+    const locationParams = activeLocationRef.current;
     const [paymentData, notificationData, campaignData, earningsData, supportData] = await Promise.all([
       mobileApi.getPaymentHistory().catch(() => null),
       mobileApi.getNotifications().catch(() => null),
-      mobileApi.getCampaigns().catch(() => null),
+      mobileApi.getCampaigns(locationParams).catch(() => null),
       mobileApi.getEarnings().catch(() => null),
       mobileApi.getSupportUnread().catch(() => null),
     ]);
@@ -253,13 +278,134 @@ function RiderApp() {
     if (!refreshing.current) refreshData();
   }, [refreshData]);
 
-  // Restore a saved login on launch.
+  // Current location: permission → services → a real fix, then a foreground watcher keeps it fresh
+  // (and moves the map marker). There is no fallback position: the state says why a fix is missing.
+  const stopWatch = useRef(null);
+  const lastSent = useRef(null);
+  const sendLocation = useCallback((fix, force) => {
+    // Backend copy of the rider's current location, at most every 60 s unless they moved 100 m.
+    const prev = lastSent.current;
+    const moved = prev ? Math.hypot((fix.latitude - prev.latitude) * 111, (fix.longitude - prev.longitude) * 111 * Math.cos((fix.latitude * Math.PI) / 180)) : Infinity;
+    if (!force && prev && Date.now() - prev.at < 60000 && moved < 0.1) return;
+    lastSent.current = { latitude: fix.latitude, longitude: fix.longitude, at: Date.now() };
+    mobileApi
+      .updateLocation({ lat: fix.latitude, lng: fix.longitude })
+      .then(() => __DEV__ && console.log('[location] backend updated', fix.latitude, fix.longitude))
+      .catch((err) => __DEV__ && console.log('[location] backend update failed', err.message));
+  }, []);
+  const applyFix = useCallback(
+    (fix) => {
+      activeLocationRef.current = { lat: fix.latitude, lng: fix.longitude };
+      setDeviceLocation((prev) => ({ ...fix, label: fix.label || (prev && prev.label) || null }));
+      setLocationState('AVAILABLE');
+    },
+    []
+  );
+  const acquiring = useRef(false);
+  const refreshLocation = useCallback(
+    async (prompt) => {
+      if (acquiring.current) return;
+      acquiring.current = true;
+      setLocationState((s) => (s === 'AVAILABLE' ? s : 'FETCHING'));
+      try {
+        const result = await acquireLocation({ prompt });
+        if (__DEV__) console.log('[location] acquire result', result.state);
+        if (result.state === 'AVAILABLE') {
+          applyFix(result.fix);
+          sendLocation(result.fix, true);
+          refreshData();
+          if (!stopWatch.current) {
+            stopWatch.current = await watchLocation((fix) => {
+              applyFix(fix);
+              sendLocation(fix, false);
+            });
+          }
+        } else {
+          // Never keep showing an old position as current.
+          activeLocationRef.current = null;
+          setDeviceLocation(null);
+          setLocationState(result.state);
+          if (stopWatch.current) {
+            stopWatch.current();
+            stopWatch.current = null;
+          }
+        }
+      } finally {
+        acquiring.current = false;
+      }
+    },
+    [refreshData, sendLocation, applyFix]
+  );
+
+  // Signed-in riders: read location on the main screen (the OS prompt shows once, automatically), and
+  // re-check whenever the app comes back to the foreground, e.g. after turning Location on in Settings.
+  const locationPrompted = useRef(false);
   useEffect(() => {
-    loadStoredToken()
-      .then(async (token) => {
-        if (token) await refreshData().catch(() => null); // Offline or a bad response: open the app anyway, polling retries
+    if (screen !== 'main') return undefined;
+    if (!locationPrompted.current) {
+      locationPrompted.current = true;
+      getLocationStatus().then((st) =>
+        // Never asked yet: explain why first (the OS prompt shows when the rider taps Allow).
+        st.permission === 'undetermined' && st.canAskAgain ? setScreen('post-location') : refreshLocation(false)
+      );
+    } else {
+      refreshLocation(false);
+    }
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refreshLocation(false);
+      else if (stopWatch.current) {
+        stopWatch.current(); // No location use while the app is in the background
+        stopWatch.current = null;
+      }
+    });
+    return () => {
+      sub.remove();
+      if (stopWatch.current) {
+        stopWatch.current();
+        stopWatch.current = null;
+      }
+    };
+  }, [screen, refreshLocation]);
+
+  const locationAction = useCallback(() => {
+    if (locationState === 'DENIED_PERMANENT' || locationState === 'SERVICES_OFF') {
+      openLocationSettings(locationState).then(() => refreshLocation(false));
+    } else {
+      refreshLocation(true);
+    }
+  }, [locationState, refreshLocation]);
+
+  // Campaign slot/status changes arrive as realtime signals; the list is then refetched.
+  const realtimeConfig = campaigns && campaigns.realtime;
+  useEffect(() => {
+    if (screen !== 'main' || !realtimeConfig) return undefined;
+    return subscribeSignals(realtimeConfig, () => poll());
+  }, [screen, realtimeConfig && realtimeConfig.topic]);
+
+  // Restore a saved login on launch and pre-populate with cached device location.
+  useEffect(() => {
+    const minSplash = new Promise((resolve) => setTimeout(resolve, 1600)); // Lets the launch animation play
+    (async () => {
+      // A fix from a previous session isn't current: location is read fresh on the main screen.
+      const token = await loadStoredToken();
+      const role = getAuthRole();
+      if (token && role === 'CUSTOMER') {
+        await minSplash;
+        setScreen('customer-main');
+        return;
+      }
+      if (token) await refreshData().catch(() => null);
+    })()
+      .then(() => minSplash, () => minSplash)
+      .finally(() =>
+      setScreen((current) => {
+        if (['change-password', 'terms', 'customer-main'].includes(current)) return current;
+        if (getAuthToken()) {
+          return getAuthRole() === 'CUSTOMER' ? 'customer-main' : 'main';
+        }
+        return 'intro'; // Walkthrough (plus language until one is chosen), then the Rider/Brand choice
       })
-      .finally(() => setScreen((current) => (['change-password', 'terms'].includes(current) ? current : getAuthToken() ? 'main' : 'splash')));
+    );
   }, [refreshData]);
 
   useEffect(() => {
@@ -269,6 +415,10 @@ function RiderApp() {
   }, [screen, poll]);
 
   const handleLoggedIn = async (login) => {
+    if (login && login.role === 'CUSTOMER') {
+      setScreen('customer-main');
+      return;
+    }
     if (login && login.must_change_password) {
       setScreen('change-password');
       return;
@@ -284,14 +434,15 @@ function RiderApp() {
     setScreen('main');
   };
 
-  const handleRegistered = async (result) => {
+  const handleCustomerLoggedIn = () => {
+    setScreen('customer-main');
+  };
+
+  // After sign-up: document status → working areas → location pre-prompt → Home.
+  const handleRegistered = async () => {
     await refreshData();
     setTab('home');
-    setScreen('main');
-    Alert.alert(
-      'Application submitted',
-      `Your Rider ID is ${result.rider_id}.\n\nOur operations team will review your application. You'll be notified in the app once it's approved.`
-    );
+    setScreen('post-verify');
   };
 
   const deleteNotification = async (id) => {
@@ -322,7 +473,7 @@ function RiderApp() {
   };
   const navigate = (target) =>
     target === 'documents'
-      ? showDocumentsInfo()
+      ? setTab('verification')
       : target === 'notifications'
       ? openNotifications('home')
       : target === 'support'
@@ -347,29 +498,60 @@ function RiderApp() {
   // Android back button: go to the previous screen instead of closing the app; on Home (or the splash) it exits as usual.
   useEffect(() => {
     const onBack = () => {
-      if (screen === 'login' || screen === 'register') {
+      if (screen === 'login' || screen === 'customer-login') {
         setScreen('splash');
+        return true;
+      }
+      if (screen === 'register') {
+        setScreen('login');
         return true;
       }
       if (screen === 'forgot') {
         setScreen('login');
         return true;
       }
+      if (screen === 'customer-signup') {
+        setScreen('customer-login');
+        return true;
+      }
+      if (screen === 'splash') {
+        setIntroStep('lang');
+        setScreen('intro');
+        return true;
+      }
+      if (screen === 'intro' && introStep === 'lang') {
+        setIntroStep('walk');
+        return true;
+      }
+      if (screen === 'post-location') {
+        setScreen('post-areas');
+        return true;
+      }
+      if (screen === 'post-areas') {
+        setScreen('post-verify');
+        return true;
+      }
+      if (screen === 'customer-main') {
+        return false;
+      }
       if (screen !== 'main' || tab === 'home') return false;
-      const parent = { campaign: 'campaigns', payments: 'earnings', refer: 'profile', notifications: notificationsBack }[tab];
+      const parent = {
+        campaign: 'campaigns', payments: 'earnings', refer: 'profile', notifications: notificationsBack,
+        verification: 'profile', vehicle: 'profile', 'change-vehicle': 'vehicle', areas: 'profile', tshirt: 'profile', language: 'profile',
+      }[tab];
       setTab(parent || 'home');
       return true;
     };
     const sub = BackHandler.addEventListener('hardwareBackPress', onBack);
     return () => sub.remove();
-  }, [screen, tab, notificationsBack]);
+  }, [screen, tab, notificationsBack, introStep]);
 
   const unreadCount = notifications.filter((n) => n.unread).length;
 
   const renderTab = () => {
     switch (tab) {
       case 'earnings':
-        return <EarningsScreen rider={rider} earnings={earnings} payments={payments} onBack={goHome} onViewAll={() => setTab('payments')} />;
+        return <EarningsScreen rider={rider} earnings={earnings} onBack={goHome} onViewAll={() => setTab('payments')} onEditUpi={() => setTab('profile')} onChanged={refreshData} />;
       case 'payments':
         return <PaymentsScreen rider={rider} payments={payments} onBack={goHome} />;
       case 'brand':
@@ -387,7 +569,49 @@ function RiderApp() {
           />
         );
       case 'profile':
-        return <ProfileScreen rider={rider} supportUnread={supportUnread} onOpenSupport={() => openSupport(null)} onLogout={logout} onProfileChanged={refreshData} onAccountDeleted={handleAccountDeleted} onOpenRefer={() => setTab('refer')} onOpenNotifications={() => openNotifications('profile')} unreadCount={unreadCount} />;
+        return (
+          <ProfileScreen
+            rider={rider}
+            onBack={goHome}
+            supportUnread={supportUnread}
+            onOpenSupport={() => openSupport(null)}
+            onLogout={logout}
+            onProfileChanged={refreshData}
+            onAccountDeleted={handleAccountDeleted}
+            onNavigate={(target) => (target === 'notifications' ? openNotifications('profile') : setTab(target))}
+            unreadCount={unreadCount}
+          />
+        );
+      case 'verification':
+        return <VerificationStatus riderStatus={rider.status} vehicleCategory={rider.vehicle_category} title="Verification Status" onBack={() => setTab('profile')} />;
+      case 'vehicle':
+        return (
+          <VerificationStatus
+            riderStatus={rider.status}
+            vehicleCategory={rider.vehicle_category}
+            title="My Vehicle"
+            vehicle={{ category: vehicleCategoryLabel(rider.vehicle_category), model: rider.vehicle, number: rider.vehicle_number }}
+            onBack={() => setTab('profile')}
+            onChangeVehicle={() => setTab('change-vehicle')}
+          />
+        );
+      case 'change-vehicle':
+        return (
+          <ChangeVehicleScreen
+            rider={rider}
+            onBack={() => setTab('vehicle')}
+            onSaved={async () => {
+              await refreshData();
+              setTab('vehicle');
+            }}
+          />
+        );
+      case 'areas':
+        return <WorkingAreasScreen onBack={() => setTab('profile')} saveLabel="Save" onSaved={() => { refreshData(); setTab('profile'); }} />;
+      case 'tshirt':
+        return <TshirtScreen campaigns={campaigns} onBack={() => setTab('profile')} onOpenCampaign={openCampaign} />;
+      case 'language':
+        return <LanguageScreen onDone={() => setTab('profile')} onBack={() => setTab('profile')} />;
       case 'refer':
         return <ReferScreen onBack={() => setTab('profile')} />;
       case 'support':
@@ -403,9 +627,19 @@ function RiderApp() {
           />
         );
       case 'campaigns':
-        return <CampaignsScreen data={campaigns} onOpen={openCampaign} onChanged={refreshData} />;
+        return (
+          <CampaignsScreen
+            data={campaigns}
+            onOpen={openCampaign}
+            onBack={goHome}
+            onChanged={refreshData}
+            locationState={locationState}
+            deviceLocation={deviceLocation}
+            onRequestLocation={locationAction}
+          />
+        );
       case 'campaign':
-        return <CampaignDetailScreen key={campaignId} campaignId={campaignId} onBack={() => setTab('campaigns')} onChanged={refreshData} />;
+        return <CampaignDetailScreen key={campaignId} campaignId={campaignId} locationParams={activeLocationRef.current} onBack={() => setTab('campaigns')} onChanged={refreshData} />;
       default:
         return (
           <HomeScreen
@@ -416,39 +650,40 @@ function RiderApp() {
             unreadCount={unreadCount}
             onNavigate={navigate}
             onOpenCampaign={openCampaign}
+            deviceLocation={deviceLocation}
+            locationState={locationState}
+            onRequestLocation={locationAction}
           />
         );
     }
   };
 
   const isSplash = screen === 'splash';
+  const isBoot = screen === 'loading';
 
   return (
     // In the main app the tab bar pads for the bottom inset itself, so it reaches the screen edge.
     <SafeAreaView
-      style={[styles.safeArea, isSplash && { backgroundColor: '#071233' }]}
-      edges={screen === 'main' ? ['top', 'left', 'right'] : ['top', 'bottom', 'left', 'right']}
+      style={[styles.safeArea, isBoot && { backgroundColor: '#F3F3F3' }]}
+      edges={screen === 'main' || screen === 'customer-main' ? ['top', 'left', 'right'] : ['top', 'bottom', 'left', 'right']}
     >
-      <StatusBar barStyle={isSplash ? 'light-content' : colors.statusBar} />
+      <StatusBar barStyle={isBoot ? 'dark-content' : colors.statusBar} />
 
-      {screen === 'loading' && (
-        <View style={styles.center}>
-          <ActivityIndicator color={colors.primary} />
-        </View>
-      )}
+      {screen === 'loading' && <BootSplash />}
+
+      {screen === 'intro' && (introStep === 'walk' ? <Walkthrough onDone={() => (languageChosen ? setScreen('splash') : setIntroStep('lang'))} /> : <LanguageScreen onDone={() => setScreen('splash')} onBack={() => setIntroStep('walk')} />)}
 
       {isSplash && (
-        <SplashScreen
-          showOtp={otpLogin}
-          onLogin={() => {
+        <RoleScreen
+          onBack={() => {
+            setIntroStep('lang');
+            setScreen('intro');
+          }}
+          onRider={() => {
             setLoginWithOtp(false);
             setScreen('login');
           }}
-          onLoginWithOtp={() => {
-            setLoginWithOtp(true);
-            setScreen('login');
-          }}
-          onRegister={() => setScreen('register')}
+          onBrand={() => setScreen('customer-login')}
         />
       )}
 
@@ -458,15 +693,56 @@ function RiderApp() {
           onBack={() => setScreen('splash')}
           onLoggedIn={handleLoggedIn}
           onRegister={() => setScreen('register')}
+          onCustomerLogin={() => setScreen('customer-login')}
           onForgot={(phone) => {
             setForgotFor(phone || '');
+            setForgotReturnScreen('login');
             setScreen('forgot');
           }}
         />
       )}
 
+      {screen === 'customer-login' && (
+        <LoginScreen
+          brand
+          onBack={() => setScreen('splash')}
+          onLoggedIn={handleLoggedIn}
+          onRegister={() => setScreen('customer-signup')}
+          onForgot={(phoneOrEmail) => {
+            setForgotFor(phoneOrEmail || '');
+            setForgotReturnScreen('customer-login');
+            setScreen('forgot');
+          }}
+        />
+      )}
+
+      {screen === 'customer-signup' && (
+        <CustomerSignupScreen
+          onBack={() => setScreen('customer-login')}
+          onSignedUp={handleCustomerLoggedIn}
+          onOpenLogin={() => setScreen('customer-login')}
+        />
+      )}
+
+      {screen === 'customer-main' && (
+        <CustomerApp onLogout={logout} />
+      )}
+
       {screen === 'forgot' && (
-        <ForgotPasswordScreen initialIdentifier={forgotFor} onBack={() => setScreen('login')} onDone={() => setScreen('login')} />
+        <ForgotPasswordScreen
+          initialIdentifier={forgotFor}
+          onBack={() => setScreen(forgotReturnScreen)}
+          onDone={() => setScreen(forgotReturnScreen)}
+          onLoggedIn={handleLoggedIn}
+          onUseOtp={
+            forgotReturnScreen === 'login'
+              ? () => {
+                  setLoginWithOtp(true);
+                  setScreen('login');
+                }
+              : null
+          }
+        />
       )}
 
       {screen === 'change-password' && (
@@ -494,7 +770,32 @@ function RiderApp() {
       )}
 
       {screen === 'register' && (
-        <RegisterScreen onBack={() => setScreen('splash')} onRegistered={handleRegistered} initialReferralCode={referralCode} />
+        <RiderSignup onBack={() => setScreen('login')} onLogin={() => setScreen('login')} onRegistered={handleRegistered} initialReferralCode={referralCode} />
+      )}
+
+      {screen === 'post-verify' && (
+        <VerificationStatus
+          riderStatus={rider.status}
+          vehicleCategory={rider.vehicle_category}
+          onContinue={() => setScreen('post-areas')}
+          continueLabel="Continue"
+        />
+      )}
+
+      {screen === 'post-areas' && <WorkingAreasScreen onBack={() => setScreen('post-verify')} onSaved={() => setScreen('post-location')} />}
+
+      {screen === 'post-location' && (
+        <LocationPrompt
+          onBack={() => setScreen('post-areas')}
+          onAllow={() => {
+            setScreen('main');
+            refreshLocation(true);
+          }}
+          onSkip={() => {
+            setScreen('main');
+            setLocationState('DENIED');
+          }}
+        />
       )}
 
       {screen === 'main' && (
@@ -517,7 +818,7 @@ function RiderApp() {
                     <Ionicons name={active ? t.icon : `${t.icon}-outline`} size={24} color={color} />
                   </View>
                   <Text style={[styles.tabLabel, { color }, active && styles.tabLabelActive]} numberOfLines={1}>
-                    {t.label}
+                    {translate(t.label)}
                   </Text>
                 </TouchableOpacity>
               );
@@ -533,7 +834,9 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <ThemeProvider>
-        <RiderApp />
+        <LanguageProvider>
+          <RiderApp />
+        </LanguageProvider>
       </ThemeProvider>
     </SafeAreaProvider>
   );

@@ -26,10 +26,10 @@ export default function BrandsView({ brands = [], onCreateBrand, onViewBrand, on
   }, [term]);
   const visible = brands.filter(
     (b) =>
-      (status === 'ALL' || (status === 'ACTIVE') === b.is_active) &&
+      (status === 'ALL' || (status === 'REGISTERED' ? b.has_account : (status === 'ACTIVE') === b.is_active)) &&
       (!term ||
         (matchIds && matchIds.has(b.id)) ||
-        [b.name, b.code, b.contact_person, b.contact_number, b.description].some((v) => (v || '').toLowerCase().includes(term)))
+        [b.name, b.code, b.contact_person, b.contact_number, b.description, b.account_email, b.account_phone].some((v) => (v || '').toLowerCase().includes(term)))
   );
   return (
     <div className="page-container">
@@ -50,6 +50,7 @@ export default function BrandsView({ brands = [], onCreateBrand, onViewBrand, on
             <div className="tabs-header-bar">
               {[
                 ['ALL', 'All'],
+                ['REGISTERED', 'Registered accounts'],
                 ['ACTIVE', 'Active'],
                 ['INACTIVE', 'Inactive'],
               ].map(([key, label]) => (
@@ -106,7 +107,20 @@ export default function BrandsView({ brands = [], onCreateBrand, onViewBrand, on
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem', color: '#475569' }}>
                     <Users size={14} color="#2563EB" />
                     <span>
-                      Current Riders: <strong>{b.active_riders_count || 0}</strong>
+                      Current Riders: <strong>{b.active_riders_count || 0}</strong> · Campaigns: <strong>{b.campaigns_count || 0}</strong> · Live:{' '}
+                      <strong>{b.live_campaigns_count || 0}</strong>
+                      {b.requested_campaigns_count ? (
+                        <>
+                          {' '}· Requests: <strong style={{ color: '#D97706' }}>{b.requested_campaigns_count}</strong>
+                        </>
+                      ) : null}
+                    </span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem', color: '#475569', marginTop: '4px' }}>
+                    <Briefcase size={14} color="#7C3AED" />
+                    <span>
+                      {b.has_account ? `Brand app login: ${[b.account_email, b.account_phone].filter(Boolean).join(' • ')}` : 'No brand app login'}
+                      {b.created_at ? ` · Since ${new Date(b.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}` : ''}
                     </span>
                   </div>
                   {b.contact_person || b.contact_number ? (

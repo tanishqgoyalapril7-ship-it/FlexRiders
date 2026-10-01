@@ -47,6 +47,32 @@ class Settings(BaseSettings):
     # Business Config
     MULTI_BRAND_ASSIGNMENT: bool = False
     ENABLE_OTP_LOGIN: bool = True
+    # SMS gateway phone (github.com/mdakashhossain1/SMS-Gateway-Free) for real OTP SMS: its API address
+    # (e.g. http://192.168.1.50:8080 on the same Wi-Fi, or a public tunnel URL) and the API key shown in the app.
+    SMS_GATEWAY_URL: str = ""
+    SMS_GATEWAY_API_KEY: str = ""
+    SMS_COUNTRY_CODE: str = "+91"
+    # Or Fast2SMS (fast2sms.com, Indian numbers, OTP route): works from a hosted server without a gateway
+    # phone. When set, it is used instead of the gateway phone.
+    FAST2SMS_API_KEY: str = ""
+    # Or Twilio Verify (twilio.com → Verify → Services): Twilio creates, texts and checks the code itself and
+    # handles India's SMS rules. Preferred over the others when set. Codes are TWILIO_VERIFY_CODE_LENGTH digits,
+    # which must match the Verify service's "Code length" setting (Twilio's default is 6).
+    TWILIO_ACCOUNT_SID: str = ""
+    TWILIO_AUTH_TOKEN: str = ""
+    TWILIO_VERIFY_SERVICE_SID: str = ""
+    TWILIO_VERIFY_CODE_LENGTH: int = 6
+    # Or plain Twilio SMS (e.g. the trial's free SMS, no Verify service): the Twilio number to send from. The
+    # server makes the code itself, like the other providers. Used when no Verify service SID is set.
+    TWILIO_FROM_NUMBER: str = ""
+    # Free local testing without any SMS provider: codes are made and checked exactly as for SMS, but shown on
+    # the phone screen (and in the server log) instead of being texted. Ignored on hosted servers (VERCEL) and
+    # whenever a real SMS provider is set.
+    SMS_TEST_MODE: bool = False
+    # DLT route (needed when the account has no OTP route): the approved sender ID (header, e.g. FLXRDR) and
+    # the Fast2SMS message ID of the approved OTP template, whose only variable {#var#} is the code.
+    FAST2SMS_SENDER_ID: str = ""
+    FAST2SMS_TEMPLATE_ID: str = ""
     MOCK_OTP_CODE: str = "123456"
 
     # Campaign fulfilment thresholds
@@ -58,6 +84,21 @@ class Settings(BaseSettings):
     INACTIVE_MISSED_DAYS: int = 3  # Consecutive days with nothing submitted → Inactive
     # Log why each campaign is shown/hidden in the rider app's Available list (debugging aid).
     CAMPAIGN_VISIBILITY_LOG: bool = False
+    # Geo-targeting defaults, prefilled on new campaigns. Every campaign stores its own values, which the
+    # brand/admin can change; these are never applied to a campaign behind the scenes.
+    CAMPAIGN_DEFAULT_INITIAL_RADIUS_KM: float = 2.0
+    CAMPAIGN_DEFAULT_MAX_RADIUS_KM: float = 8.0
+    CAMPAIGN_DEFAULT_EXPANSION_STEP_KM: float = 1.0
+    CAMPAIGN_DEFAULT_EXPANSION_INTERVAL_MIN: int = 60
+    # Rider app: campaigns starting within this many hours are shown as "Opening soon" (with a countdown).
+    OPENING_SOON_HOURS: int = 48
+    # A rider's reported location counts as "current" for this long; older fixes are ignored.
+    RIDER_LOCATION_MAX_AGE_MIN: int = 180
+    # Area search (working areas, campaign targets). Nominatim/OpenStreetMap by default; no key needed,
+    # but its usage policy requires an identifying User-Agent and at most ~1 request per second.
+    GEOCODER_URL: str = "https://nominatim.openstreetmap.org/search"
+    GEOCODER_USER_AGENT: str = "FlexRiders/1.0 (support@flexriders.in)"
+    GEOCODER_COUNTRY_CODES: str = "in"
     # Refer & Earn: paid to the referrer once, when the referred rider completes their first Photo Streak.
     REFERRAL_REWARD_AMOUNT: float = 30.0
     # Base of the shareable referral link (a web page or app deep link that opens registration).
@@ -83,6 +124,9 @@ class Settings(BaseSettings):
     # Base URL of the public campaign page shared with brands, e.g. https://superriders.in/campaign/
     # Empty means the admin dashboard's own address + /campaign/.
     PUBLIC_CAMPAIGN_BASE_URL: str = ""
+    # Campaign Planning & Minimum Budget Configuration (Centralized Single Source of Truth)
+    MINIMUM_CAMPAIGN_BUDGET: float = 10000.0
+    DEFAULT_PLANNING_RIDER_RATE: float = 500.0  # Configurable baseline planning rate (₹/rider-day) used for estimation
 
     # Uploads directory for local dev
     UPLOAD_DIR: str = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads")

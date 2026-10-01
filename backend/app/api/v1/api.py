@@ -16,12 +16,21 @@ from app.api.v1.endpoints import (
     enquiries,
     password,
     consent,
+    customer,
+    geo,
+    rider_documents,
 )
 
 api_router = APIRouter()
 
+api_router.include_router(customer.router, prefix="/customer", tags=["Customer App"])
+
 api_router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 api_router.include_router(riders.router, prefix="/riders", tags=["Rider App"])
+api_router.include_router(geo.rider_router, prefix="/riders", tags=["Rider working areas & location"])
+api_router.include_router(geo.router, prefix="/geo", tags=["Area search"])
+api_router.include_router(rider_documents.rider_router, prefix="/riders", tags=["Rider documents"])
+api_router.include_router(rider_documents.admin_router, prefix="/admin/riders", tags=["Admin rider documents"])
 api_router.include_router(admin_riders.router, prefix="/admin/riders", tags=["Admin Rider Management"])
 api_router.include_router(brands.router, prefix="/brands", tags=["Brand Management & Assignment"])
 api_router.include_router(payments.router, prefix="/payments", tags=["Payment Management"])

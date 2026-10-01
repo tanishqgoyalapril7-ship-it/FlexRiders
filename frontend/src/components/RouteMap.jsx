@@ -3,6 +3,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { X } from 'lucide-react';
 import { api } from '../services/api';
+import { subscribeCampaignSignals } from '../services/realtime';
 import { formatDate } from './CampaignShared';
 
 // Map tiles: OpenStreetMap needs no API key (fine for light admin use). To use a paid provider,
@@ -26,6 +27,8 @@ function campaignDays(campaign) {
   for (let d = new Date(Math.min(end, today)); d >= start; d.setDate(d.getDate() - 1)) days.push(toISO(d));
   return days;
 }
+
+const clock = (iso) => (iso ? new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—');
 
 function marker(latlng, color) {
   return L.circleMarker(latlng, { radius: 8, color: '#FFFFFF', weight: 3, fillColor: color, fillOpacity: 1 });
@@ -54,8 +57,15 @@ export function RouteMapModal({ campaign, assignment, onClose }) {
   }, []);
 
   useEffect(() => {
-    map.current = L.map(mapEl.current, { zoomControl: true, attributionControl: true }).setView([28.4595, 77.0266], 11);
+    const target = campaign.geo && campaign.geo.targeted ? [campaign.geo.target_lat, campaign.geo.target_lng] : null;
+    // Until a route loads: the campaign's target area if it has one, otherwise the service region.
+    map.current = L.map(mapEl.current, { zoomControl: true, attributionControl: true }).setView(target || [28.4595, 77.0266], target ? 13 : 11);
     L.tileLayer(TILE_URL, { maxZoom: 19, attribution: TILE_ATTRIBUTION }).addTo(map.current);
+    if (target) {
+      L.circle(target, { radius: campaign.geo.current_radius_km * 1000, color: '#2563EB', weight: 1, fillOpacity: 0.05, dashArray: '4 4' })
+        .bindTooltip(`Campaign area · ${campaign.geo.current_radius_km} km`)
+        .addTo(map.current);
+    }
     layer.current = L.layerGroup().addTo(map.current);
     return () => map.current.remove();
   }, []);
@@ -73,8 +83,16 @@ export function RouteMapModal({ campaign, assignment, onClose }) {
         .catch((err) => setError(err.message));
     load();
     if (day !== toISO(new Date())) return undefined;
+    // Today's routes: redrawn as soon as the rider app uploads new points (realtime signal), with the
+    // existing timer as a fallback when realtime isn't configured.
+    const unsubscribe = subscribeCampaignSignals((p) => {
+      if (p.event_type === 'route_points' && p.campaign_id === campaign.id && (!assignmentId || p.assignment_id === assignmentId)) load();
+    });
     const id = setInterval(load, LIVE_REFRESH_MS);
-    return () => clearInterval(id);
+    return () => {
+      clearInterval(id);
+      unsubscribe();
+    };
   }, [day]);
 
   // Draw the routes and fit the map to them.
@@ -135,6 +153,35 @@ export function RouteMapModal({ campaign, assignment, onClose }) {
           {error ? <div className="route-empty">{error}</div> : null}
           {!error && routes && routes.length === 0 ? <div className="route-empty">No route available for this day.</div> : null}
         </div>
+        {routes && routes.length ? (
+          <div className="route-summary">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Rider</th>
+                  <th>Start</th>
+                  <th>End</th>
+                  <th>Distance</th>
+                  <th>GPS points</th>
+                </tr>
+              </thead>
+              <tbody>
+                {routes.map((r, i) => (
+                  <tr key={r.assignment_id}>
+                    <td>
+                      <span className="route-swatch" style={{ background: assignmentId ? ROUTE_COLORS[0] : ROUTE_COLORS[i % ROUTE_COLORS.length] }} />
+                      {r.rider ? `${r.rider.full_name} (${r.rider.rider_id})` : 'Rider'}
+                    </td>
+                    <td>{clock(r.started_at)}</td>
+                    <td>{clock(r.ended_at)}</td>
+                    <td>{r.distance_km != null ? `${r.distance_km} km` : '—'}</td>
+                    <td>{r.point_count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
       </div>
     </div>
   );

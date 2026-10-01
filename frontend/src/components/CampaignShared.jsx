@@ -21,10 +21,13 @@ export const CAMPAIGN_CATEGORIES = [
   ['OTHER', 'Other'],
 ];
 
-export const CAMPAIGN_STATUSES = ['DRAFT', 'OPEN', 'FULL', 'ACTIVE', 'PAUSED', 'COMPLETED', 'CANCELLED'];
+export const CAMPAIGN_STATUSES = ['PENDING_APPROVAL', 'CHANGES_REQUIRED', 'DRAFT', 'OPEN', 'FULL', 'ACTIVE', 'PAUSED', 'COMPLETED', 'CANCELLED', 'REJECTED'];
 
 const STATUS_LABELS = {
   OPEN: 'Public / Open',
+  PENDING_APPROVAL: 'Pending Approval',
+  CHANGES_REQUIRED: 'Changes Requested',
+  REJECTED: 'Rejected',
   UNDER_REVIEW: 'Under Review',
 };
 
@@ -53,6 +56,7 @@ export function CampaignStatusPill({ campaign }) {
   if (key === 'LIVE') label = 'Live';
   else if (key === 'OPEN') label = campaign.status === 'FULL' ? 'Full · Not Live' : 'Open for Joining';
   else if (key === 'COMPLETED' && campaign.status !== 'COMPLETED') label = 'Ended';
+  else if (campaign.status === 'DRAFT' && campaign.requested_by_brand && campaign.approved_at) label = 'Approved · Not Live';
   return <StatusPill status={campaign.status} label={label} />;
 }
 

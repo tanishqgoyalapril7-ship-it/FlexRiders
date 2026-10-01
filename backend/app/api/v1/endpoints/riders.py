@@ -5,6 +5,7 @@ from app.models.all_models import Rider, RiderDocument, RiderBrandAssignment, Pa
 from app.schemas.all_schemas import (
     RiderDetailResponse,
     RiderProfileUpdateRequest,
+    RiderVehicleChangeRequest,
     PaymentMonthlySummary,
     PaymentResponse,
     DocumentResponse,
@@ -21,6 +22,14 @@ from typing import List, Optional
 from sqlalchemy import desc
 
 router = APIRouter()
+
+
+@router.get("/me/selfie")
+def my_selfie(rider: Rider = Depends(get_current_rider)):
+    """The rider's own registration selfie, shown as their profile picture in the app."""
+    from app.services.rider_service import selfie_response
+
+    return selfie_response(rider)
 
 
 @router.get("/me", response_model=RiderDetailResponse)
@@ -77,6 +86,7 @@ def get_rider_dashboard(
         email=rider.email,
         profile_photo=rider.profile_photo,
         dob=rider.dob,
+        gender=rider.gender,
         current_company=rider.current_company,
         current_role=rider.current_role,
         experience_years=rider.experience_years,
@@ -232,3 +242,78 @@ def get_my_referrals(rider: Rider = Depends(get_current_rider), db: Session = De
     from app.services import referral_service
 
     return referral_service.summary(db, rider)
+
+
+@router.put("/me/vehicle", response_model=RiderDetailResponse)
+def change_my_vehicle(update: RiderVehicleChangeRequest, rider: Rider = Depends(get_current_rider), db: Session = Depends(get_db)):
+    """The rider switches vehicle. Vehicle type decides which campaigns they can join, so it can't change
+    mid-campaign or with a join request waiting. A new type or number replaces the old vehicle proof
+    (the rider uploads one for the new vehicle) and the operations team is asked to verify it."""
+    from app.models.campaign_models import VehicleCategory
+    from app.schemas.all_schemas import vehicle_number_problem
+    from app.services.audit_service import log_admin_action
+    from app.services.notification_service import send_notification
+
+    category, number = update.vehicle_category, update.vehicle_number
+    model = (update.vehicle_type or "").strip() or None
+    problem = vehicle_number_problem(category, number)
+    if problem:
+        raise HTTPException(status_code=400, detail=problem)
+    if number and db.query(Rider.id).filter(Rider.vehicle_number == number, Rider.id != rider.id).first():
+        raise HTTPException(status_code=400, detail=f"Vehicle {number} is already registered to another rider.")
+    new_vehicle = category != rider.vehicle_category or number != rider.vehicle_number
+    if new_vehicle and (svc.current_assignment(db, rider.id) or svc.pending_application(db, rider.id)):
+        raise HTTPException(
+            status_code=400,
+            detail="You can change your vehicle after your current campaign ends, or once your join request is withdrawn or decided.",
+        )
+    if not new_vehicle and model == rider.vehicle_type:
+        return get_rider_dashboard(rider, db)
+
+    label = lambda c: VehicleCategory.LABELS.get(c, c or "not set")  # noqa: E731
+    before = f"{label(rider.vehicle_category)} {rider.vehicle_number or ''}".strip()
+    rider.vehicle_category, rider.vehicle_number, rider.vehicle_type = category, number, model
+    if new_vehicle:
+        # The old proof is for the old vehicle: kept for the record, but no longer counts.
+        for doc in rider.documents:
+            if doc.doc_type in ("VEHICLE_RC", "VEHICLE_PROOF") and doc.status != "SUPERSEDED":
+                doc.status, doc.rejection_note = "SUPERSEDED", "Replaced: the rider changed vehicle"
+    db.commit()
+    after = f"{label(category)} {number or ''}".strip()
+    if new_vehicle:
+        log_admin_action(db=db, admin_user=rider.user, action="RIDER_VEHICLE_CHANGED", target_type="RIDER", target_id=str(rider.id),
+                         details=f"{rider.full_name} ({rider.rider_id}) changed vehicle: {before} → {after}")
+        send_notification(db, title=f"Vehicle changed: {rider.full_name}", is_admin=True, category="RIDER", reference_id=str(rider.id),
+                          message=f"{rider.full_name} ({rider.rider_id}) changed vehicle from {before} to {after}. Verify the new vehicle proof.")
+        send_notification(db, user_id=rider.user_id, title="Vehicle updated", category="RIDER",
+                          message=f"Your vehicle is now {after}. Upload proof for it so the operations team can verify it.")
+    db.refresh(rider)
+    return get_rider_dashboard(rider, db)
+
+
+@router.post("/me/payout-request")
+def request_payout(rider: Rider = Depends(get_current_rider), db: Session = Depends(get_db)):
+    """'Withdraw earnings': asks the payments team to pay out what's approved but unpaid. Payouts are still
+    made by an admin (no payment gateway); this only raises the request, at most once a day."""
+    from app.services.earnings_service import rider_earnings
+    from app.services.notification_service import send_notification
+    from app.services.audit_service import log_admin_action
+
+    pending = rider_earnings(db, rider.id)["pending_earnings"]
+    if pending <= 0:
+        raise HTTPException(status_code=400, detail="You have no approved earnings waiting to be paid.")
+    if not rider.upi_id:
+        raise HTTPException(status_code=400, detail="Add your UPI ID first so the payout can be sent.")
+    day = datetime.utcnow().strftime("%Y%m%d")
+    sent = send_notification(
+        db, title=f"Payout requested: {rider.full_name}",
+        message=f"{rider.full_name} ({rider.rider_id}) requested a payout of ₹{pending:,.0f} to UPI {rider.upi_id}.",
+        is_admin=True, category="PAYMENT", reference_id=str(rider.id), dedupe_key=f"PAYOUT_REQUEST:{rider.id}:{day}",
+    )
+    if not sent:
+        return {"requested": False, "message": "You've already requested a payout today. The payments team will process it."}
+    log_admin_action(db=db, admin_user=rider.user, action="PAYOUT_REQUESTED", target_type="RIDER", target_id=str(rider.id),
+                     details=f"{rider.full_name} ({rider.rider_id}) requested ₹{pending:,.0f} to {rider.upi_id}")
+    send_notification(db, user_id=rider.user_id, title="Payout requested",
+                      message=f"We've asked the payments team to pay ₹{pending:,.0f} to {rider.upi_id}.", category="PAYMENT")
+    return {"requested": True, "amount": pending, "message": f"Payout of ₹{pending:,.0f} requested."}

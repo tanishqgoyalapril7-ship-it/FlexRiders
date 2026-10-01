@@ -73,7 +73,7 @@ def save(content: bytes, extension: str, folder: str, content_type: str = "appli
 
 # Folders never served through the public /uploads route: private personal images (selfies) and campaign
 # videos (riders and admins get short-lived signed links from authenticated endpoints).
-PRIVATE_FOLDERS = ("selfies", "campaign-videos")
+PRIVATE_FOLDERS = ("selfies", "campaign-videos", "rider-documents")
 
 # Campaign videos go straight from the admin's browser to storage (too large for the API), with a one-time
 # upload link the API signs. Hosted storage caps a file at 50 MB.

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Plus, Search, Megaphone, PlayCircle, Users, Wallet, RotateCcw } from 'lucide-react';
 import { api } from '../services/api';
+import { subscribeCampaignSignals } from '../services/realtime';
 import { CampaignFormModal } from '../components/CampaignModals';
 import { CAMPAIGN_CATEGORIES, CAMPAIGN_STATUSES, VEHICLE_TYPES, CampaignStatusPill, EmptyState, SlotProgress, StatCard, formatDateRange, formatINR } from '../components/CampaignShared';
 
@@ -27,6 +28,9 @@ export default function CampaignsView({ brands = [], summary, initialSearch = ''
       clearInterval(interval);
     };
   }, [filters]);
+
+  // Approvals, publishing and slot changes show up at once (same admin realtime channel as the other views).
+  useEffect(() => subscribeCampaignSignals(() => load()), [filters]);
 
   const setFilter = (key) => (e) => setFilters((prev) => ({ ...prev, [key]: e.target.value }));
   const hasFilters = JSON.stringify(filters) !== JSON.stringify(EMPTY_FILTERS);

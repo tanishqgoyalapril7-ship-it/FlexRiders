@@ -10,6 +10,9 @@ import { formatDate, formatDateRange, formatINR, formatShortDate } from '../util
 import { PickupCard, RequestStatusCard, ReturnCard, useJoinCampaign } from '../components/KitPickup';
 import { TermsCard } from '../components/CampaignTerms';
 import RouteCard from '../components/RouteCard';
+import CampaignMapView from '../components/CampaignMapView';
+import { Countdown, distanceLabel, startLabel } from '../components/CampaignBits';
+import { ActiveCampaignView, CampaignInfoView, DailyActivityView, JoinStatusView } from './rider/CampaignViews';
 
 const DAY_STYLES = {
   COMPLETED: { icon: 'checkmark-circle', tone: 'success', label: 'Completed' },
@@ -98,18 +101,19 @@ function VideoCard({ campaignId, styles, colors }) {
   );
 }
 
-export default function CampaignDetailScreen({ campaignId, onBack, onChanged }) {
+export default function CampaignDetailScreen({ campaignId, locationParams, onBack, onChanged }) {
   const styles = useStyles(makeStyles);
   const { colors } = useTheme();
   const [campaign, setCampaign] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [mode, setMode] = useState(null); // null = the screen for the rider's stage; 'daily' | 'details'
   const onBackRef = useRef(onBack); // Stable across App re-renders (the handler is recreated each time)
   onBackRef.current = onBack;
 
   const load = useCallback(
     () =>
       mobileApi
-        .getCampaign(campaignId)
+        .getCampaign(campaignId, locationParams)
         .then(setCampaign)
         .catch((err) => {
           if (err.status === 404) {
@@ -179,19 +183,117 @@ export default function CampaignDetailScreen({ campaignId, onBack, onChanged }) 
   const isLive = lifecycle.key === 'LIVE';
   const slotTimes = campaign.photo_slot_windows || {};
 
+  const termsCard = (
+    <TermsCard
+      campaign={campaign}
+      joined={Boolean(p) || campaign.my_status === 'REQUESTED'}
+      onAccept={async (version) => {
+        await mobileApi.acceptCampaignTerms(campaign.id, version);
+        await refresh();
+        Alert.alert('Terms accepted', `You accepted version ${version} of the ${campaign.name} terms.`);
+      }}
+    />
+  );
+  const withdraw = () =>
+    Alert.alert('Withdraw request?', `Your reserved slot in ${campaign.name} will be released.`, [
+      { text: 'Keep request', style: 'cancel' },
+      {
+        text: 'Withdraw',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await mobileApi.withdrawCampaignRequest(campaignId);
+            await refresh();
+          } catch (err) {
+            Alert.alert('Could not withdraw', err.message);
+          }
+        },
+      },
+    ]);
+
+  // The screen for the rider's stage (design): details + Join → request status → active ride / daily photos.
+  if (mode !== 'details') {
+    if (p) {
+      if (mode === 'daily') return <DailyActivityView campaign={campaign} busy={busy} onTake={takeSlotPhoto} onBack={() => setMode(null)} />;
+      return <ActiveCampaignView campaign={campaign} onBack={onBack} onDaily={() => setMode('daily')} onDetails={() => setMode('details')} />;
+    }
+    if (campaign.my_request && ['REQUESTED', 'REJECTED'].includes(campaign.my_request.status) && ['REQUESTED', 'REJECTED'].includes(campaign.my_status)) {
+      return (
+        <JoinStatusView
+          campaign={campaign}
+          onBack={onBack}
+          onWithdraw={withdraw}
+          onDetails={() => setMode('details')}
+          extras={
+            <>
+              <RequestStatusCard request={campaign.my_request} campaign={campaign} />
+              {termsCard}
+            </>
+          }
+        />
+      );
+    }
+    if (!campaign.my_status) {
+      return (
+        <>
+          <CampaignInfoView
+            campaign={campaign}
+            onBack={onBack}
+            onJoin={joinFlow.start}
+            joining={joinFlow.joining}
+            extras={
+              <>
+                <PickupCard campaign={campaign} myKit={campaign.my_kit} joined={false} />
+                {campaign.video ? <VideoCard campaignId={campaign.id} styles={styles} colors={colors} /> : null}
+                {termsCard}
+              </>
+            }
+          />
+          {joinFlow.sheet}
+        </>
+      );
+    }
+  }
+
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <ScreenHeader title="Campaign" onBack={onBack} />
+      <ScreenHeader title="Campaign" onBack={mode === 'details' ? () => setMode(null) : onBack} />
 
       {campaign.image_url ? <Image source={{ uri: assetUrl(campaign.image_url) }} style={styles.banner} /> : null}
 
       <Card>
         <View style={styles.titleRow}>
+          {campaign.brand_logo ? (
+            <Image source={{ uri: assetUrl(campaign.brand_logo) }} style={styles.brandLogo} />
+          ) : (
+            <View style={[styles.brandLogo, styles.brandLetter]}>
+              <Text style={styles.brandLetterText}>{(campaign.brand_name || '?').charAt(0).toUpperCase()}</Text>
+            </View>
+          )}
           <View style={{ flex: 1 }}>
-            <Text style={styles.title}>{campaign.name}</Text>
             <Text style={styles.brand}>{campaign.brand_name}</Text>
+            <Text style={styles.title}>{campaign.name}</Text>
+            <Text style={styles.code}>{campaign.code}</Text>
           </View>
           <StatusBadge status={campaign.my_status || campaign.status} />
+        </View>
+        {campaign.opening_soon && !campaign.my_status ? (
+          <View style={styles.soon}>
+            <Text style={styles.soonLabel}>OPENING SOON · STARTS IN</Text>
+            <Countdown startsAt={campaign.starts_at} style={styles.soonClock} />
+          </View>
+        ) : null}
+        <View style={styles.bigStats}>
+          <View style={styles.bigStat}>
+            <Text style={[styles.bigValue, { color: colors.success }]}>{formatINR(campaign.daily_rate)}</Text>
+            <Text style={styles.bigLabel}>Per completed day</Text>
+          </View>
+          <View style={styles.bigStat}>
+            <Text style={[styles.bigValue, full && { color: colors.warning }]}>
+              {campaign.remaining_slots} / {campaign.slot_capacity || campaign.total_slots}
+            </Text>
+            <Text style={styles.bigLabel}>Slots left</Text>
+          </View>
         </View>
         <View style={[styles.lifecycle, { backgroundColor: toneColors(colors, isLive ? 'success' : lifecycle.key === 'OPEN' ? 'primary' : 'neutral').bg }]}>
           <View style={[styles.lifecycleDot, { backgroundColor: toneColors(colors, isLive ? 'success' : lifecycle.key === 'OPEN' ? 'primary' : 'neutral').fg }]} />
@@ -202,9 +304,13 @@ export default function CampaignDetailScreen({ campaignId, onBack, onChanged }) 
         <View style={styles.infoGrid}>
           {[
             ['calendar-outline', 'Dates', formatDateRange(campaign.start_date, campaign.end_date)],
-            ['cash-outline', 'Daily payout', `${formatINR(campaign.daily_rate)} / eligible day`],
-            ['people-outline', 'Slots', `${campaign.filled_slots} / ${campaign.slot_capacity || campaign.total_slots} assigned`],
-            campaign.location_area ? ['location-outline', 'Area', campaign.location_area] : null,
+            campaign.location_area || campaign.distance_km != null
+              ? ['location-outline', 'Location', [campaign.location_area, distanceLabel(campaign.distance_km)].filter(Boolean).join(' · ')]
+              : null,
+            campaign.starts_at ? ['time-outline', 'Starts', startLabel(campaign)] : null,
+            campaign.daily_start_time && campaign.daily_end_time
+              ? ['sunny-outline', 'Daily hours', `${campaign.daily_start_time} – ${campaign.daily_end_time}`]
+              : null,
             ['bicycle-outline', 'Vehicle type', campaign.eligible_vehicle_label || 'All vehicles'],
             ['flag-outline', 'Campaign status', lifecycle.label],
           ].filter(Boolean).map(([icon, label, value]) => (
@@ -436,11 +542,21 @@ export default function CampaignDetailScreen({ campaignId, onBack, onChanged }) 
 
       {campaign.video ? <VideoCard campaignId={campaign.id} styles={styles} colors={colors} /> : null}
 
-      {campaign.rules.length ? (
+      {campaign.target && campaign.target.lat != null && !p ? (
+        <>
+          <SectionHeader title="Campaign Area" />
+          <CampaignMapView campaigns={[campaign]} myLocation={locationParams} height={200} selectedId={campaign.id} />
+          {campaign.in_my_area ? (
+            <Text style={[styles.todayText, { marginTop: 8 }]}>This campaign is in your working area: {campaign.my_area_label}.</Text>
+          ) : null}
+        </>
+      ) : null}
+
+      {(campaign.requirements || campaign.rules).length ? (
         <>
           <SectionHeader title="Requirements" />
           <Card style={{ gap: 10 }}>
-            {campaign.rules.map((rule) => (
+            {(campaign.requirements || campaign.rules).map((rule) => (
               <View key={rule} style={styles.ruleRow}>
                 <Ionicons name="checkmark-circle-outline" size={18} color={colors.primary} />
                 <Text style={styles.body}>{rule}</Text>
@@ -498,7 +614,7 @@ export default function CampaignDetailScreen({ campaignId, onBack, onChanged }) 
               </View>
             </View>
           ) : campaign.can_join ? (
-            <PrimaryButton label="Join Campaign" onPress={joinFlow.start} loading={joinFlow.joining} />
+            <PrimaryButton label="Register for Campaign" onPress={joinFlow.start} loading={joinFlow.joining} />
           ) : campaign.join_blocked_reason ? (
             <View style={styles.blocked}>
               <Ionicons name="information-circle-outline" size={18} color={colors.textMuted} />
@@ -529,6 +645,17 @@ export default function CampaignDetailScreen({ campaignId, onBack, onChanged }) 
 
 const makeStyles = (c) =>
   StyleSheet.create({
+    brandLogo: { width: 48, height: 48, borderRadius: 14, marginRight: 12 },
+    brandLetter: { backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center' },
+    brandLetterText: { color: '#FFFFFF', fontSize: 20, fontWeight: '800' },
+    code: { fontSize: 11, color: c.textSubtle, marginTop: 2, fontWeight: '600' },
+    soon: { marginTop: 14, backgroundColor: c.warningSoft, borderRadius: 14, padding: 12, alignItems: 'center' },
+    soonLabel: { fontSize: 11, fontWeight: '800', color: c.warning, letterSpacing: 0.5 },
+    soonClock: { fontSize: 26, fontWeight: '800', color: c.warning, marginTop: 4, fontVariant: ['tabular-nums'] },
+    bigStats: { flexDirection: 'row', gap: 10, marginTop: 14 },
+    bigStat: { flex: 1, backgroundColor: c.surfaceAlt, borderRadius: 14, padding: 12 },
+    bigValue: { fontSize: 22, fontWeight: '800', color: c.text },
+    bigLabel: { fontSize: 12, color: c.textMuted, marginTop: 2 },
     plateNotice: { flexDirection: 'row', gap: 8, alignItems: 'flex-start', borderRadius: 10, padding: 10, marginBottom: 8 },
     plateText: { flex: 1, fontSize: 13, lineHeight: 18, color: c.text, fontWeight: '600' },
     screen: { flex: 1, backgroundColor: c.background },

@@ -1,9 +1,16 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 // The splash screen keeps the dark brand look in both light and dark themes.
-export default function SplashScreen({ onLogin, onLoginWithOtp, onRegister, showOtp = false }) {
+const ROLES = [
+  { key: 'RIDER', icon: 'bicycle', title: 'Rider', text: 'Find and participate in campaigns' },
+  { key: 'BRAND', icon: 'business', title: 'Brand', text: 'Create and manage advertising campaigns' },
+];
+
+export default function SplashScreen({ onLogin, onLoginWithOtp, onRegister, onCustomerLogin, onCustomerSignup, showOtp = false }) {
+  const [role, setRole] = useState('RIDER');
+  const brand = role === 'BRAND';
   return (
     <View style={styles.screen}>
       <View style={styles.glowTop} />
@@ -32,21 +39,41 @@ export default function SplashScreen({ onLogin, onLoginWithOtp, onRegister, show
       </View>
 
       <View>
-        <Text style={styles.headline}>Deliver smiles.</Text>
-        <Text style={styles.headline}>Earn better, every day.</Text>
+        <Text style={styles.headline}>Welcome to FlexRiders</Text>
 
-        <TouchableOpacity style={styles.primary} onPress={onLogin} activeOpacity={0.85}>
-          <Text style={styles.primaryText}>Login</Text>
+        <Text style={styles.continueAs}>Continue as</Text>
+        <View style={styles.roles}>
+          {ROLES.map((r) => {
+            const active = role === r.key;
+            return (
+              <TouchableOpacity
+                key={r.key}
+                style={[styles.role, active && styles.roleActive]}
+                onPress={() => setRole(r.key)}
+                activeOpacity={0.85}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: active }}
+              >
+                <Ionicons name={r.icon} size={22} color={active ? '#FFFFFF' : '#93C5FD'} />
+                <Text style={styles.roleTitle}>{r.title}</Text>
+                <Text style={styles.roleText}>{r.text}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <TouchableOpacity style={styles.primary} onPress={brand ? onCustomerLogin : onLogin} activeOpacity={0.85}>
+          <Text style={styles.primaryText}>Continue</Text>
         </TouchableOpacity>
-        {showOtp ? (
-        <TouchableOpacity style={styles.outline} onPress={onLoginWithOtp} activeOpacity={0.85}>
-          <Text style={styles.outlineText}>Login with OTP</Text>
-        </TouchableOpacity>
+        {showOtp && !brand ? (
+          <TouchableOpacity style={styles.outline} onPress={onLoginWithOtp} activeOpacity={0.85}>
+            <Text style={styles.outlineText}>Login with OTP</Text>
+          </TouchableOpacity>
         ) : null}
 
-        <TouchableOpacity onPress={onRegister} style={{ marginTop: 20 }}>
+        <TouchableOpacity onPress={brand ? onCustomerSignup || onCustomerLogin : onRegister} style={{ marginTop: 16 }}>
           <Text style={styles.registerPrompt}>
-            Don't have an account? <Text style={styles.registerLink}>Register</Text>
+            Don't have an account? <Text style={styles.registerLink}>{brand ? 'Sign up as a Brand' : 'Register as a Rider'}</Text>
           </Text>
         </TouchableOpacity>
       </View>
@@ -73,9 +100,9 @@ const styles = StyleSheet.create({
   tagline: { fontSize: 14, color: '#BFDBFE', marginTop: 8, letterSpacing: 0.5 },
   art: { alignItems: 'center', justifyContent: 'center' },
   ringOuter: {
-    width: 244,
-    height: 244,
-    borderRadius: 122,
+    width: 196,
+    height: 196,
+    borderRadius: 98,
     borderWidth: 1.5,
     borderColor: 'rgba(96, 165, 250, 0.35)',
     alignItems: 'center',
@@ -83,9 +110,9 @@ const styles = StyleSheet.create({
   },
   // The rider photo sits in a glowing brand-blue circle (the photo's background is transparent).
   ringInner: {
-    width: 216,
-    height: 216,
-    borderRadius: 108,
+    width: 172,
+    height: 172,
+    borderRadius: 86,
     overflow: 'hidden',
     backgroundColor: '#1E3A8A',
     borderWidth: 3,
@@ -95,7 +122,7 @@ const styles = StyleSheet.create({
     shadowRadius: 24,
     shadowOffset: { width: 0, height: 0 },
   },
-  rider: { width: 216, height: 324, marginTop: 6 },
+  rider: { width: 172, height: 258, marginTop: 5 },
   chip: {
     position: 'absolute',
     flexDirection: 'row',
@@ -125,4 +152,31 @@ const styles = StyleSheet.create({
   outlineText: { color: '#FFFFFF', fontSize: 16, fontWeight: '600' },
   registerPrompt: { color: '#CBD5E1', fontSize: 14, textAlign: 'center' },
   registerLink: { color: '#60A5FA', fontWeight: '700' },
+  continueAs: { color: '#CBD5E1', fontSize: 13, fontWeight: '700', marginTop: 18, marginBottom: 10, textAlign: 'center', letterSpacing: 0.5 },
+  roles: { flexDirection: 'row', gap: 10 },
+  role: {
+    flex: 1,
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(96, 165, 250, 0.35)',
+    backgroundColor: 'rgba(30, 58, 138, 0.25)',
+    gap: 4,
+  },
+  roleActive: { borderColor: '#3B82F6', backgroundColor: 'rgba(37, 99, 235, 0.55)' },
+  roleTitle: { color: '#FFFFFF', fontSize: 16, fontWeight: '800', marginTop: 4 },
+  roleText: { color: '#CBD5E1', fontSize: 12, lineHeight: 16 },
+  customerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 18,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(96, 165, 250, 0.4)',
+    borderRadius: 14,
+    backgroundColor: 'rgba(30, 58, 138, 0.25)',
+  },
+  customerBtnText: { color: '#93C5FD', fontSize: 14, fontWeight: '700' },
 });

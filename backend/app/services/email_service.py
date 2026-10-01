@@ -69,7 +69,7 @@ def client_key(address: str) -> str:
 def rate_limited(db: Session, purpose: str, email: str, request_key: str) -> bool:
     since = datetime.utcnow() - timedelta(hours=1)
     per_email = db.query(func.count(EmailCode.id)).filter(EmailCode.purpose == purpose, EmailCode.email == email, EmailCode.created_at >= since).scalar()
-    per_client = db.query(func.count(EmailCode.id)).filter(EmailCode.request_key == request_key, EmailCode.created_at >= since).scalar()
+    per_client = db.query(func.count(EmailCode.id)).filter(~EmailCode.purpose.in_(("VERIFY_PHONE", "LOGIN_PHONE", "RESET_PHONE")), EmailCode.request_key == request_key, EmailCode.created_at >= since).scalar()  # SMS codes have their own limit
     return per_email >= PER_EMAIL_PER_HOUR or per_client >= PER_CLIENT_PER_HOUR
 
 

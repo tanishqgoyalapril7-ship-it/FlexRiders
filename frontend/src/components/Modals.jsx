@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { api } from '../services/api';
 import { vehicleLabel } from './CampaignShared';
+import RiderDocuments from './RiderDocuments';
 import { X, CheckCircle, XCircle, AlertTriangle, FileText, Check, Shield } from 'lucide-react';
 
 /** Issues a temporary password (shown once) for a rider who can't reset by email. */
@@ -262,39 +263,7 @@ export function RiderDetailModal({
             <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0F172A', marginBottom: '8px' }}>
               VERIFICATION DOCUMENTS
             </div>
-            {rider.documents && rider.documents.length > 0 ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {rider.documents.map((doc) => (
-                  <div
-                    key={doc.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '10px 14px',
-                      background: '#FFFFFF',
-                      border: '1px solid #E2E8F0',
-                      borderRadius: '8px',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                      <FileText size={18} color="#2563EB" />
-                      <div>
-                        <div style={{ fontSize: '0.82rem', fontWeight: 600 }}>{doc.doc_type}</div>
-                        <div style={{ fontSize: '0.72rem', color: '#94A3B8' }}>{doc.file_name}</div>
-                      </div>
-                    </div>
-                    <span className="status-pill pill-approved" style={{ fontSize: '0.68rem' }}>
-                      {doc.status}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div style={{ fontSize: '0.8rem', color: '#94A3B8', fontStyle: 'italic' }}>
-                No documents uploaded. Verify the rider's Driving Licence, Aadhaar and vehicle RC offline.
-              </div>
-            )}
+            <RiderDocuments riderId={rider.id} />
           </div>
 
           {/* Brand Assignment Section */}

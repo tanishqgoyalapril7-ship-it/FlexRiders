@@ -41,6 +41,8 @@ class FakeStorage:
             for p in kw["json"]["prefixes"]:
                 self.objects.pop(p, None)
             return httpx.Response(200, json=[])
+        if method == "POST" and url == settings.SUPABASE_URL + "/realtime/v1/api/broadcast":
+            return httpx.Response(202)  # Realtime campaign signals (best effort, payload has no data)
         raise AssertionError(f"unexpected {method} {url}")
 
 

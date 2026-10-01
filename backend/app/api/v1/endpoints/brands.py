@@ -10,6 +10,7 @@ from app.schemas.all_schemas import (
     BrandAssignmentRequest,
 )
 from app.api.deps import get_current_admin
+from app.core.security import UserRole
 from app.services.audit_service import log_admin_action
 from app.services.notification_service import send_notification
 from app.services import data_admin_service as das
@@ -18,6 +19,7 @@ from typing import List, Optional
 
 from app.models.campaign_models import (
     Campaign,
+    CampaignStatus,
     BrandPaymentRecord,
     BrandPaymentRecordStatus,
     BrandPaymentMode,
@@ -43,7 +45,17 @@ def _current_rider_count(db: Session, brand_id: int) -> int:
 
 def _brand_response(db: Session, brand: Brand, include_financials: bool = True) -> BrandResponse:
     fin = fs.brand_account_financials(db, brand) if include_financials else None
+    account = (
+        db.query(User).filter(User.brand_id == brand.id, User.role == UserRole.CUSTOMER).order_by(User.id).first()
+    )
+    statuses = [s for (s,) in db.query(Campaign.status).filter(Campaign.brand_id == brand.id)]
     return BrandResponse(
+        has_account=account is not None,
+        account_email=account.email if account else None,
+        account_phone=account.phone if account else None,
+        campaigns_count=len(statuses),
+        live_campaigns_count=sum(1 for st in statuses if st in CampaignStatus.PUBLISHED),
+        requested_campaigns_count=sum(1 for st in statuses if st in (CampaignStatus.PENDING_APPROVAL, CampaignStatus.CHANGES_REQUIRED)),
         id=brand.id,
         name=brand.name,
         code=brand.code,
@@ -81,7 +93,8 @@ def _check_unique(db: Session, name: str, code: str, exclude_id: int = None):
 
 @router.get("", response_model=List[BrandResponse])
 def get_brands(
-    active_only: bool = False, search: Optional[str] = None, db: Session = Depends(get_db), admin: User = Depends(get_current_admin)
+    active_only: bool = False, search: Optional[str] = None, registered_only: bool = False,
+    db: Session = Depends(get_db), admin: User = Depends(get_current_admin)
 ):
     """Lists brands (customers) created by admins. Pass active_only=true for assignment and campaign pickers.
     search matches the brand name or code, contact person or number, or one of the brand's campaign names."""
@@ -97,6 +110,8 @@ def get_brands(
                 Brand.contact_number.ilike(term), Brand.id.in_(campaign_brands),
             )
         )
+    if registered_only:  # Brands that signed up for (or were given) a brand app login
+        query = query.filter(Brand.id.in_(db.query(User.brand_id).filter(User.role == UserRole.CUSTOMER)))
     return [_brand_response(db, b) for b in query.order_by(Brand.name).all()]
 
 

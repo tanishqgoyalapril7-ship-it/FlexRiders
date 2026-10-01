@@ -323,13 +323,16 @@ def operations_overview(db: Session = Depends(get_db), admin: User = Depends(get
     # --- Campaigns (4 queries) ----------------------------------------------------------------
     campaigns = (
         db.query(Campaign)
-        .options(joinedload(Campaign.brand), selectinload(Campaign.extensions))
-        .filter(Campaign.status.notin_((CampaignStatus.DRAFT, CampaignStatus.CANCELLED)))
+        .options(joinedload(Campaign.brand), joinedload(Campaign.created_by), selectinload(Campaign.extensions))
+        # Brand requests (awaiting review, changes requested, rejected) live in Campaign Requests, not here.
+        .filter(Campaign.status.notin_((CampaignStatus.CANCELLED, CampaignStatus.REJECTED) + svc.REQUEST_STATUSES))
         .order_by(Campaign.start_date.desc())
         .all()
     )
     recent_cutoff = now - timedelta(days=14)
     campaigns = [c for c in campaigns if not (c.status == CampaignStatus.COMPLETED and (c.completed_at or datetime.min) < recent_cutoff)]
+    # Drafts stay off the overview, except a brand's approved campaign waiting for an admin to publish it.
+    campaigns = [c for c in campaigns if c.status != CampaignStatus.DRAFT or (svc._created_by_brand(c) and c.approved_at)]
     ids = [c.id for c in campaigns] or [0]
     used = dict(
         db.query(CampaignAssignment.campaign_id, func.count(CampaignAssignment.id))
@@ -351,6 +354,8 @@ def operations_overview(db: Session = Depends(get_db), admin: User = Depends(get
         status = c.status
         if status in CampaignStatus.PUBLISHED:  # Same rule as sync_campaign_status, without writing
             status = CampaignStatus.FULL if slots >= svc.slot_capacity(c) else CampaignStatus.ACTIVE if c.start_date <= today else CampaignStatus.OPEN
+        elif status == CampaignStatus.DRAFT:
+            status = "APPROVED"  # Approved brand campaign, not live until published
         contracted = fs.contracted_rider_days(c)
         # Delivered = approved days, one per rider per date, on eligible dates (as the Delivery tab counts).
         delivered = min(sum(1 for _, day in approved_days.get(c.id, ()) if fs.is_eligible_date(c, day)), contracted)
@@ -401,6 +406,7 @@ def operations_overview(db: Session = Depends(get_db), admin: User = Depends(get
     counts = db.query(
         db.query(func.count(CampaignApplication.id)).filter(CampaignApplication.status == "REQUESTED").scalar_subquery(),
         db.query(func.count(CampaignActivityPhoto.id)).filter(CampaignActivityPhoto.status == PhotoStatus.PENDING).scalar_subquery(),
+        db.query(func.count(Campaign.id)).filter(Campaign.status == CampaignStatus.PENDING_APPROVAL).scalar_subquery(),
     ).one()
 
     # --- Payments (4 queries) -----------------------------------------------------------------
@@ -466,6 +472,8 @@ def operations_overview(db: Session = Depends(get_db), admin: User = Depends(get
             "active_campaigns": len(live),
             "running_campaigns": sum(1 for r in live if r["status"] == CampaignStatus.ACTIVE),
             "pending_join_requests": counts[0],
+            "campaign_requests": counts[2],  # Brand campaign requests awaiting review
+            "ready_to_publish": sum(1 for r in campaign_rows if r["status"] == "APPROVED"),
         },
         "campaigns": campaign_rows,
         "rider_activity": {

@@ -48,7 +48,8 @@ class User(Base):
     phone = Column(String(20), unique=True, index=True, nullable=False)
     email = Column(String(120), unique=True, index=True, nullable=True)
     hashed_password = Column(String(255), nullable=True)
-    role = Column(String(30), default="RIDER", nullable=False)  # SUPER_ADMIN, ADMIN, FINANCE_ADMIN, OPERATIONS_ADMIN, RIDER
+    role = Column(String(30), default="RIDER", nullable=False)  # SUPER_ADMIN, ADMIN, FINANCE_ADMIN, OPERATIONS_ADMIN, RIDER, CUSTOMER
+    brand_id = Column(Integer, ForeignKey("brands.id"), nullable=True, index=True)
     is_active = Column(Boolean, default=True)
     # Logins issued before this moment stop working (password reset / change signs out other devices).
     password_changed_at = Column(DateTime, nullable=True)
@@ -60,6 +61,7 @@ class User(Base):
 
     # Relationships
     rider_profile = relationship("Rider", back_populates="user", uselist=False, cascade="all, delete-orphan")
+    brand = relationship("Brand", foreign_keys=[brand_id])
     notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
     audit_logs = relationship("AuditLog", back_populates="admin")
 
@@ -77,6 +79,7 @@ class Rider(Base):
     email = Column(String(120), nullable=True)
     profile_photo = Column(String(500), nullable=True)
     dob = Column(String(30), nullable=True)
+    gender = Column(String(20), nullable=True)  # MALE, FEMALE, OTHER, or not given
 
     # Work Information
     current_company = Column(String(120), nullable=True)
@@ -91,7 +94,11 @@ class Rider(Base):
     primary_city = Column(String(80), nullable=False, default="Gurugram")
     primary_area = Column(String(120), nullable=True)
     additional_locations = Column(Text, nullable=True)
-    preferred_radius = Column(String(40), default="10 km")
+    preferred_radius = Column(String(40), default="10 km")  # Legacy; no longer asked (working areas replace it)
+    # Last device location the rider app reported (only while the app is in use; see geo_service).
+    last_lat = Column(Float, nullable=True, index=True)
+    last_lng = Column(Float, nullable=True, index=True)
+    last_located_at = Column(DateTime, nullable=True)
 
     # Payment Information
     upi_id = Column(String(100), nullable=True)
@@ -119,6 +126,26 @@ class Rider(Base):
     brand_assignments = relationship("RiderBrandAssignment", back_populates="rider", cascade="all, delete-orphan", foreign_keys="RiderBrandAssignment.rider_id")
     payments = relationship("Payment", back_populates="rider", cascade="all, delete-orphan")
     support_tickets = relationship("SupportTicket", back_populates="rider", cascade="all, delete-orphan")
+    working_areas = relationship(
+        "RiderWorkingArea", back_populates="rider", cascade="all, delete-orphan", order_by="RiderWorkingArea.position"
+    )
+
+
+class RiderWorkingArea(Base):
+    """One of up to three areas a rider usually works in. A prioritisation signal for campaign matching,
+    never a hard restriction and never treated as the rider's current location."""
+
+    __tablename__ = "rider_working_areas"
+
+    id = Column(Integer, primary_key=True, index=True)
+    rider_id = Column(Integer, ForeignKey("riders.id", ondelete="CASCADE"), nullable=False, index=True)
+    label = Column(String(200), nullable=False)  # e.g. "Sector 54, Gurugram" (from the geocoder)
+    latitude = Column(Float, nullable=False, index=True)
+    longitude = Column(Float, nullable=False, index=True)
+    position = Column(Integer, default=0, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    rider = relationship("Rider", back_populates="working_areas")
 
 
 class RiderDocument(Base):
@@ -150,6 +177,8 @@ class Brand(Base):
     # The brand's logo is only shown on public pages once an admin confirms FlexRiders may use it.
     public_assets_approved = Column(Boolean, default=False, nullable=True)
     contract_amount = Column(Float, default=0.0, nullable=True)
+    gst_number = Column(String(30), nullable=True)
+    address = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

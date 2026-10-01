@@ -1,7 +1,68 @@
 import logoDark from '../assets/fr-mark-dark.png';
-import React, { useEffect, useState } from 'react';
-import { Bike, CalendarDays, Camera, CheckCircle2, Clock, MapPin, Shirt, Smartphone } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
+import { Bike, CalendarDays, Camera, CheckCircle2, Clock, Hash, MapPin, Shirt, Smartphone, Users } from 'lucide-react';
 import { api } from '../services/api';
+
+const TILE_URL = import.meta.env.VITE_MAP_TILE_URL || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+const TILE_ATTRIBUTION =
+  import.meta.env.VITE_MAP_ATTRIBUTION || '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+
+/** The campaign's target area only (never rider positions). */
+function AreaMap({ area, label }) {
+  const el = useRef(null);
+  useEffect(() => {
+    // The view must be set before layers are added (a circle has no bounds until it is on a map with a view).
+    const bounds = L.latLng(area.lat, area.lng).toBounds(area.radius_km * 2000);
+    const map = L.map(el.current, { scrollWheelZoom: false, attributionControl: true }).fitBounds(bounds, { padding: [16, 16] });
+    L.tileLayer(TILE_URL, { maxZoom: 18, attribution: TILE_ATTRIBUTION }).addTo(map);
+    const circle = L.circle([area.lat, area.lng], { radius: area.radius_km * 1000, color: '#2563EB', weight: 2, fillOpacity: 0.1 }).addTo(map);
+    if (label) circle.bindTooltip(label);
+    return () => map.remove();
+  }, [area.lat, area.lng, area.radius_km]);
+  return <div ref={el} className="pub-map" />;
+}
+
+/** Approved campaign photos (newest first), loaded a page at a time. */
+function ApprovedPhotos({ slug, initial }) {
+  const [items, setItems] = useState(initial.items);
+  const [next, setNext] = useState(initial.next_before_id);
+  const [busy, setBusy] = useState(false);
+  const more = async () => {
+    setBusy(true);
+    try {
+      const page = await api.getPublicCampaignPhotos(slug, next);
+      setItems((prev) => [...prev, ...page.items]);
+      setNext(page.next_before_id);
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (!items.length) return <p className="pub-muted">Approved campaign photos will appear here once riders' photos are reviewed.</p>;
+  return (
+    <>
+      <div className="pub-photos">
+        {items.map((p) => (
+          <figure key={p.id}>
+            <a href={p.photo_url} target="_blank" rel="noreferrer">
+              <img src={p.photo_url} alt={`Campaign photo, ${fmtDate(p.date)}`} loading="lazy" />
+            </a>
+            <figcaption>
+              {fmtDate(p.date)}
+              {p.slot_label ? ` · ${p.slot_label}` : ''}
+            </figcaption>
+          </figure>
+        ))}
+      </div>
+      {next ? (
+        <button className="pub-more" onClick={more} disabled={busy}>
+          {busy ? 'Loading…' : 'Show more photos'}
+        </button>
+      ) : null}
+    </>
+  );
+}
 
 const fmtDate = (iso) => new Date(`${iso}T00:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 const fmtTime = (t) => {
@@ -44,6 +105,8 @@ export default function PublicCampaignPage({ slug }) {
   }
 
   const facts = [
+    [Hash, 'Campaign ID', data.code],
+    [Users, 'Riders', `${data.riders.joined} / ${data.riders.required}`],
     [CalendarDays, 'Campaign dates', `${fmtDate(data.start_date)} – ${fmtDate(data.end_date)}`],
     data.location_area ? [MapPin, 'Location / area', data.location_area] : null,
     [Bike, 'Vehicle type', data.eligible_vehicles],
@@ -80,6 +143,19 @@ export default function PublicCampaignPage({ slug }) {
             </div>
           ))}
         </div>
+
+        {data.area ? (
+          <section className="pub-section">
+            <h2>Campaign area</h2>
+            <AreaMap area={data.area} label={data.location_area} />
+          </section>
+        ) : null}
+
+        <section className="pub-section">
+          <h2>Campaign activity</h2>
+          <p className="pub-muted">{data.approved_photos.total} approved photo{data.approved_photos.total === 1 ? '' : 's'} from riders.</p>
+          <ApprovedPhotos slug={data.slug} initial={data.approved_photos} />
+        </section>
 
         {data.requirements.length ? (
           <section className="pub-section">

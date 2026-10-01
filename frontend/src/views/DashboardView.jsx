@@ -20,6 +20,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { api } from '../services/api';
+import { subscribeCampaignSignals } from '../services/realtime';
 
 const inr = (n) => `₹${Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
 const dayMonth = (iso) => new Date(`${iso.slice(0, 10)}T00:00:00`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
@@ -49,6 +50,7 @@ const STATUS = {
   FAILED: ['Failed', 'dpill-red'],
   CANCELLED: ['Cancelled', 'dpill-gray'],
   PROCESSING: ['Processing', 'dpill-blue'],
+  APPROVED: ['Approved · Not Live', 'dpill-amber'],
 };
 
 const FEED_ICONS = {
@@ -121,7 +123,11 @@ export function DashboardView({ onQuickAction, onOpenCampaign }) {
         .catch((err) => setError(err.message));
     load();
     const id = setInterval(() => document.visibilityState === 'visible' && load(), 15000);
-    return () => clearInterval(id);
+    const unsubscribe = subscribeCampaignSignals(() => load()); // New requests, approvals and go-lives show at once
+    return () => {
+      clearInterval(id);
+      unsubscribe();
+    };
   }, []);
 
   const k = ops ? ops.kpis : null;
@@ -184,14 +190,21 @@ export function DashboardView({ onQuickAction, onOpenCampaign }) {
         <section className="card dcard">
           <div className="dcard-head">
             <h2>Campaign Overview</h2>
-            <button className="dlink" onClick={() => onQuickAction('campaigns')}>
-              View all campaigns
-            </button>
+            <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
+              {k && k.campaign_requests ? (
+                <button className="dlink" style={{ color: '#D97706' }} onClick={() => onQuickAction('campaign_requests')}>
+                  {k.campaign_requests} campaign request{k.campaign_requests === 1 ? '' : 's'} awaiting review
+                </button>
+              ) : null}
+              <button className="dlink" onClick={() => onQuickAction('campaigns')}>
+                View all campaigns
+              </button>
+            </div>
           </div>
           {!ops ? (
             <Empty icon={Megaphone} text="Loading campaigns…" />
           ) : ops.campaigns.length === 0 ? (
-            <Empty icon={Megaphone} text="No active campaigns" action="Create Campaign" onAction={() => onQuickAction('campaigns')} />
+            <Empty icon={Megaphone} text="No active or approved campaigns" action="Create Campaign" onAction={() => onQuickAction('campaigns')} />
           ) : (
             <div className="table-responsive">
               <table className="dtable">

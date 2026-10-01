@@ -16,12 +16,12 @@ import { mobileApi } from '../services/api';
 import { useStyles, useTheme } from '../theme';
 import { OutlineButton, PrimaryButton, ScreenHeader } from '../components/ui';
 import SelfieCapture from '../components/SelfieCapture';
+import WorkingAreasEditor from '../components/WorkingAreasEditor';
 import { PRIVACY_URL, TERMS_URL, TermsCheckbox } from './TermsConsentScreen';
 import { AutocompleteField, DateOfBirthField, PasswordField, ageOn, VehicleCategoryField, vehicleCategoryLabel, vehicleNumberOptional } from '../components/formFields';
 import {
   CITIES,
   VEHICLE_MODELS,
-  areaSuggestionsFor,
   isValidVehicleNumber,
   normalizeVehicleNumber,
 } from '../data/suggestions';
@@ -73,6 +73,8 @@ export default function RegisterScreen({ onBack, onRegistered, initialReferralCo
   // Driver selfie: { uri, base64 } from the camera. Required unless the server's switch says otherwise
   // (it is optional while testing); if the setting can't be loaded, the selfie stays required.
   const [selfie, setSelfie] = useState(null);
+  const [workingAreas, setWorkingAreas] = useState([]); // [{label, lat, lng}] from the area search
+  const [pickingAreas, setPickingAreas] = useState(false);
   const [selfieRequired, setSelfieRequired] = useState(true);
   // "I agree to the FlexRiders Terms & Conditions and Privacy Policy." (required to submit)
   const [acceptedTerms, setAcceptedTerms] = useState(false);
@@ -142,6 +144,7 @@ export default function RegisterScreen({ onBack, onRegistered, initialReferralCo
       if (selfie) trimmed.selfie = selfie.base64;
       if (emailRequired) trimmed.email_code = emailCode;
       trimmed.accept_terms = true;
+      if (workingAreas.length) trimmed.working_areas = workingAreas;
       const result = await mobileApi.register(trimmed);
       await onRegistered(result);
     } catch (err) {
@@ -160,7 +163,8 @@ export default function RegisterScreen({ onBack, onRegistered, initialReferralCo
     ['Vehicle Type', vehicleCategoryLabel(form.vehicle_category)],
     ['Vehicle', form.vehicle_type],
     ['Vehicle Number', normalizeVehicleNumber(form.vehicle_number)],
-    ['Location', [form.primary_city, form.primary_area].filter(Boolean).join(', ')],
+    ['City', form.primary_city],
+    ['Working Areas', workingAreas.map((a) => a.label).join(' · ')],
     ['UPI ID', form.upi_id],
   ];
 
@@ -307,12 +311,26 @@ export default function RegisterScreen({ onBack, onRegistered, initialReferralCo
               options={CITIES}
               placeholder="Start typing, e.g. Gur"
             />
-            <AutocompleteField
-              label="Area / Zone"
-              value={form.primary_area}
-              onChangeText={set('primary_area')}
-              options={areaSuggestionsFor(form.primary_city)}
-              placeholder="Start typing, e.g. Sector"
+            <Text style={styles.label}>Your Working Areas</Text>
+            <Text style={[styles.hint, { marginTop: 0, marginBottom: 10 }]}>
+              Select up to 3 major areas where you normally work. Campaigns in these areas will be prioritized for you.
+            </Text>
+            {workingAreas.map((a) => (
+              <View key={a.label} style={styles.areaRow}>
+                <Ionicons name="location" size={16} color={colors.primary} />
+                <Text style={styles.areaText} numberOfLines={1}>{a.label}</Text>
+              </View>
+            ))}
+            <TouchableOpacity style={styles.areaButton} onPress={() => setPickingAreas(true)}>
+              <Ionicons name={workingAreas.length ? 'create-outline' : 'add-circle-outline'} size={18} color={colors.primary} />
+              <Text style={styles.areaButtonText}>{workingAreas.length ? 'Change working areas' : 'Select working areas'}</Text>
+            </TouchableOpacity>
+            <WorkingAreasEditor
+              visible={pickingAreas}
+              initialAreas={workingAreas}
+              onClose={() => setPickingAreas(false)}
+              onSave={async (areas) => setWorkingAreas(areas)}
+              saveLabel="Continue"
             />
           </>
         )}
@@ -409,6 +427,10 @@ const makeStyles = (c) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: c.background },
     padded: { paddingHorizontal: 20 },
+    areaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: c.primarySoft, borderRadius: 12, padding: 12, marginBottom: 8 },
+    areaText: { flex: 1, fontSize: 14, fontWeight: '600', color: c.text },
+    areaButton: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 12, marginBottom: 16 },
+    areaButtonText: { fontSize: 14, fontWeight: '700', color: c.primary },
     stepper: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 4, marginBottom: 18 },
     stepItem: { alignItems: 'center', flex: 1 },
     stepDot: {

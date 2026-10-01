@@ -1,4 +1,4 @@
-import { Platform } from 'react-native';
+import { NativeModules, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // In development:
@@ -7,9 +7,24 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // - Physical Devices: use your computer's local Wi-Fi IP
 // Release builds never fall back to a development address: without EXPO_PUBLIC_API_URL they use the live API.
 const PRODUCTION_API_URL = 'https://flexriders-api.vercel.app/api/v1';
+// While developing, the app is loaded from Metro on the computer, so the computer's current Wi-Fi address is
+// in the bundle URL. A local API address (192.168.x.x etc.) follows it, so a new Wi-Fi address doesn't break login.
+const LAN_HOST = /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/;
+const devHost = () => {
+  try {
+    const url = NativeModules.SourceCode && NativeModules.SourceCode.scriptURL;
+    const host = url ? url.split('://')[1].split(/[:/]/)[0] : '';
+    return LAN_HOST.test(host) ? host : '';
+  } catch (e) {
+    return '';
+  }
+};
 const getDefaultBaseUrl = () => {
   if (process.env.EXPO_PUBLIC_API_URL) {
-    return process.env.EXPO_PUBLIC_API_URL;
+    const configured = process.env.EXPO_PUBLIC_API_URL;
+    const host = __DEV__ ? devHost() : '';
+    const [, scheme, configuredHost, rest] = /^(https?:\/\/)([^:/]+)(.*)$/.exec(configured) || [];
+    return host && LAN_HOST.test(configuredHost || '') ? `${scheme}${host}${rest}` : configured;
   }
   if (!__DEV__) {
     return PRODUCTION_API_URL;
@@ -48,17 +63,35 @@ const formatError = (err, fallback) => {
 };
 
 const TOKEN_KEY = 'sr_rider_token';
+const ROLE_KEY = 'sr_user_role';
 
-// Keeps the rider logged in across app restarts.
-export const setAuthToken = (token) => {
+let authRole = '';
+
+// Keeps the user logged in across app restarts.
+export const setAuthToken = (token, role) => {
   authToken = token || '';
-  (token ? AsyncStorage.setItem(TOKEN_KEY, token) : AsyncStorage.removeItem(TOKEN_KEY)).catch(() => {});
+  if (role !== undefined) authRole = role || '';
+  if (token) {
+    AsyncStorage.setItem(TOKEN_KEY, token).catch(() => {});
+    if (role) AsyncStorage.setItem(ROLE_KEY, role).catch(() => {});
+  } else {
+    AsyncStorage.removeItem(TOKEN_KEY).catch(() => {});
+    AsyncStorage.removeItem(ROLE_KEY).catch(() => {});
+    authRole = '';
+  }
 };
 
 export const loadStoredToken = async () => {
-  authToken = (await AsyncStorage.getItem(TOKEN_KEY).catch(() => null)) || '';
+  const [token, role] = await Promise.all([
+    AsyncStorage.getItem(TOKEN_KEY).catch(() => null),
+    AsyncStorage.getItem(ROLE_KEY).catch(() => null),
+  ]);
+  authToken = token || '';
+  authRole = role || '';
   return authToken;
 };
+
+export const getAuthRole = () => authRole;
 
 // Uploaded files are served by the backend under /uploads.
 export const assetUrl = (path) => (path && path.startsWith('/') ? API_BASE_URL.replace(/\/api\/v1$/, '') + path : path);
@@ -130,7 +163,7 @@ export const mobileApi = {
       throw new Error(formatError(err, 'Invalid mobile number or password'));
     }
     const data = await res.json();
-    setAuthToken(data.access_token);
+    setAuthToken(data.access_token, data.role || 'RIDER');
     return data;
   },
 
@@ -141,7 +174,9 @@ export const mobileApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ phone: cleanPhone }),
     });
-    return res.json();
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(formatError(data, 'Could not send the OTP'));
+    return data;
   },
 
   verifyOtp: async (phone, otp) => {
@@ -156,7 +191,7 @@ export const mobileApi = {
       throw new Error(formatError(err, 'Invalid OTP code'));
     }
     const data = await res.json();
-    setAuthToken(data.access_token);
+    setAuthToken(data.access_token, data.role || 'RIDER');
     return data;
   },
 
@@ -197,8 +232,16 @@ export const mobileApi = {
 
   // Password recovery (email code), forced change after an admin reset, email check at registration.
   forgotPassword: (identifier) => publicPost('/auth/password/forgot', { identifier }),
-  resetPassword: (identifier, code, newPassword) => publicPost('/auth/password/reset', { identifier, code, new_password: newPassword }),
+  // A reset by SMS code also logs the rider in (the reply carries a login).
+  resetPassword: async (identifier, code, newPassword) => {
+    const data = await publicPost('/auth/password/reset', { identifier, code, new_password: newPassword });
+    if (data.access_token) setAuthToken(data.access_token, data.role || 'RIDER');
+    return data;
+  },
   sendEmailCode: (email) => publicPost('/auth/email/verification-code', { email }),
+  // Sign-up phone check: a real SMS code from the gateway phone; the returned proof goes with the registration.
+  sendPhoneCode: (phone) => publicPost('/auth/phone/verification-code', { phone }),
+  verifyPhoneCode: (phone, code) => publicPost('/auth/phone/verify-code', { phone, code }),
   changePassword: async (currentPassword, newPassword) => {
     const data = await authedPost('/auth/password/change', { current_password: currentPassword, new_password: newPassword });
     if (data.access_token) setAuthToken(data.access_token); // Other devices are signed out; this one continues
@@ -218,18 +261,38 @@ export const mobileApi = {
   getEarnings: () => authedGet('/riders/me/earnings'),
   getReferrals: () => authedGet('/riders/me/referrals'),
 
-  // Campaigns
-  getCampaigns: () => authedGet('/riders/me/campaigns'),
+  // Campaigns. `coords` is the device's current location ({lat, lng}) when the rider allowed it; the
+  // server matches geo-targeted campaigns to it and to the rider's working areas.
+  getCampaigns: (coords) => {
+    const qs = coords && coords.lat != null ? `?lat=${coords.lat}&lng=${coords.lng}` : '';
+    return authedGet(`/riders/me/campaigns${qs}`);
+  },
+  getCampaign: (campaignId, coords) => {
+    const qs = coords && coords.lat != null ? `?lat=${coords.lat}&lng=${coords.lng}` : '';
+    return authedGet(`/riders/me/campaigns/${campaignId}${qs}`);
+  },
 
-  getCampaign: (campaignId) => authedGet(`/riders/me/campaigns/${campaignId}`),
+  // Working areas (max 3) and area search (real places from the backend geocoder; works before login too).
+  // near: the device's current location ({lat, lng}) so nearby places come first.
+  searchAreas: async (q, near) => {
+    const bias = near && near.lat != null ? `&lat=${near.lat}&lng=${near.lng}` : '';
+    const res = await fetch(`${API_BASE_URL}/geo/search?q=${encodeURIComponent(q)}${bias}`);
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error((data && data.detail) || 'Area search is unavailable right now.');
+    return data;
+  },
+  getWorkingAreas: () => authedGet('/riders/me/working-areas'),
+  updateWorkingAreas: (areas) => authedRequest('PUT', '/riders/me/working-areas', { areas }),
+  updateLocation: (coords) => authedPost('/riders/me/location', { lat: coords.lat, lng: coords.lng }),
   // { kind, url }: a video link, or a temporary link to an uploaded video.
   getCampaignVideo: (campaignId) => authedGet(`/riders/me/campaigns/${campaignId}/video`),
 
   // termsVersion: the campaign Terms & Conditions version the rider just read and accepted (if the campaign has terms).
-  joinCampaign: (campaignId, tshirtSize, pickupLocationId, termsVersion) =>
+  joinCampaign: (campaignId, tshirtSize, pickupLocationId, termsVersion, coords) =>
     authedPost(`/riders/me/campaigns/${campaignId}/join`, {
       ...(tshirtSize ? { tshirt_size: tshirtSize, pickup_location_id: pickupLocationId || null } : {}),
       ...(termsVersion ? { terms_version: termsVersion } : {}),
+      ...(coords && coords.lat != null ? { lat: coords.lat, lng: coords.lng } : {}),
     }),
 
   acceptCampaignTerms: (campaignId, version) => authedPost(`/riders/me/campaigns/${campaignId}/terms/accept`, { version }),
@@ -254,6 +317,30 @@ export const mobileApi = {
     return res.json();
   },
 
+  // Identity / vehicle documents (private files, reviewed by the FlexRiders team)
+  getMyDocuments: () => authedGet('/riders/me/documents'),
+  uploadDocument: async (docType, file) => {
+    const form = new FormData();
+    form.append('doc_type', docType);
+    form.append('file', { uri: file.uri, name: file.fileName || file.name || 'document.jpg', type: file.mimeType || 'image/jpeg' });
+    const res = await fetch(`${API_BASE_URL}/riders/me/documents`, {
+      timeoutMs: 60000,
+      method: 'POST',
+      headers: { Authorization: `Bearer ${authToken}` },
+      body: form,
+    });
+    if (res.status === 413) throw new Error('This file is too large. Please upload a smaller photo.');
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(formatError(err, 'Could not upload the document'));
+    }
+    return res.json();
+  },
+  // Image source for a private file (sent with the rider's login, never cached publicly).
+  authedImage: (path) => ({ uri: `${API_BASE_URL}${path}`, headers: { Authorization: `Bearer ${authToken}` } }),
+  requestPayout: () => authedPost('/riders/me/payout-request'),
+  getMyRoute: (campaignId, date) => authedGet(`/riders/me/campaigns/${campaignId}/my-route${date ? `?date=${date}` : ''}`),
+
   // Support chat
   getSupportRealtime: () => authedGet('/riders/me/support/realtime'),
   getSupportUnread: () => authedGet('/riders/me/support/unread'),
@@ -269,6 +356,8 @@ export const mobileApi = {
   clearNotifications: () => authedRequest('DELETE', '/notifications'),
   // Only non-verified fields; an empty string removes the value.
   updateProfile: (changes) => authedRequest('PATCH', '/riders/me', changes),
+  // Switch vehicle (type, model, number together); a new vehicle then needs its proof uploaded.
+  changeVehicle: (vehicle) => authedRequest('PUT', '/riders/me/vehicle', vehicle),
   deleteAccount: (password, reason) => authedRequest('DELETE', '/riders/me', { password, reason }),
 
   markAllNotificationsRead: () =>
@@ -276,4 +365,65 @@ export const mobileApi = {
       method: 'PATCH',
       headers: { Authorization: `Bearer ${authToken}` },
     }),
+
+  // Customer / Brand App endpoints
+  customerSignup: async (payload) => {
+    const data = await publicPost('/customer/auth/signup', payload);
+    setAuthToken(data.access_token, data.role || 'CUSTOMER');
+    return data;
+  },
+  customerLogin: async (identifier, password) => {
+    const isEmail = identifier.includes('@');
+    const cleanId = isEmail ? identifier.trim() : identifier.replace(/\s+/g, '').replace('+', '');
+    const res = await fetch(`${API_BASE_URL}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...(isEmail ? { email: cleanId } : { phone: cleanId }),
+        password,
+        role_requested: 'CUSTOMER',
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(formatError(err, 'Invalid mobile / email or password'));
+    }
+    const data = await res.json();
+    setAuthToken(data.access_token, data.role || 'CUSTOMER');
+    return data;
+  },
+  getCustomerDashboard: () => authedGet('/customer/dashboard'),
+  getCustomerCampaigns: (params = '') => authedGet(`/customer/campaigns${params ? '?' + params : ''}`),
+  getCustomerCampaign: (id) => authedGet(`/customer/campaigns/${id}`),
+  createCustomerCampaign: (payload) => authedPost('/customer/campaigns', payload),
+  updateCustomerCampaign: (id, payload) => authedRequest('PUT', `/customer/campaigns/${id}`, payload),
+  // Optional campaign banner (same as the admin form's), while the request can still be edited.
+  uploadCustomerCampaignBanner: async (id, file) => {
+    const form = new FormData();
+    form.append('image', { uri: file.uri, name: file.fileName || 'banner.jpg', type: file.mimeType || 'image/jpeg' });
+    const res = await fetch(`${API_BASE_URL}/customer/campaigns/${id}/image`, {
+      timeoutMs: 60000,
+      method: 'POST',
+      headers: { Authorization: `Bearer ${authToken}` },
+      body: form,
+    });
+    if (res.status === 413) throw new Error('This image is too large. Please choose a smaller one.');
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(formatError(err, 'Could not upload the banner'));
+    }
+    return res.json();
+  },
+  getCustomerNotifications: () => authedGet('/customer/notifications'),
+  markCustomerNotificationRead: (id) => authedRequest('PUT', `/customer/notifications/${id}/read`, {}),
+  getCustomerProfile: () => authedGet('/customer/profile'),
+  updateCustomerProfile: (payload) => authedRequest('PUT', '/customer/profile', payload),
+  getCustomerPlannerConfig: () => authedGet('/customer/planner-config'),
+  // Monitoring the brand's own campaigns (the server refuses other brands' campaigns).
+  getCustomerCampaignRiders: (id) => authedGet(`/customer/campaigns/${id}/riders`),
+  getCustomerCampaignPhotoDays: (id) => authedGet(`/customer/campaigns/${id}/photos`),
+  getCustomerCampaignPhotos: (id, date) => authedGet(`/customer/campaigns/${id}/photos?date=${date}`),
+  getCustomerCampaignMap: (id, date) => authedGet(`/customer/campaigns/${id}/map${date ? `?date=${date}` : ''}`),
+  getCustomerRealtime: () => authedGet('/customer/realtime'),
+  getGeoDefaults: () => authedGet('/geo/defaults'),
 };

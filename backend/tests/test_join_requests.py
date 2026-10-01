@@ -97,13 +97,13 @@ def test_approval_rechecks_capacity_and_conflicts(client, db_session):
     admin, _ = make_admin(client, db_session)
     one_slot = _kit_campaign(client, admin, slots=1, tshirt=False)["id"]
     (_, h1), (r2, h2) = _rider(client, admin), _rider(client, admin)
-    for h in (h1, h2):
-        assert client.post(f"{API}/riders/me/campaigns/{one_slot}/join", headers=h).status_code == 200
+    assert client.post(f"{API}/riders/me/campaigns/{one_slot}/join", headers=h1).status_code == 200
+    # The pending request holds the only slot, so a second rider can't take it.
+    full = client.post(f"{API}/riders/me/campaigns/{one_slot}/join", headers=h2)
+    assert full.status_code == 400 and "full" in full.json()["detail"].lower()
     rows = client.get(f"{API}/campaigns/{one_slot}/applications", headers=admin).json()
     assert all(r["kit_status"] == "NOT_REQUIRED" and r["can_approve"] for r in rows)  # No T-shirt: approve directly
     client.post(f"{API}/campaigns/{one_slot}/applications/{rows[0]['id']}/approve", headers=admin)
-    blocked = client.post(f"{API}/campaigns/{one_slot}/applications/{rows[1]['id']}/approve", headers=admin)
-    assert blocked.status_code == 400 and "slots" in blocked.json()["detail"]
 
     # A rider already assigned elsewhere can't be approved for a second campaign.
     other = _kit_campaign(client, admin, tshirt=False)["id"]

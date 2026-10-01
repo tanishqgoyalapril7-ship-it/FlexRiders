@@ -104,26 +104,33 @@ def test_draft_is_hidden_until_published(client, db_session, admin_headers, bran
     assert today["id"] not in [c["id"] for c in available]
 
 
-def test_requests_do_not_consume_slots_and_full_blocks_joining(client, db_session, admin_headers, brand_id):
+def test_requests_reserve_slots_and_full_blocks_joining(client, db_session, admin_headers, brand_id):
+    """A pending request holds a slot, so the last slot can't be requested twice; rejecting frees it."""
     campaign = create_campaign(client, admin_headers, brand_id, slots=1)
     _, first = make_rider(client, db_session, "9100000002")
     _, second = make_rider(client, db_session, "9100000003")
 
     with before_start(db_session, campaign["id"]):
-        client.post(f"{API}/riders/me/campaigns/{campaign['id']}/join", headers=first)
-        client.post(f"{API}/riders/me/campaigns/{campaign['id']}/join", headers=second)
+        assert client.post(f"{API}/riders/me/campaigns/{campaign['id']}/join", headers=first).status_code == 200
+        res = client.post(f"{API}/riders/me/campaigns/{campaign['id']}/join", headers=second)
+        assert res.status_code == 400
+        assert "full" in res.json()["detail"].lower()
         detail = client.get(f"{API}/campaigns/{campaign['id']}", headers=admin_headers).json()
-        assert detail["stats"]["requested_riders"] == 2
+        assert detail["status"] == "FULL"
+        assert detail["stats"]["requested_riders"] == 1
         assert detail["stats"]["assigned_riders"] == 0
+        assert detail["stats"]["remaining_slots"] == 0
+
+        # Rejecting the request frees the slot for the next rider.
+        apps = client.get(f"{API}/campaigns/{campaign['id']}/applications?status=REQUESTED", headers=admin_headers).json()
+        client.post(f"{API}/campaigns/{campaign['id']}/applications/{apps[0]['id']}/reject", json={"reason": "Test"}, headers=admin_headers)
+        assert client.get(f"{API}/campaigns/{campaign['id']}", headers=admin_headers).json()["status"] == "OPEN"
+        assert client.post(f"{API}/riders/me/campaigns/{campaign['id']}/join", headers=second).status_code == 200
 
         apps = client.get(f"{API}/campaigns/{campaign['id']}/applications?status=REQUESTED", headers=admin_headers).json()
         detail = client.post(f"{API}/campaigns/{campaign['id']}/applications/{apps[0]['id']}/approve", headers=admin_headers).json()
         assert detail["status"] == "FULL"
         assert detail["stats"]["remaining_slots"] == 0
-
-        res = client.post(f"{API}/campaigns/{campaign['id']}/applications/{apps[1]['id']}/approve", headers=admin_headers)
-        assert res.status_code == 400
-        assert "slots" in res.json()["detail"]
 
 
 def test_rider_can_only_be_in_one_active_campaign(client, db_session, admin_headers, brand_id):

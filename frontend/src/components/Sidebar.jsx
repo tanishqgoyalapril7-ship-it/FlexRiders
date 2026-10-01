@@ -17,10 +17,13 @@ import {
   ChevronDown,
   ChevronRight,
   Megaphone,
+  ClipboardList,
+  Camera,
+  Route,
   X,
 } from 'lucide-react';
 
-export default function Sidebar({ open = false, onClose, activeView, setActiveView, riderFilter, setRiderFilter, paymentFilter, setPaymentFilter, pendingCount = 0, campaignRequestCount = 0 }) {
+export default function Sidebar({ open = false, onClose, activeView, setActiveView, riderFilter, setRiderFilter, paymentFilter, setPaymentFilter, pendingCount = 0, campaignRequestCount = 0, brandRequestCount = 0 }) {
   const [ridersOpen, setRidersOpen] = useState(true);
   const [paymentsOpen, setPaymentsOpen] = useState(false);
 
@@ -133,6 +136,15 @@ export default function Sidebar({ open = false, onClose, activeView, setActiveVi
           </div>
         </div>
 
+        {/* Campaigns brands submitted from the brand app, awaiting review */}
+        <div className={`nav-item ${activeView === 'campaign-requests' ? 'active' : ''}`} onClick={() => setActiveView('campaign-requests')}>
+          <div className="nav-item-left">
+            <ClipboardList size={18} />
+            <span>Campaign Requests</span>
+          </div>
+          {brandRequestCount > 0 && <span className="badge-counter badge-orange">{brandRequestCount}</span>}
+        </div>
+
         {/* Campaign join requests across all campaigns */}
         <div className={`nav-item ${activeView === 'join-requests' ? 'active' : ''}`} onClick={() => setActiveView('join-requests')}>
           <div className="nav-item-left">
@@ -140,6 +152,22 @@ export default function Sidebar({ open = false, onClose, activeView, setActiveVi
             <span>Join Requests</span>
           </div>
           {campaignRequestCount > 0 && <span className="badge-counter badge-orange">{campaignRequestCount}</span>}
+        </div>
+
+        {/* Proof photos across campaigns */}
+        <div className={`nav-item ${activeView === 'photos' ? 'active' : ''}`} onClick={() => setActiveView('photos')}>
+          <div className="nav-item-left">
+            <Camera size={18} />
+            <span>Photo Verification</span>
+          </div>
+        </div>
+
+        {/* GPS routes */}
+        <div className={`nav-item ${activeView === 'tracking' ? 'active' : ''}`} onClick={() => setActiveView('tracking')}>
+          <div className="nav-item-left">
+            <Route size={18} />
+            <span>Tracking</span>
+          </div>
         </div>
 
         {/* Assignments */}

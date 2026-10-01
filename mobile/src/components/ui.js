@@ -33,6 +33,9 @@ const STATUS_TONES = {
   REJECTED: 'danger',
   SUSPENDED: 'danger',
   INACTIVE: 'danger',
+  DRAFT: 'primary',
+  PENDING_APPROVAL: 'warning',
+  CHANGES_REQUIRED: 'danger',
   FAILED: 'danger',
   CANCELLED: 'danger',
 };

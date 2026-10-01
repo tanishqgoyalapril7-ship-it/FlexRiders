@@ -19,6 +19,9 @@ from app.core.database import Base
 
 class CampaignStatus:
     DRAFT = "DRAFT"
+    PENDING_APPROVAL = "PENDING_APPROVAL"  # Submitted by customer, awaiting admin review
+    CHANGES_REQUIRED = "CHANGES_REQUIRED"  # Admin requested changes
+    REJECTED = "REJECTED"  # Rejected by admin
     OPEN = "OPEN"  # Public, accepting riders, not started yet
     FULL = "FULL"  # Public, all slots taken
     ACTIVE = "ACTIVE"  # Public, running, slots still available
@@ -262,6 +265,38 @@ class Campaign(Base):
     public_slug = Column(String(80), unique=True, index=True, nullable=True)
     public_share_enabled = Column(Boolean, default=False, nullable=True)
     created_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    # Customer Campaign Fields
+    campaign_type = Column(String(60), nullable=True)  # Brand Promotion, Product Promotion, Event, Roadshow, Activation, Sampling, Other
+    campaign_objective = Column(Text, nullable=True)
+    locations_data = Column(Text, nullable=True)  # JSON string: [{"city", "area", "address", "riders_count"}]
+    daily_start_time = Column(String(20), nullable=True)  # e.g. "10:00 AM"
+    daily_end_time = Column(String(20), nullable=True)  # e.g. "06:00 PM"
+    rider_requirements = Column(Text, nullable=True)  # JSON string: {"gender", "min_age", "max_age", "experience", "driving_license", "languages", "other_notes"}
+    budget_type = Column(String(30), nullable=True)  # PER_DAY, PER_HOUR, PER_CAMPAIGN
+    estimated_budget = Column(Float, nullable=True)
+    expected_rider_rate = Column(Float, nullable=True)
+    instructions = Column(Text, nullable=True)
+    documents = Column(Text, nullable=True)  # JSON string: [{"name", "path", "size", "mime_type"}]
+    admin_feedback = Column(Text, nullable=True)  # Admin note when requesting changes
+    # Brand request review: when the brand submitted it and when/who approved it (approval ≠ live).
+    submitted_at = Column(DateTime, nullable=True)
+    approved_at = Column(DateTime, nullable=True)
+    approved_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    # Geo-targeting (see geo_service). A campaign without target coordinates is untargeted: every eligible
+    # rider can see it, as before. Radii are in km; the current radius grows by expansion_step_km every
+    # expansion_interval_min while slots remain, up to max_radius_km.
+    target_lat = Column(Float, nullable=True, index=True)
+    target_lng = Column(Float, nullable=True, index=True)
+    initial_radius_km = Column(Float, nullable=True)
+    current_radius_km = Column(Float, nullable=True)
+    max_radius_km = Column(Float, nullable=True)
+    expansion_step_km = Column(Float, nullable=True)
+    expansion_interval_min = Column(Integer, nullable=True)
+    expansion_paused = Column(Boolean, default=False, nullable=True)
+    radius_updated_at = Column(DateTime, nullable=True)  # Start of the current expansion interval (UTC)
+
     published_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
     cancelled_at = Column(DateTime, nullable=True)
@@ -269,7 +304,8 @@ class Campaign(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     brand = relationship("Brand")
-    created_by = relationship("User")
+    created_by = relationship("User", foreign_keys=[created_by_id])
+    approved_by = relationship("User", foreign_keys=[approved_by_id])
     applications = relationship("CampaignApplication", back_populates="campaign")
     assignments = relationship("CampaignAssignment", back_populates="campaign")
     extensions = relationship("CampaignExtension", back_populates="campaign", order_by="CampaignExtension.start_date")

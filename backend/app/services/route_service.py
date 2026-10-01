@@ -1,6 +1,7 @@
 """Rider routes: real GPS points from the rider app, drawn as a line on the admin map.
 
-Only coordinates are exposed to admins; no distance, speed, duration or other statistics.
+Admins (and the campaign's own brand) see the line plus facts measured from the recorded points: first
+and last fix time and the distance along them. No speed or other derived scoring; nothing public.
 """
 from datetime import date, datetime, timedelta, timezone
 from typing import Dict, List, Optional
@@ -85,6 +86,9 @@ def route_dates(db: Session, campaign: Campaign, assignment_id: Optional[int] = 
     return sorted({d.isoformat() for (d,) in query.distinct()})
 
 
+from app.services.geo_service import path_length_km  # noqa: E402
+
+
 def routes_for_day(db: Session, campaign: Campaign, day: date, assignment_id: Optional[int] = None) -> List[Dict]:
     """[{assignment_id, rider, points: [[lat, lng], ...]}] for each rider with a route that day."""
     query = db.query(RoutePoint).filter(RoutePoint.campaign_id == campaign.id, RoutePoint.route_date == day)
@@ -104,6 +108,11 @@ def routes_for_day(db: Session, campaign: Campaign, day: date, assignment_id: Op
                 "assignment_id": aid,
                 "rider": {"id": rider.id, "rider_id": rider.rider_id, "full_name": rider.full_name} if rider else None,
                 "points": _thin([[round(p.latitude, 6), round(p.longitude, 6)] for p in pts]),
+                # From the recorded points themselves (all of them, before thinning for display).
+                "started_at": pts[0].recorded_at.isoformat() + "Z",
+                "ended_at": pts[-1].recorded_at.isoformat() + "Z",
+                "point_count": len(pts),
+                "distance_km": round(path_length_km((p.latitude, p.longitude) for p in pts), 2),
             }
         )
     return sorted(routes, key=lambda r: (r["rider"] or {}).get("full_name", ""))

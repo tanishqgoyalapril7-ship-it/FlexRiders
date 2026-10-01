@@ -6,7 +6,7 @@ import { subscribeSignals } from '../services/realtime';
 import { useStyles, useTheme } from '../theme';
 import { Card, EmptyState, PrimaryButton, ScreenHeader, SectionHeader } from '../components/ui';
 import { formatDateTime } from '../utils';
-import SupportChat from './SupportChat';
+import SupportChat, { StatusChip, STATUS_TONE, RIDER_LABELS } from './SupportChat';
 
 // Quick starts: tapping one prefills the subject of a new conversation.
 const TOPICS = [
@@ -16,15 +16,6 @@ const TOPICS = [
   { title: 'Account & Profile', icon: 'person-outline' },
   { title: 'App & Technical Issues', icon: 'settings-outline' },
 ];
-
-const STATUS_TONE = { WAITING_FOR_ADMIN: 'warning', WAITING_FOR_RIDER: 'primary', OPEN: 'primary', RESOLVED: 'success', CLOSED: 'neutral' };
-const RIDER_LABELS = {
-  WAITING_FOR_ADMIN: 'Waiting for support',
-  WAITING_FOR_RIDER: 'Support replied',
-  OPEN: 'Open',
-  RESOLVED: 'Resolved',
-  CLOSED: 'Closed',
-};
 
 /** Help & Support: the rider's conversations with FlexRiders support, a new-conversation form and the chat. */
 export default function SupportScreen({ onBack, initialConversationId = null, onUnreadChanged }) {
@@ -181,22 +172,6 @@ export default function SupportScreen({ onBack, initialConversationId = null, on
   );
 }
 
-export function StatusChip({ status }) {
-  const styles = useStyles(makeStyles);
-  const { colors } = useTheme();
-  const tone = STATUS_TONE[status] || 'neutral';
-  const palette = {
-    warning: [colors.warningSoft, colors.warning],
-    primary: [colors.primarySoft, colors.primary],
-    success: [colors.successSoft, colors.success],
-    neutral: [colors.surfaceAlt, colors.textMuted],
-  }[tone];
-  return (
-    <View style={[styles.chip, { backgroundColor: palette[0] }]}>
-      <Text style={[styles.chipText, { color: palette[1] }]}>{RIDER_LABELS[status] || status}</Text>
-    </View>
-  );
-}
 
 function NewConversation({ initialSubject, onCancel, onCreated }) {
   const styles = useStyles(makeStyles);

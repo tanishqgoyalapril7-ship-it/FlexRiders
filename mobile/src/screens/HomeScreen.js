@@ -1,255 +1,268 @@
-import React from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { Dimensions, FlatList, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useStyles, useTheme } from '../theme';
-import { BrandAvatar, IconButton, SectionHeader, StatusBadge, toneColors } from '../components/ui';
+import CampaignMapView from '../components/CampaignMapView';
+import { CampaignSheet, distanceLabel } from '../components/CampaignBits';
+import { LOCATION_TEXT, isLive } from '../services/locationService';
+import { assetUrl, mobileApi } from '../services/api';
 import { formatINR } from '../utils';
-import { ActiveCampaignCard } from './CampaignsScreen';
 
-const QUICK_ACTIONS = [
-  { label: 'My Brand', icon: 'briefcase-outline', target: 'brand' },
-  { label: 'Earnings', icon: 'bar-chart-outline', target: 'earnings' },
-  { label: 'Payments', icon: 'card-outline', target: 'payments' },
-  { label: 'Documents', icon: 'document-text-outline', target: 'documents' },
-  { label: 'Support', icon: 'headset-outline', target: 'support' },
-  { label: 'Campaigns', icon: 'megaphone-outline', target: 'campaigns' },
-];
+const CARD_W = Math.min(Dimensions.get('window').width - 56, 360);
+const HEADER_H = 96; // Header card height, so the map centres below it
+const SHEET_H = 230; // "Recommended for you" panel
 
-const RECENT_MS = 7 * 24 * 60 * 60 * 1000;
-const isRecent = (value) => Boolean(value) && Date.now() - new Date(value).getTime() < RECENT_MS;
-
-// The rider's most relevant next step, following the journey:
-// application review → approved → brand assigned → campaign active → campaign completed.
-// Returns null when the cards below already tell the story (the Current Brand card shows the assigned brand;
-// the active-campaign card shows the campaign).
-function homeStage(rider, campaigns) {
-  if (rider.status === 'PENDING' || rider.status === 'UNDER_REVIEW') {
-    return {
-      tone: 'warning',
-      icon: 'time-outline',
-      title: 'Profile under review',
-      text: "Your profile is currently under review. Further FlexRiders features will become available once your profile is approved. You'll be notified here.",
-    };
-  }
-  if (rider.status === 'REJECTED') {
-    return {
-      tone: 'danger',
-      icon: 'close-circle-outline',
-      title: 'Profile not approved',
-      text: rider.rejection_reason ? `Reason: ${rider.rejection_reason}` : 'Your profile was not approved.',
-      action: { label: 'Contact support', target: 'support' },
-    };
-  }
-  if (rider.status === 'SUSPENDED') {
-    return {
-      tone: 'danger',
-      icon: 'alert-circle-outline',
-      title: 'Account suspended',
-      text: rider.suspension_reason ? `Reason: ${rider.suspension_reason}` : 'Your account has been suspended.',
-      action: { label: 'Contact support', target: 'support' },
-    };
-  }
-  if (campaigns && campaigns.active) return null;
-
-  const completed = campaigns ? campaigns.history.find((c) => c.my_status === 'COMPLETED') : null;
-  if (completed && isRecent(completed.ended_at)) {
-    return {
-      tone: 'success',
-      icon: 'trophy-outline',
-      title: 'Campaign completed',
-      text: `${completed.name} has ended. You earned ${formatINR(completed.earned)} for ${completed.completed_days} approved days.`,
-      action: { label: 'View campaign', campaignId: completed.id },
-    };
-  }
-  if (campaigns && campaigns.pending_request) {
-    return {
-      tone: 'primary',
-      icon: 'hourglass-outline',
-      title: 'Campaign request sent',
-      text: `Your request to join ${campaigns.pending_request.name} is awaiting admin approval.`,
-      action: { label: 'View request', campaignId: campaigns.pending_request.id },
-    };
-  }
-  if (rider.status === 'APPROVED' && !rider.brand) {
-    return {
-      tone: 'primary',
-      icon: 'checkmark-circle-outline',
-      title: 'Application approved',
-      text: "You'll be notified when you're assigned to a partner brand. Meanwhile, you can join an open campaign.",
-      action: { label: 'Browse campaigns', target: 'campaigns' },
-    };
-  }
-  return null;
-}
-
-export default function HomeScreen({ rider, earnings, campaigns, notifications, unreadCount, onNavigate, onOpenCampaign }) {
-  const styles = useStyles(makeStyles);
+/** Home: a full-screen map of the campaigns that reach this rider (real targets, payouts and slots), shown
+ * as price bubbles. Like a delivery app, the live location and greeting sit in the header card at the top;
+ * the recommended campaigns (and any active campaign) sit in the panel at the bottom. */
+export default function HomeScreen({ rider, campaigns, unreadCount, onNavigate, onOpenCampaign, deviceLocation, locationState, onRequestLocation }) {
+  const s = useStyles(makeStyles);
   const { colors } = useTheme();
-  const banner = homeStage(rider, campaigns);
-  const activeCampaign = campaigns ? campaigns.active : null;
-  const bannerColors = banner ? toneColors(colors, banner.tone) : null;
+  const [sheet, setSheet] = useState(null);
+  const list = useRef(null);
+  const nearby = campaigns ? campaigns.available || [] : [];
+  const live = locationState === 'AVAILABLE' && isLive(deviceLocation);
+  const myLocation = live ? { lat: deviceLocation.latitude, lng: deviceLocation.longitude } : null;
+  const loc = LOCATION_TEXT[locationState] || LOCATION_TEXT.UNKNOWN;
+  const active = campaigns && campaigns.active;
+  const pending = campaigns && campaigns.pending_request;
+  const firstName = (rider.name || '').split(' ')[0] || 'Rider';
+  // "Sector 12, Gurugram" -> "Sector 12" over "Gurugram"
+  const [place, ...rest] = (live ? deviceLocation.label || 'Current location' : loc.text).split(', ');
+  const placeSub = live ? rest.join(', ') : loc.action || '';
+
+  const select = (c) => {
+    setSheet(c);
+    const i = nearby.findIndex((x) => x.id === c.id);
+    if (i >= 0 && list.current) list.current.scrollToIndex({ index: i, animated: true, viewPosition: 0.5 });
+  };
+
+  let notice = null;
+  if (!campaigns) {
+    notice = <InfoCard icon="cloud-download-outline" title="Loading campaigns…" />;
+  } else if (campaigns.approval_message) {
+    notice = <InfoCard icon="time-outline" tone="warning" title="Profile under review" text={campaigns.approval_message} action="Verification status" onAction={() => onNavigate('verification')} />;
+  } else if (!nearby.length) {
+    notice = (
+      <InfoCard
+        icon="map-outline"
+        title="No campaigns available near you"
+        text={campaigns.location_message || 'New campaigns appear here as soon as they reach your area or working areas.'}
+        action={(campaigns.working_areas || []).length ? null : 'Add working areas'}
+        onAction={() => onNavigate('areas')}
+      />
+    );
+  }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <View style={styles.headerRow}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.greeting}>Hello, {rider.name.split(' ')[0] || 'Rider'}</Text>
-          {rider.location ? (
-            <View style={styles.locationRow}>
-              <Ionicons name="location-outline" size={14} color={colors.textMuted} />
-              <Text style={styles.location} numberOfLines={1}>{rider.location}</Text>
+    <View style={s.screen}>
+      <CampaignMapView
+        campaigns={nearby}
+        myLocation={myLocation}
+        workingAreas={campaigns ? campaigns.working_areas || [] : []}
+        fullBleed
+        dark
+        topInset={HEADER_H}
+        bottomInset={SHEET_H + (active || pending ? 76 : 0)}
+        selectedId={sheet ? sheet.id : null}
+        onSelect={select}
+      />
+
+      <View style={s.header}>
+        <View style={s.headRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={s.hello} numberOfLines={1}>Hi {firstName} 👋</Text>
+            <TouchableOpacity
+              style={s.locRow}
+              onPress={live ? () => onNavigate('areas') : onRequestLocation}
+              disabled={!live && !loc.action}
+              activeOpacity={0.7}
+              hitSlop={8}
+              accessibilityLabel={live ? 'Your location. Change working areas' : loc.action || loc.text}
+            >
+              <Ionicons name={live ? 'location' : 'location-outline'} size={16} color={live ? colors.primary : colors.warning} />
+              <Text style={[s.place, !live && { color: colors.warning }]} numberOfLines={1}>
+                {live ? [place, placeSub].filter(Boolean).join(', ') : `${place}${placeSub ? ` · ${placeSub}` : ''}`}
+              </Text>
+              <Ionicons name="chevron-down" size={14} color={colors.textMuted} />
+              {live ? (
+                <View style={s.livePill}>
+                  <View style={[s.dot, { backgroundColor: colors.success }]} />
+                  <Text style={s.liveText}>Live</Text>
+                </View>
+              ) : null}
+            </TouchableOpacity>
+          </View>
+          <TouchableOpacity style={s.iconBtn} onPress={() => onNavigate('notifications')} accessibilityLabel="Notifications">
+            <Ionicons name="notifications-outline" size={21} color={colors.text} />
+            {unreadCount ? <View style={s.bellDot} /> : null}
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => onNavigate('profile')} accessibilityLabel="Your profile">
+            <Avatar rider={rider} initial={firstName.charAt(0).toUpperCase()} />
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <View style={s.panel}>
+        <View style={s.handle} />
+        {active || pending ? (
+          <TouchableOpacity style={s.activeCard} onPress={() => onOpenCampaign((active || pending).id)} activeOpacity={0.9}>
+            <View style={[s.dot, { backgroundColor: active ? colors.success : colors.warning }]} />
+            <View style={{ flex: 1 }}>
+              <Text style={s.activeLabel}>{active ? 'Your active campaign' : 'Request pending approval'}</Text>
+              <Text style={s.activeName} numberOfLines={1}>{(active || pending).name}</Text>
             </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.primary} />
+          </TouchableOpacity>
+        ) : null}
+        <View style={s.panelHead}>
+          <View>
+            <Text style={s.panelTitle}>Recommended for you</Text>
+            {nearby.length ? <Text style={s.panelSub}>{nearby.length} campaign{nearby.length === 1 ? '' : 's'} near you right now</Text> : null}
+          </View>
+          {nearby.length ? (
+            <TouchableOpacity onPress={() => onNavigate('campaigns')} hitSlop={10}>
+              <Text style={s.detailsLink}>See all</Text>
+            </TouchableOpacity>
           ) : null}
         </View>
-        <IconButton icon="notifications-outline" badge={unreadCount} onPress={() => onNavigate('notifications')} />
-      </View>
-
-      {banner ? (
-        <View style={[styles.banner, { backgroundColor: bannerColors.bg }]}>
-          <Ionicons name={banner.icon} size={20} color={bannerColors.fg} />
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.bannerTitle, { color: bannerColors.fg }]}>{banner.title}</Text>
-            <Text style={styles.bannerText}>{banner.text}</Text>
-            {banner.action ? (
-              <TouchableOpacity
-                style={styles.bannerAction}
-                onPress={() => (banner.action.campaignId ? onOpenCampaign(banner.action.campaignId) : onNavigate(banner.action.target))}
-              >
-                <Text style={[styles.bannerActionText, { color: bannerColors.fg }]}>{banner.action.label}</Text>
-                <Ionicons name="chevron-forward" size={14} color={bannerColors.fg} />
-              </TouchableOpacity>
-            ) : null}
-          </View>
-        </View>
-      ) : null}
-
-      <TouchableOpacity activeOpacity={0.9} onPress={() => onNavigate('brand')} style={styles.hero}>
-        <View style={styles.heroTop}>
-          <BrandAvatar brand={rider.brand} size={48} />
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={styles.heroLabel}>Current Brand</Text>
-            <Text style={styles.heroBrand} numberOfLines={1}>{rider.brand || 'Not assigned yet'}</Text>
-            <Text style={styles.heroLabel}>
-              {rider.assigned_on ? `Assigned ${rider.assigned_on}` : `Rider ID: ${rider.rider_id}`}
-            </Text>
-            {activeCampaign ? (
-              <Text style={styles.heroLabel} numberOfLines={1}>
-                Campaign: {activeCampaign.name}
-              </Text>
-            ) : null}
-          </View>
-          <StatusBadge status={rider.status} />
-        </View>
-        <View style={styles.heroStats}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.heroLabel}>Today's Earnings</Text>
-            <Text style={styles.heroValue}>{formatINR(earnings.today)}</Text>
-          </View>
-          <View style={styles.heroDivider} />
-          <View style={{ flex: 1, paddingLeft: 18 }}>
-            <Text style={styles.heroLabel}>Pending Payout</Text>
-            <Text style={styles.heroValue}>{formatINR(earnings.pending)}</Text>
-          </View>
-        </View>
-      </TouchableOpacity>
-
-      {activeCampaign ? (
-        <>
-          <SectionHeader title="My Campaign" actionLabel="All campaigns" onAction={() => onNavigate('campaigns')} />
-          <ActiveCampaignCard campaign={activeCampaign} onOpen={onOpenCampaign} />
-        </>
-      ) : null}
-
-      <SectionHeader title="Quick Actions" />
-      <View style={styles.grid}>
-        {QUICK_ACTIONS.map((action) => (
-          <TouchableOpacity key={action.label} style={styles.tile} onPress={() => onNavigate(action.target)} activeOpacity={0.8}>
-            <View style={styles.tileIcon}>
-              <Ionicons name={action.icon} size={22} color={colors.primary} />
-            </View>
-            <Text style={styles.tileLabel}>{action.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <SectionHeader
-        title="Recent Activity"
-        actionLabel={notifications.length ? 'View All' : null}
-        onAction={() => onNavigate('notifications')}
-      />
-      <View style={styles.activityCard}>
-        {notifications.length === 0 ? (
-          <Text style={styles.activityEmpty}>Updates about your application, brand and payouts will appear here.</Text>
+        {notice ? (
+          notice
         ) : (
-          notifications.slice(0, 3).map((n, i) => {
-            const tone = toneColors(colors, n.tone);
-            return (
-              <View key={n.id} style={[styles.activityRow, i === Math.min(notifications.length, 3) - 1 && { borderBottomWidth: 0 }]}>
-                <View style={[styles.activityIcon, { backgroundColor: tone.bg }]}>
-                  <Ionicons name={n.icon} size={18} color={tone.fg} />
+          <FlatList
+            ref={list}
+            data={nearby}
+            horizontal
+            keyExtractor={(c) => String(c.id)}
+            showsHorizontalScrollIndicator={false}
+            snapToInterval={CARD_W + 12}
+            decelerationRate="fast"
+            contentContainerStyle={{ gap: 12 }}
+            onScrollToIndexFailed={() => {}}
+            renderItem={({ item: c }) => (
+              <TouchableOpacity style={[s.card, { width: CARD_W }]} activeOpacity={0.9} onPress={() => onOpenCampaign(c.id)}>
+                <View style={s.cardTop}>
+                  <BrandTile campaign={c} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.name} numberOfLines={1}>{c.name}</Text>
+                    <View style={s.metaRow}>
+                      <Ionicons name="location-outline" size={13} color={colors.textMuted} />
+                      <Text style={s.meta} numberOfLines={1}>{[c.location_area, distanceLabel(c.distance_km)].filter(Boolean).join(' · ')}</Text>
+                    </View>
+                  </View>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.activityTitle} numberOfLines={1}>{n.title}</Text>
-                  <Text style={styles.activityTime}>{n.timeLabel}</Text>
+                <View style={s.cardBottom}>
+                  <View>
+                    <Text style={s.rate}>
+                      {formatINR(c.daily_rate)}
+                      <Text style={s.rateUnit}> /day</Text>
+                    </Text>
+                    <Text style={[s.slots, c.remaining_slots === 0 && { color: colors.warning }]}>
+                      {c.remaining_slots === 0 ? 'All slots taken' : `${c.remaining_slots} slot${c.remaining_slots === 1 ? '' : 's'} left`}
+                    </Text>
+                  </View>
+                  <View style={s.details}>
+                    <Text style={s.detailsText}>View</Text>
+                    <Ionicons name="arrow-forward" size={15} color="#FFFFFF" />
+                  </View>
                 </View>
-              </View>
-            );
-          })
+              </TouchableOpacity>
+            )}
+          />
         )}
       </View>
-    </ScrollView>
+      {sheet ? <CampaignSheet campaign={sheet} onClose={() => setSheet(null)} onOpen={onOpenCampaign} /> : null}
+    </View>
   );
 }
 
+/** The rider's own registration selfie (private, loaded with their token); their initial until it loads or if missing. */
+function Avatar({ rider, initial }) {
+  const s = useStyles(makeStyles);
+  const [failed, setFailed] = useState(false);
+  if (rider.has_photo && !failed) {
+    return <Image source={mobileApi.authedImage('/riders/me/selfie')} style={[s.avatar, s.avatarPhoto]} onError={() => setFailed(true)} />;
+  }
+  return (
+    <View style={s.avatar}>
+      <Text style={s.avatarText}>{initial}</Text>
+    </View>
+  );
+}
+
+/** The campaign's banner, else the brand's logo, else its name on a coloured tile. */
+function BrandTile({ campaign: c }) {
+  const s = useStyles(makeStyles);
+  const image = c.image_url || c.brand_logo;
+  if (image) return <Image source={{ uri: assetUrl(image) }} style={s.tile} />;
+  return (
+    <View style={[s.tile, s.tileEmpty]}>
+      <Text style={s.tileText}>{(c.brand_name || c.name || '?').charAt(0).toUpperCase()}</Text>
+    </View>
+  );
+}
+
+function InfoCard({ icon, title, text, action, onAction, tone = 'primary' }) {
+  const s = useStyles(makeStyles);
+  const { colors } = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', gap: 12, alignItems: 'flex-start' }}>
+      <View style={[s.infoIcon, { backgroundColor: tone === 'warning' ? colors.warningSoft : colors.primarySoft }]}>
+        <Ionicons name={icon} size={22} color={colors[tone]} />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={s.name}>{title}</Text>
+        {text ? <Text style={[s.meta, { lineHeight: 19 }]}>{text}</Text> : null}
+        {action ? (
+          <TouchableOpacity onPress={onAction} style={{ marginTop: 8 }}>
+            <Text style={s.detailsLink}>{action}</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+const shadow = { shadowColor: '#000', shadowOpacity: 0.18, shadowRadius: 14, shadowOffset: { width: 0, height: 4 }, elevation: 8 };
+
 const makeStyles = (c) =>
   StyleSheet.create({
-    screen: { flex: 1, backgroundColor: c.background },
-    content: { padding: 20, paddingBottom: 32 },
-    headerRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 18 },
-    greeting: { fontSize: 24, fontWeight: '800', color: c.text },
-    locationRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
-    location: { fontSize: 13, color: c.textMuted, flexShrink: 1 },
-    banner: { flexDirection: 'row', gap: 12, padding: 14, borderRadius: 14, marginBottom: 14 },
-    bannerTitle: { fontSize: 14, fontWeight: '700' },
-    bannerText: { fontSize: 12, color: c.textMuted, marginTop: 3, lineHeight: 17 },
-    bannerAction: { flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 8 },
-    bannerActionText: { fontSize: 13, fontWeight: '700' },
-    hero: { backgroundColor: c.hero, borderRadius: 20, padding: 18 },
-    heroTop: { flexDirection: 'row', alignItems: 'flex-start' },
-    heroLabel: { color: c.heroMuted, fontSize: 12 },
-    heroBrand: { color: '#FFFFFF', fontSize: 20, fontWeight: '800', marginVertical: 2 },
-    heroStats: {
-      flexDirection: 'row',
-      marginTop: 18,
-      paddingTop: 16,
-      borderTopWidth: 1,
-      borderTopColor: 'rgba(255,255,255,0.12)',
-    },
-    heroDivider: { width: 1, backgroundColor: 'rgba(255,255,255,0.12)' },
-    heroValue: { color: '#FFFFFF', fontSize: 24, fontWeight: '800', marginTop: 4 },
-    grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12 },
-    tile: {
-      width: '31.5%',
-      backgroundColor: c.surface,
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: c.border,
-      paddingVertical: 16,
-      alignItems: 'center',
-    },
-    tileIcon: {
-      width: 44,
-      height: 44,
-      borderRadius: 12,
-      backgroundColor: c.primarySoft,
-      alignItems: 'center',
-      justifyContent: 'center',
-    },
-    tileLabel: { fontSize: 12, fontWeight: '600', color: c.text, marginTop: 8 },
-    activityCard: { backgroundColor: c.surface, borderRadius: 16, borderWidth: 1, borderColor: c.border, paddingHorizontal: 16 },
-    activityEmpty: { fontSize: 13, color: c.textMuted, paddingVertical: 18, lineHeight: 19 },
-    activityRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: c.border },
-    activityIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
-    activityTitle: { fontSize: 14, fontWeight: '600', color: c.text },
-    activityTime: { fontSize: 12, color: c.textMuted, marginTop: 2 },
+    screen: { flex: 1, backgroundColor: '#1d2433' },
+    header: { position: 'absolute', top: 0, left: 0, right: 0, backgroundColor: c.surface, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 16, borderBottomLeftRadius: 24, borderBottomRightRadius: 24, ...shadow },
+    headRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    locRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+    place: { fontSize: 14, fontWeight: '600', color: c.textMuted, flexShrink: 1 },
+    livePill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: c.successSoft, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2, marginLeft: 4 },
+    liveText: { color: c.success, fontSize: 11, fontWeight: '800' },
+    iconBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: c.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
+    bellDot: { position: 'absolute', top: 9, right: 10, width: 8, height: 8, borderRadius: 4, backgroundColor: c.danger, borderWidth: 1.5, borderColor: c.surfaceAlt },
+    avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center' },
+    avatarPhoto: { backgroundColor: c.surfaceAlt, borderWidth: 2, borderColor: c.primary },
+    avatarText: { color: '#FFFFFF', fontSize: 16, fontWeight: '800' },
+    hello: { fontSize: 22, fontWeight: '800', color: c.text },
+    dot: { width: 7, height: 7, borderRadius: 4 },
+    panel: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: c.surface, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingHorizontal: 20, paddingTop: 10, paddingBottom: 18, gap: 14, ...shadow },
+    handle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: c.border },
+    panelHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    panelTitle: { fontSize: 17, fontWeight: '800', color: c.text },
+    panelSub: { fontSize: 12, color: c.textMuted, marginTop: 2 },
+    activeCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.primarySoft, borderRadius: 14, paddingVertical: 12, paddingHorizontal: 14 },
+    activeLabel: { fontSize: 12, fontWeight: '700', color: c.textMuted },
+    activeName: { fontSize: 15, fontWeight: '800', color: c.text, marginTop: 1 },
+    card: { backgroundColor: c.surfaceAlt, borderRadius: 18, padding: 14, gap: 14 },
+    cardTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    cardBottom: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between' },
+    tile: { width: 48, height: 48, borderRadius: 12, backgroundColor: c.border },
+    tileEmpty: { backgroundColor: '#6D28D9', alignItems: 'center', justifyContent: 'center' },
+    tileText: { color: '#FFFFFF', fontSize: 20, fontWeight: '800' },
+    name: { fontSize: 16, fontWeight: '800', color: c.text },
+    metaRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+    meta: { fontSize: 13, color: c.textMuted, flexShrink: 1 },
+    rate: { fontSize: 22, fontWeight: '800', color: c.text },
+    rateUnit: { fontSize: 14, fontWeight: '600', color: c.textMuted },
+    slots: { fontSize: 12, fontWeight: '700', color: c.success, marginTop: 2 },
+    details: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: c.primary, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 10 },
+    detailsText: { color: '#FFFFFF', fontWeight: '800', fontSize: 14 },
+    detailsLink: { color: c.primary, fontWeight: '800', fontSize: 14 },
+    infoIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   });

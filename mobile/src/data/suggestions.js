@@ -107,3 +107,14 @@ export function isValidVehicleNumber(value) {
   const v = normalizeVehicleNumber(value);
   return /^[A-Z]{2}[0-9]{1,2}[A-Z]{0,3}[0-9]{4}$/.test(v) || /^[0-9]{2}BH[0-9]{4}[A-Z]{1,2}$/.test(v);
 }
+
+// Model suggestions per vehicle type (typing filters them; any other model can still be typed).
+export const VEHICLE_MODELS_BY_CATEGORY = {
+  CYCLE: [
+    'Hero Sprint', 'Hero Ranger', 'Hercules Roadeo', 'Hercules Top Gear', 'Atlas Goldline', 'Avon Cycle',
+    'BSA Champ', 'Firefox Road Runner', 'Btwin (Decathlon)', 'Rockrider (Decathlon)', 'Montra', 'Electric Cycle',
+  ],
+  TWO_WHEELER: VEHICLE_MODELS.filter((m) => !['Bicycle', 'Electric Cycle'].includes(m)),
+  AUTO: ['Bajaj RE', 'Bajaj Maxima', 'Piaggio Ape City', 'TVS King', 'Mahindra Treo', 'Mahindra Alfa', 'Atul Gem', 'Kinetic Safar', 'E-Rickshaw'],
+  THREE_WHEELER: ['Piaggio Ape Xtra', 'Bajaj Maxima Cargo', 'Mahindra Alfa Load', 'Mahindra Treo Zor', 'TVS King Kargo', 'Atul Gemini Cargo', 'Euler HiLoad', 'E-Loader'],
+};

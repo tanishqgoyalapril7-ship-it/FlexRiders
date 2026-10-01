@@ -4,6 +4,7 @@ import { mobileApi } from '../services/api';
 import { useStyles } from '../theme';
 import { OutlineButton, PrimaryButton } from '../components/ui';
 import { PasswordField } from '../components/formFields';
+import { Header } from '../components/ds';
 
 /** Required after an admin password reset: the rider replaces the temporary password before anything else. */
 export default function ChangePasswordScreen({ onChanged, onLogout }) {
@@ -32,6 +33,7 @@ export default function ChangePasswordScreen({ onChanged, onLogout }) {
   return (
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.screen}>
       <ScrollView contentContainerStyle={styles.padded} keyboardShouldPersistTaps="handled">
+        <Header onBack={onLogout} circle={false} />
         <Text style={styles.title}>Set a new password</Text>
         <Text style={styles.subtitle}>Your password was reset by the FlexRiders team. Choose a new password to continue.</Text>
         <View style={{ marginTop: 16 }}>

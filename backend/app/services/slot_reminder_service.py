@@ -115,7 +115,8 @@ def run_once(db: Session, now_utc: Optional[datetime] = None) -> int:
 
 
 def tick(db: Session) -> dict:
-    """One scheduled run: campaigns whose start date arrived go live (their riders get the notice), then
+    """One scheduled run: campaigns whose start date arrived go live (their riders get the notice), geo-
+    targeted campaigns still accepting riders expand their radius when an interval has passed, then
     whatever slot reminders are due are sent. Safe to run any number of times (de-duplicated)."""
     went_live = 0
     for campaign in db.query(Campaign).filter(Campaign.status.in_(CampaignStatus.PUBLISHED), Campaign.live_at.is_(None)).all():

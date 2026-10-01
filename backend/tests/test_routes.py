@@ -61,7 +61,9 @@ def test_route_upload_and_single_rider_map(client, db_session):
     route = data["routes"][0]
     assert route["rider"]["full_name"] == rider["full_name"]
     assert route["points"][0] == [28.4, 77.05] and len(route["points"]) == 5  # In recorded order: start → end
-    assert set(route) == {"assignment_id", "rider", "points"}  # Coordinates only: no distance, speed or time
+    # The line plus facts measured from the recorded points (no speed or scoring).
+    assert set(route) == {"assignment_id", "rider", "points", "started_at", "ended_at", "point_count", "distance_km"}
+    assert route["point_count"] == 5 and route["distance_km"] > 0 and route["started_at"] <= route["ended_at"]
 
     yesterday = (today_ist() - timedelta(days=1)).isoformat()
     assert client.get(f"{API}/campaigns/{cid}/routes?date={yesterday}&assignment_id={assignment_id}", headers=admin).json()["routes"] == []

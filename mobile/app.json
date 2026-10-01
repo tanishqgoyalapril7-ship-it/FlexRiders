@@ -15,7 +15,7 @@
       "infoPlist": {
         "NSCameraUsageDescription": "FlexRiders uses the camera to take your daily campaign photos (Morning, Evening and Night).",
         "NSPhotoLibraryUsageDescription": "FlexRiders may access your photo library only for development testing.",
-        "NSLocationWhenInUseUsageDescription": "While you record a campaign route, FlexRiders shares your location with the FlexRiders team so they can see the route you rode.",
+        "NSLocationWhenInUseUsageDescription": "FlexRiders uses your location while you use the app to show campaigns near you, and while you record a campaign route to share that route with the FlexRiders team.",
         "NSLocationAlwaysAndWhenInUseUsageDescription": "While you record a campaign route, FlexRiders keeps sharing your location in the background until you end the route.",
         "UIBackgroundModes": [
           "location"
@@ -27,7 +27,7 @@
       "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#0A0A0A"
+        "backgroundColor": "#F3F3F3"
       },
       "permissions": [
         "CAMERA",
@@ -57,7 +57,7 @@
       [
         "expo-location",
         {
-          "locationWhenInUsePermission": "While you record a campaign route, FlexRiders shares your location with the FlexRiders team so they can see the route you rode.",
+          "locationWhenInUsePermission": "FlexRiders uses your location while you use the app to show campaigns near you, and while you record a campaign route to share that route with the FlexRiders team.",
           "locationAlwaysAndWhenInUsePermission": "While you record a campaign route, FlexRiders keeps sharing your location in the background until you end the route.",
           "isAndroidBackgroundLocationEnabled": true,
           "isAndroidForegroundServiceEnabled": true
@@ -67,9 +67,9 @@
         "expo-splash-screen",
         {
           "image": "./assets/splash-logo.png",
-          "imageWidth": 220,
+          "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#0B1528"
+          "backgroundColor": "#F3F3F3"
         }
       ],
       "./plugins/withReleaseSigning",

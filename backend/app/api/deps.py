@@ -81,3 +81,20 @@ def get_current_rider(
             detail="Rider profile not found for this account",
         )
     return rider
+
+
+def get_current_customer(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> User:
+    if current_user.role not in (UserRole.CUSTOMER, UserRole.SUPER_ADMIN):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Customer account required",
+        )
+    if not current_user.brand_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No Brand associated with this customer account",
+        )
+    return current_user

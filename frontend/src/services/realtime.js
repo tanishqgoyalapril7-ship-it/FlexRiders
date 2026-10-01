@@ -17,3 +17,28 @@ export function subscribeSignals(config, onSignal, onStatus) {
     client.disconnect();
   };
 }
+
+// One shared connection for campaign signals across the dashboard; views register handlers.
+const campaignHandlers = new Set();
+let campaignConnection = null;
+
+async function connectCampaignSignals() {
+  const { api } = await import('./api');
+  const config = await api.getCampaignRealtime().catch(() => null);
+  if (!campaignHandlers.size) return null;
+  return subscribeSignals(config, (payload) => campaignHandlers.forEach((h) => h(payload)));
+}
+
+/** handler(payload) runs for every campaign signal ({campaign_id, event_type}). Returns an unsubscribe. */
+export function subscribeCampaignSignals(handler) {
+  campaignHandlers.add(handler);
+  if (!campaignConnection) campaignConnection = connectCampaignSignals();
+  return () => {
+    campaignHandlers.delete(handler);
+    if (!campaignHandlers.size && campaignConnection) {
+      const pending = campaignConnection;
+      campaignConnection = null;
+      pending.then((stop) => stop && stop());
+    }
+  };
+}

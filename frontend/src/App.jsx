@@ -13,6 +13,9 @@ import CustomerDetailView from './views/CustomerDetailView';
 import DeletionRequestsView from './views/DeletionRequestsView';
 import SupportView from './views/SupportView';
 import EnquiriesView from './views/EnquiriesView';
+import CampaignRequestsView from './views/CampaignRequestsView';
+import PhotoVerificationView from './views/PhotoVerificationView';
+import TrackingView from './views/TrackingView';
 import { JoinRequestsView } from './components/JoinRequests';
 import { AdminsView, LoginView, NotificationsView, SettingsView } from './views/AdminPages';
 import { RiderDetailModal, CreatePaymentModal } from './components/Modals';
@@ -21,6 +24,7 @@ import { ConfirmDialog } from './components/CampaignModals';
 import { AddToCampaignModal, PaymentEditModal, RiderFormModal } from './components/AdminCrud';
 import { DangerDialog, Toaster, toast } from './components/Feedback';
 import { api, getAuthToken } from './services/api';
+import { subscribeCampaignSignals } from './services/realtime';
 
 const REFRESH_MS = 15000;
 
@@ -56,7 +60,7 @@ export default function App() {
   const [campaignBackView, setCampaignBackView] = useState('campaigns');
   useEffect(() => {
     // Leaving the customer page any other way: campaign pages go back to the campaign list again.
-    if (activeView !== 'campaign-detail' && activeView !== 'customer') setCampaignBackView('campaigns');
+    if (activeView !== 'campaign-detail' && activeView !== 'customer' && activeView !== 'campaign-requests') setCampaignBackView('campaigns');
   }, [activeView]);
   const [assignTarget, setAssignTarget] = useState(null); // { rider } or { brand }
   const [confirmAction, setConfirmAction] = useState(null);
@@ -143,6 +147,15 @@ export default function App() {
       clearInterval(interval);
       document.removeEventListener('visibilitychange', onVisible);
     };
+  }, [authed]);
+
+  // Campaign requests, slot and status changes refresh counts and lists as they happen (GPS route
+  // batches are handled by the route map itself).
+  useEffect(() => {
+    if (!authed) return undefined;
+    return subscribeCampaignSignals((p) => {
+      if (p.event_type !== 'route_points') refreshAllData(false);
+    });
   }, [authed]);
 
   // Opening a page loads its data straight away.
@@ -472,6 +485,8 @@ export default function App() {
       setActiveView('campaigns');
     } else if (action === 'join_requests') {
       setActiveView('join-requests');
+    } else if (action === 'campaign_requests') {
+      setActiveView('campaign-requests');
     }
   };
 
@@ -523,6 +538,7 @@ export default function App() {
         setPaymentFilter={setPaymentFilter}
         pendingCount={pendingApprovalsCount}
         campaignRequestCount={campaignSummary?.pending_requests || 0}
+        brandRequestCount={campaignSummary?.brand_requests || 0}
       />
 
       <div className="main-wrapper">
@@ -636,6 +652,18 @@ export default function App() {
           />
         )}
         {activeView === 'join-requests' && <JoinRequestsView onChanged={refreshAllData} />}
+        {activeView === 'campaign-requests' && (
+          <CampaignRequestsView
+            onChanged={refreshAllData}
+            onOpenCampaign={(id) => {
+              setSelectedCampaignId(id);
+              setCampaignBackView('campaign-requests');
+              setActiveView('campaign-detail');
+            }}
+          />
+        )}
+        {activeView === 'photos' && <PhotoVerificationView onChanged={refreshAllData} />}
+        {activeView === 'tracking' && <TrackingView />}
 
         {activeView === 'reports' && <ReportsView dashboardData={dashboardData} />}
 

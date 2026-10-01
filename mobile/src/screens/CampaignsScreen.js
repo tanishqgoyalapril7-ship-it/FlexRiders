@@ -1,324 +1,210 @@
 import React, { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { mobileApi } from '../services/api';
 import { useStyles, useTheme } from '../theme';
-import { Card, EmptyState, FilterPills, OutlineButton, PrimaryButton, ProgressBar, ScreenHeader, SectionHeader, StatusBadge } from '../components/ui';
+import { useT } from '../i18n';
+import CampaignMapView from '../components/CampaignMapView';
+import { CampaignSheet, Countdown, distanceLabel } from '../components/CampaignBits';
+import { Badge, Chip, Empty, Header, Segmented } from '../components/ds';
+import { LOCATION_TEXT, isLive } from '../services/locationService';
 import { formatDateRange, formatINR } from '../utils';
-import { useJoinCampaign } from '../components/KitPickup';
 
-const SECTIONS = ['Available', 'My Campaign', 'History'];
+const FILTERS = [
+  ['near', 'Near You'],
+  ['soon', 'Opening Soon'],
+  ['areas', 'My Areas'],
+];
+const applyFilter = (list, filter) =>
+  filter === 'soon'
+    ? list.filter((c) => c.opening_soon)
+    : filter === 'areas'
+      ? list.filter((c) => c.in_my_area)
+      : [...list].sort((a, b) => (a.distance_km ?? 1e9) - (b.distance_km ?? 1e9));
 
-// Card for a campaign the rider can browse and join.
-export function AvailableCampaignCard({ campaign, onOpen, onChanged }) {
-  const styles = useStyles(makeStyles);
+const HISTORY_LABEL = { COMPLETED: ['Completed', 'success'], REMOVED: ['Removed', 'danger'], CANCELLED: ['Cancelled', 'neutral'], REJECTED: ['Not approved', 'danger'] };
+
+function CampaignCard({ c, onOpen }) {
+  const s = useStyles(makeStyles);
   const { colors } = useTheme();
-  const full = campaign.remaining_slots === 0;
-
-  const { start: join, joining, sheet } = useJoinCampaign(campaign, onChanged);
-
+  const soon = c.opening_soon;
+  const accent = soon ? colors.warning : colors.primary;
   return (
-    <Card style={styles.campaignCard}>
-      <View style={styles.cardTop}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.campaignName}>{campaign.name}</Text>
-          <Text style={styles.brand}>{campaign.brand_name}</Text>
-        </View>
-        <StatusBadge status={campaign.my_status || (campaign.lifecycle && campaign.lifecycle.key) || campaign.status} />
+    <TouchableOpacity style={s.card} onPress={() => onOpen(c.id)} activeOpacity={0.85}>
+      <View style={[s.icon, { backgroundColor: soon ? colors.warningSoft : colors.primarySoft }]}>
+        <Ionicons name={soon ? 'play-forward-outline' : 'ribbon-outline'} size={26} color={accent} />
       </View>
-
-      <View style={styles.metaRow}>
-        <View style={styles.metaItem}>
-          <Ionicons name="calendar-outline" size={14} color={colors.textMuted} />
-          <Text style={styles.metaText}>{formatDateRange(campaign.start_date, campaign.end_date)}</Text>
+      <View style={{ flex: 1 }}>
+        <View style={s.rowBetween}>
+          <Text style={[s.brand, { color: accent }]} numberOfLines={1}>{(c.brand_name || '').toUpperCase()}</Text>
+          {soon ? <Badge label="Opening Soon" tone="warning" /> : c.remaining_slots === 0 ? <Badge label="Full" tone="neutral" /> : <Badge label="Open" tone="success" />}
         </View>
-        <View style={styles.metaItem}>
-          <Ionicons name="cash-outline" size={14} color={colors.success} />
-          <Text style={[styles.metaText, { color: colors.success, fontWeight: '700' }]}>{formatINR(campaign.daily_rate)} / eligible day</Text>
+        <Text style={s.name} numberOfLines={1}>{c.name}</Text>
+        <Text style={s.meta} numberOfLines={1}>{[`#${c.code}`, c.location_area, distanceLabel(c.distance_km)].filter(Boolean).join(' • ')}</Text>
+        <View style={[s.rowBetween, { marginTop: 8 }]}>
+          <Text style={[s.rate, { color: soon ? colors.text : colors.primary }]}>{formatINR(c.daily_rate)}/day</Text>
+          <Text style={s.slots}>{c.filled_slots}/{c.slot_capacity} slots filled</Text>
         </View>
-        {campaign.location_area ? (
-          <View style={styles.metaItem}>
-            <Ionicons name="location-outline" size={14} color={colors.textMuted} />
-            <Text style={styles.metaText}>{campaign.location_area}</Text>
-          </View>
-        ) : null}
-        {campaign.eligible_vehicle_label && campaign.eligible_vehicle_label !== 'All vehicles' ? (
-          <View style={styles.metaItem}>
-            <Ionicons name="bicycle-outline" size={14} color={colors.textMuted} />
-            <Text style={styles.metaText}>{campaign.eligible_vehicle_label} only</Text>
-          </View>
-        ) : null}
+        {soon ? <Countdown startsAt={c.starts_at} prefix="Opens in " style={s.countdown} /> : null}
+        {c.in_my_area ? <Text style={s.area}>In your working area</Text> : null}
       </View>
-
-      <View style={{ gap: 6, marginTop: 12 }}>
-        <View style={styles.slotRow}>
-          <Text style={styles.slotText}>
-            {campaign.filled_slots} / {campaign.slot_capacity || campaign.total_slots} riders assigned
-          </Text>
-          <Text style={[styles.slotText, { color: full ? colors.warning : colors.primary, fontWeight: '700' }]}>
-            {full ? 'Full' : `${campaign.remaining_slots} slots left`}
-          </Text>
-        </View>
-        <ProgressBar value={campaign.filled_slots} max={campaign.slot_capacity || campaign.total_slots} color={full ? colors.warning : colors.primary} />
-      </View>
-
-      {campaign.rules.length ? (
-        <View style={styles.rules}>
-          {campaign.rules.slice(0, 2).map((rule) => (
-            <View key={rule} style={styles.ruleRow}>
-              <Ionicons name="checkmark-circle-outline" size={15} color={colors.textMuted} />
-              <Text style={styles.ruleText} numberOfLines={2}>{rule}</Text>
-            </View>
-          ))}
-          {campaign.rules.length > 2 ? <Text style={styles.moreRules}>+{campaign.rules.length - 2} more requirements</Text> : null}
-        </View>
-      ) : null}
-
-      {!campaign.can_join && campaign.join_blocked_reason ? (
-        <View style={styles.blocked}>
-          <Ionicons name="information-circle-outline" size={16} color={colors.textMuted} />
-          <Text style={styles.blockedText}>{campaign.join_blocked_reason}</Text>
-        </View>
-      ) : null}
-
-      <View style={styles.actions}>
-        <OutlineButton label="View Campaign" onPress={() => onOpen(campaign.id)} style={{ flex: 1, paddingVertical: 12 }} />
-        {campaign.can_join ? (
-          <PrimaryButton label="Join Campaign" onPress={join} loading={joining} style={{ flex: 1, paddingVertical: 12 }} />
-        ) : null}
-      </View>
-      {sheet}
-    </Card>
-  );
-}
-
-// Compact card for the rider's current campaign, reused on the Home screen.
-export function ActiveCampaignCard({ campaign, onOpen }) {
-  const styles = useStyles(makeStyles);
-  const { colors } = useTheme();
-  const p = campaign.progress;
-  return (
-    <TouchableOpacity activeOpacity={0.9} onPress={() => onOpen(campaign.id)}>
-      <Card style={[styles.campaignCard, { borderColor: colors.primary }]}>
-        <View style={styles.cardTop}>
-          <View style={styles.activeIcon}>
-            <Ionicons name="megaphone-outline" size={20} color={colors.primary} />
-          </View>
-          <View style={{ flex: 1, marginLeft: 12 }}>
-            <Text style={styles.campaignName} numberOfLines={1}>{campaign.name}</Text>
-            <Text style={styles.brand}>
-              {campaign.brand_name} · {formatINR(campaign.daily_rate)}/day
-            </Text>
-          </View>
-          <StatusBadge status={campaign.my_status} />
-        </View>
-        <View style={styles.statsRow}>
-          {[
-            ['Today', p.today_photos && p.today_photos.in_window ? `${Math.min(p.today_photos.valid, p.photos_required)}/${p.photos_required}` : '—'],
-            ['Streak', `${p.current_streak}d`],
-            ['Photo-days', `${p.completed_days}/${p.target_days}`],
-            ['Earned', formatINR(p.earned)],
-          ].map(([label, value]) => (
-            <View key={label} style={styles.stat}>
-              <Text style={styles.statValue}>{value}</Text>
-              <Text style={styles.statLabel}>{label}</Text>
-            </View>
-          ))}
-        </View>
-        {p.can_submit_today ? (
-          <View style={styles.dueRow}>
-            <Ionicons name="camera-outline" size={16} color={colors.primary} />
-            <Text style={styles.dueText}>
-              Upload today's {p.photos_required} photos to earn {formatINR(campaign.daily_rate)}
-            </Text>
-            <Ionicons name="chevron-forward" size={16} color={colors.primary} />
-          </View>
-        ) : null}
-      </Card>
     </TouchableOpacity>
   );
 }
 
-export default function CampaignsScreen({ data, onOpen, onChanged }) {
-  const styles = useStyles(makeStyles);
-  const [section, setSection] = useState(data && data.active ? 'My Campaign' : 'Available');
-  // The campaign the rider already asked to join is shown under "Awaiting Approval" instead.
-  const available = data ? data.available.filter((c) => !data.pending_request || c.id !== data.pending_request.id) : [];
-  const history = data ? data.history : [];
-
-  return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <ScreenHeader title="Campaigns" />
-      <FilterPills options={SECTIONS} value={section} onChange={setSection} />
-
-      {!data ? (
-        <View style={{ marginTop: 16 }}>
-          <EmptyState icon="megaphone-outline" title="Loading campaigns" message="Fetching the latest campaigns for you." />
-        </View>
-      ) : null}
-
-      {data && section === 'Available' && (
-        <>
-          {data.active ? (
-            <View style={[styles.notice, { marginTop: 16 }]}>
-              <Text style={styles.noticeText}>You're currently participating in another campaign. You can browse campaigns, but you can join a new one after it ends.</Text>
-            </View>
-          ) : null}
-          {data.pending_request ? (
-            <>
-              <SectionHeader title="Awaiting Approval" />
-              <PendingRequestCard campaign={data.pending_request} onOpen={onOpen} onChanged={onChanged} />
-            </>
-          ) : null}
-          {data && data.approval_message ? (
-            <>
-              <SectionHeader title="Campaigns" />
-              {/* Riders only see campaigns once their profile is approved (enforced by the server). */}
-              <EmptyState icon="time-outline" title="Profile not approved yet" message={data.approval_message} />
-            </>
-          ) : (
-            <>
-          <SectionHeader title={`Available Campaigns (${available.length})`} />
-          {available.length === 0 ? (
-            <EmptyState icon="megaphone-outline" title="No campaigns right now" message="New campaigns will appear here as soon as they're published." />
-          ) : (
-            <View style={{ gap: 14 }}>
-              {available.map((c) => (
-                <AvailableCampaignCard key={c.id} campaign={c} onOpen={onOpen} onChanged={onChanged} />
-              ))}
-            </View>
-          )}
-            </>
-          )}
-        </>
-      )}
-
-      {data && section === 'My Campaign' && (
-        <>
-          <SectionHeader title="My Active Campaign" />
-          {data.active ? (
-            <ActiveCampaignCard campaign={data.active} onOpen={onOpen} />
-          ) : (
-            <EmptyState icon="flag-outline" title="No active campaign" message="Join an available campaign to start earning a daily payout." />
-          )}
-        </>
-      )}
-
-      {data && section === 'History' && (
-        <>
-          <SectionHeader title="Campaign History" />
-          {history.length === 0 ? (
-            <EmptyState icon="time-outline" title="No history yet" message="Campaigns you've completed or left will appear here." />
-          ) : (
-            <Card style={{ paddingVertical: 4 }}>
-              {history.map((c, i) => (
-                <TouchableOpacity
-                  key={`${c.id}-${c.my_status}-${i}`}
-                  style={[styles.historyRow, i === history.length - 1 && { borderBottomWidth: 0 }]}
-                  onPress={() => onOpen(c.id)}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.historyName}>{c.name}</Text>
-                    <Text style={styles.brand}>
-                      {c.brand_name} · {formatDateRange(c.start_date, c.end_date)}
-                    </Text>
-                    {c.rejection_reason ? <Text style={styles.historyReason}>{c.rejection_reason}</Text> : null}
-                  </View>
-                  <View style={{ alignItems: 'flex-end', gap: 4 }}>
-                    <StatusBadge status={c.my_status} />
-                    {c.earned !== undefined ? <Text style={styles.historyEarned}>{formatINR(c.earned)}</Text> : null}
-                  </View>
-                </TouchableOpacity>
-              ))}
-            </Card>
-          )}
-        </>
-      )}
-    </ScrollView>
-  );
-}
-
-function PendingRequestCard({ campaign, onOpen, onChanged }) {
-  const styles = useStyles(makeStyles);
+export default function CampaignsScreen({ data, onOpen, onBack, locationState, deviceLocation, onRequestLocation }) {
+  const s = useStyles(makeStyles);
   const { colors } = useTheme();
-  const withdraw = () =>
-    Alert.alert('Withdraw request?', `Withdraw your request to join ${campaign.name}?`, [
-      { text: 'Keep request', style: 'cancel' },
-      {
-        text: 'Withdraw',
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await mobileApi.withdrawCampaignRequest(campaign.id);
-            await onChanged();
-          } catch (err) {
-            Alert.alert('Could not withdraw', err.message);
-          }
-        },
-      },
-    ]);
-  return (
-    <Card style={styles.campaignCard}>
-      <View style={styles.cardTop}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.campaignName}>{campaign.name}</Text>
-          <Text style={styles.brand}>
-            {campaign.brand_name} · {formatINR(campaign.daily_rate)}/day
-          </Text>
+  const { t } = useT();
+  const [view, setView] = useState('list');
+  const [filter, setFilter] = useState('near');
+  const [sheet, setSheet] = useState(null);
+  const [history, setHistory] = useState(false);
+  const all = data ? data.available.filter((c) => !data.pending_request || c.id !== data.pending_request.id) : [];
+  const list = applyFilter(all, filter);
+  const live = locationState === 'AVAILABLE' && isLive(deviceLocation);
+  const myLocation = live ? { lat: deviceLocation.latitude, lng: deviceLocation.longitude } : null;
+  const loc = LOCATION_TEXT[locationState] || LOCATION_TEXT.UNKNOWN;
+  const mine = data && (data.active || data.pending_request);
+
+  const header = (
+    <View style={{ paddingHorizontal: 20 }}>
+      <Header
+        title={t('Campaigns')}
+        onBack={history ? () => setHistory(false) : onBack}
+        right={
+          data && data.history.length ? (
+            <TouchableOpacity onPress={() => setHistory(!history)} hitSlop={8}>
+              <Text style={s.link}>{history ? 'Available' : `History (${data.history.length})`}</Text>
+            </TouchableOpacity>
+          ) : null
+        }
+      />
+      {!history ? (
+        <>
+          <Segmented options={[['map', t('Map View')], ['list', t('List View')]]} value={view} onChange={setView} />
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chips}>
+            {FILTERS.map(([k, l]) => (
+              <Chip key={k} label={t(l)} active={filter === k} solid onPress={() => setFilter(k)} />
+            ))}
+          </ScrollView>
+        </>
+      ) : null}
+    </View>
+  );
+
+  if (history) {
+    return (
+      <ScrollView style={s.screen} contentContainerStyle={{ paddingBottom: 32 }}>
+        {header}
+        <View style={{ paddingHorizontal: 20, gap: 12 }}>
+          {data.history.map((c, i) => {
+            const [label, tone] = HISTORY_LABEL[c.my_status] || [c.my_status, 'neutral'];
+            return (
+              <TouchableOpacity key={`${c.id}-${i}`} style={s.card} onPress={() => onOpen(c.id)}>
+                <View style={{ flex: 1 }}>
+                  <View style={s.rowBetween}>
+                    <Text style={s.brand}>{(c.brand_name || '').toUpperCase()}</Text>
+                    <Badge label={label} tone={tone} />
+                  </View>
+                  <Text style={s.name}>{c.name}</Text>
+                  <Text style={s.meta}>{formatDateRange(c.start_date, c.end_date)}{c.earned !== undefined ? ` · Earned ${formatINR(c.earned)}` : ''}</Text>
+                  {c.rejection_reason ? <Text style={[s.meta, { color: colors.danger }]}>{c.rejection_reason}</Text> : null}
+                </View>
+              </TouchableOpacity>
+            );
+          })}
         </View>
-        <StatusBadge status="REQUESTED" />
+      </ScrollView>
+    );
+  }
+
+  const notice = !data ? null : data.approval_message ? (
+    <View style={[s.notice, { backgroundColor: colors.warningSoft }]}>
+      <Ionicons name="time-outline" size={18} color={colors.warning} />
+      <Text style={s.noticeText}>{data.approval_message}</Text>
+    </View>
+  ) : !live ? (
+    <TouchableOpacity style={[s.notice, { backgroundColor: colors.warningSoft }]} onPress={onRequestLocation} disabled={!loc.action}>
+      <Ionicons name="location-outline" size={18} color={colors.warning} />
+      <Text style={s.noticeText}>
+        {loc.text}.{loc.action ? ` Tap to ${loc.action.toLowerCase()}.` : ''}
+        {(data.working_areas || []).length ? ' Showing campaigns in your working areas.' : ''}
+      </Text>
+    </TouchableOpacity>
+  ) : null;
+
+  const mineCard = mine ? (
+    <TouchableOpacity style={[s.card, { borderColor: data.active ? colors.success : colors.warning }]} onPress={() => onOpen(mine.id)}>
+      <View style={{ flex: 1 }}>
+        <View style={s.rowBetween}>
+          <Text style={s.brand}>{data.active ? 'MY ACTIVE CAMPAIGN' : 'MY REQUEST'}</Text>
+          <Badge label={data.active ? 'Active' : 'Reserved'} tone={data.active ? 'success' : 'warning'} />
+        </View>
+        <Text style={s.name}>{mine.name}</Text>
+        <Text style={s.meta}>{mine.brand_name} · {formatINR(mine.daily_rate)}/day</Text>
       </View>
-      <View style={[styles.blocked, { marginTop: 12, flexDirection: 'column', alignItems: 'flex-start', gap: 6 }]}>
-        <Text style={[styles.blockedText, { fontWeight: '700', color: colors.text }]}>Application Submitted</Text>
-        {campaign.my_request && campaign.my_request.kit_status !== 'NOT_REQUIRED' ? (
-          <Text style={styles.blockedText}>
-            T-shirt{campaign.my_request.tshirt_size ? ` (${campaign.my_request.tshirt_size})` : ''}: {campaign.my_request.kit_status_label}
-          </Text>
-        ) : null}
-        <Text style={styles.blockedText}>Campaign: Waiting for Admin Approval</Text>
-        {campaign.my_request && campaign.my_request.kit_status === 'PENDING' ? (
-          <Text style={styles.blockedText}>Open the campaign to see where to collect your T-shirt.</Text>
-        ) : null}
+      <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+    </TouchableOpacity>
+  ) : null;
+
+  if (view === 'map') {
+    return (
+      <View style={s.screen}>
+        {header}
+        <View style={{ flex: 1, marginTop: 12 }}>
+          <CampaignMapView campaigns={list} myLocation={myLocation} workingAreas={data ? data.working_areas || [] : []} fullBleed dark selectedId={sheet ? sheet.id : null} onSelect={setSheet} />
+          {notice ? <View style={{ position: 'absolute', top: 12, left: 16, right: 16 }}>{notice}</View> : null}
+          {data && !list.length ? (
+            <View style={s.mapEmpty}>
+              <Text style={s.mapEmptyText}>{data.approval_message ? 'Campaigns unlock once your profile is approved.' : 'No campaigns available near you.'}</Text>
+            </View>
+          ) : null}
+        </View>
+        {sheet ? <CampaignSheet campaign={sheet} onClose={() => setSheet(null)} onOpen={onOpen} /> : null}
       </View>
-      <View style={styles.actions}>
-        <OutlineButton label="View Campaign" onPress={() => onOpen(campaign.id)} style={{ flex: 1, paddingVertical: 12 }} />
-        <OutlineButton label="Withdraw" onPress={withdraw} style={{ flex: 1, paddingVertical: 12, borderColor: colors.danger }} textStyle={{ color: colors.danger }} />
+    );
+  }
+
+  return (
+    <ScrollView style={s.screen} contentContainerStyle={{ paddingBottom: 32 }}>
+      {header}
+      <View style={{ paddingHorizontal: 20, gap: 14 }}>
+        {notice}
+        {mineCard}
+        {!data ? (
+          <Empty icon="cloud-download-outline" title="Loading campaigns…" />
+        ) : data.approval_message ? null : !list.length ? (
+          <Empty
+            icon="megaphone-outline"
+            title={filter === 'soon' ? 'Nothing opening soon' : filter === 'areas' ? 'No campaigns in your areas' : 'No campaigns available near you'}
+            text={filter === 'areas' && !(data.working_areas || []).length ? 'Add working areas in You to see campaigns there first.' : 'New campaigns appear here as soon as they reach your area.'}
+          />
+        ) : (
+          list.map((c) => <CampaignCard key={c.id} c={c} onOpen={onOpen} />)
+        )}
       </View>
-    </Card>
+    </ScrollView>
   );
 }
 
 const makeStyles = (c) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: c.background },
-    content: { paddingHorizontal: 20, paddingBottom: 32 },
-    campaignCard: { padding: 16 },
-    cardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-    campaignName: { fontSize: 16, fontWeight: '700', color: c.text },
-    brand: { fontSize: 13, color: c.textMuted, marginTop: 2 },
-    metaRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginTop: 12 },
-    metaItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-    metaText: { fontSize: 13, color: c.textMuted },
-    slotRow: { flexDirection: 'row', justifyContent: 'space-between' },
-    slotText: { fontSize: 12, color: c.textMuted },
-    rules: { marginTop: 12, gap: 6 },
-    ruleRow: { flexDirection: 'row', gap: 6, alignItems: 'flex-start' },
-    ruleText: { flex: 1, fontSize: 13, color: c.text, lineHeight: 18 },
-    moreRules: { fontSize: 12, color: c.primary, fontWeight: '600', marginLeft: 21 },
-    blocked: { flexDirection: 'row', gap: 8, alignItems: 'center', backgroundColor: c.surfaceAlt, borderRadius: 10, padding: 10, marginTop: 12 },
-    blockedText: { flex: 1, fontSize: 12, color: c.textMuted, lineHeight: 17 },
-    actions: { flexDirection: 'row', gap: 10, marginTop: 14 },
-    notice: { backgroundColor: c.primarySoft, borderRadius: 12, padding: 12 },
-    noticeText: { fontSize: 13, color: c.text, lineHeight: 18 },
-    activeIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: c.primarySoft, alignItems: 'center', justifyContent: 'center' },
-    statsRow: { flexDirection: 'row', marginTop: 16, paddingTop: 14, borderTopWidth: 1, borderTopColor: c.border },
-    stat: { flex: 1, alignItems: 'center' },
-    statValue: { fontSize: 17, fontWeight: '800', color: c.text },
-    statLabel: { fontSize: 11, color: c.textMuted, marginTop: 2 },
-    dueRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14, backgroundColor: c.primarySoft, borderRadius: 10, padding: 10 },
-    dueText: { flex: 1, fontSize: 13, fontWeight: '600', color: c.primary },
-    historyRow: { flexDirection: 'row', gap: 12, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: c.border },
-    historyName: { fontSize: 14, fontWeight: '700', color: c.text },
-    historyReason: { fontSize: 12, color: c.danger, marginTop: 3 },
-    historyEarned: { fontSize: 13, fontWeight: '700', color: c.text },
+    title: { fontSize: 28, fontWeight: '800', color: c.text },
+    link: { color: c.primary, fontWeight: '700', fontSize: 15 },
+    chips: { gap: 10, paddingVertical: 16 },
+    rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+    card: { flexDirection: 'row', gap: 16, backgroundColor: c.surface, borderRadius: 22, borderWidth: 1, borderColor: c.border, padding: 18 },
+    icon: { width: 60, height: 60, borderRadius: 16, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
+    brand: { fontSize: 13, fontWeight: '800', letterSpacing: 0.3, color: c.textMuted, flex: 1 },
+    name: { fontSize: 18, fontWeight: '800', color: c.text, marginTop: 3 },
+    meta: { fontSize: 14, color: c.textMuted, marginTop: 3 },
+    rate: { fontSize: 18, fontWeight: '800' },
+    slots: { fontSize: 13, color: c.textMuted },
+    countdown: { fontSize: 12, fontWeight: '800', color: c.warning, marginTop: 6, fontVariant: ['tabular-nums'] },
+    area: { fontSize: 12, fontWeight: '700', color: c.primary, marginTop: 4 },
+    notice: { flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 16, padding: 14 },
+    noticeText: { flex: 1, fontSize: 13, color: c.text, lineHeight: 18 },
+    mapEmpty: { position: 'absolute', bottom: 24, left: 16, right: 16, backgroundColor: 'rgba(17,24,39,0.9)', borderRadius: 16, padding: 14 },
+    mapEmptyText: { color: '#FFFFFF', textAlign: 'center', fontWeight: '700' },
   });

@@ -4,17 +4,17 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const palettes = {
   light: {
-    background: '#F5F7FB',
+    background: '#F4F6FA',
     surface: '#FFFFFF',
     surfaceAlt: '#F1F5F9',
     border: '#E2E8F0',
     text: '#0F172A',
     textMuted: '#64748B',
     textSubtle: '#94A3B8',
-    primary: '#2563EB',
-    primarySoft: '#EFF6FF',
+    primary: '#3563E9',
+    primarySoft: '#EEF3FE',
     onPrimary: '#FFFFFF',
-    hero: '#0B1B4D',
+    hero: '#0F1C4D',
     heroMuted: '#A5B4FC',
     success: '#16A34A',
     successSoft: '#DCFCE7',

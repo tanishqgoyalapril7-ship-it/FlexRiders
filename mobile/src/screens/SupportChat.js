@@ -5,7 +5,31 @@ import { mobileApi } from '../services/api';
 import { useStyles, useTheme } from '../theme';
 import { ScreenHeader } from '../components/ui';
 import { formatDateTime } from '../utils';
-import { StatusChip } from './SupportScreen';
+
+export const STATUS_TONE = { WAITING_FOR_ADMIN: 'warning', WAITING_FOR_RIDER: 'primary', OPEN: 'primary', RESOLVED: 'success', CLOSED: 'neutral' };
+export const RIDER_LABELS = {
+  WAITING_FOR_ADMIN: 'Waiting for support',
+  WAITING_FOR_RIDER: 'Support replied',
+  OPEN: 'Open',
+  RESOLVED: 'Resolved',
+  CLOSED: 'Closed',
+};
+
+export function StatusChip({ status }) {
+  const { colors } = useTheme();
+  const tone = STATUS_TONE[status] || 'neutral';
+  const palette = {
+    warning: [colors.warningSoft, colors.warning],
+    primary: [colors.primarySoft, colors.primary],
+    success: [colors.successSoft, colors.success],
+    neutral: [colors.surfaceAlt, colors.textMuted],
+  }[tone];
+  return (
+    <View style={[{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 }, { backgroundColor: palette[0] }]}>
+      <Text style={[{ fontSize: 12, fontWeight: '600' }, { color: palette[1] }]}>{RIDER_LABELS[status] || status}</Text>
+    </View>
+  );
+}
 
 /** One support conversation. New replies and status changes arrive through `signal` (realtime), so the
  *  rider never has to refresh. Older messages load when scrolling up. */

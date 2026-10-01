@@ -5,6 +5,7 @@
  * Background recording (screen off / app in background) is used when the rider allows it;
  * otherwise the route records while the app is open.
  */
+import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import * as TaskManager from 'expo-task-manager';
@@ -17,6 +18,7 @@ const MAX_QUEUE = 5000;
 const BATCH = 500;
 
 let foregroundWatch = null;
+let lastForegroundFlush = 0;
 let flushing = false;
 
 // India Standard Time date (routes belong to one campaign day).
@@ -56,7 +58,7 @@ async function enqueue(points) {
 
 async function handleLocations(locations) {
   const state = await getRouteState();
-  if (!state) return;
+  if (!state || state.paused) return; // Nothing is recorded while paused
   if (state.day !== istDate()) {
     await stopRoute(); // The campaign day is over
     return;
@@ -118,7 +120,15 @@ async function startForegroundWatch() {
   if (foregroundWatch) return;
   foregroundWatch = await Location.watchPositionAsync(
     { accuracy: Location.Accuracy.High, timeInterval: 15000, distanceInterval: 20 },
-    (loc) => handleLocations([loc])
+    (loc) =>
+      handleLocations([loc]).then(() => {
+        // Upload while recording in the foreground too (at most every 30 s), so the admin map stays current
+        // whichever screen the rider is on.
+        if (Date.now() - lastForegroundFlush > 30000) {
+          lastForegroundFlush = Date.now();
+          flushRoute();
+        }
+      })
   );
 }
 
@@ -137,6 +147,13 @@ export async function startRoute(campaignId, { askBackground = true } = {}) {
   const fg = await Location.requestForegroundPermissionsAsync();
   if (fg.status !== 'granted') {
     throw new Error('Location access is needed to record your route. Allow it in Settings.');
+  }
+  // Permission alone isn't enough: with the Location switch off no fix ever arrives.
+  if (!(await Location.hasServicesEnabledAsync().catch(() => true))) {
+    if (Platform.OS === 'android') await Location.enableNetworkProviderAsync().catch(() => {});
+    if (!(await Location.hasServicesEnabledAsync().catch(() => true))) {
+      throw new Error('Turn on Location on your phone to record your route.');
+    }
   }
   // Leftover points from an earlier session never belong to this route.
   await AsyncStorage.removeItem(QUEUE_KEY);
@@ -196,6 +213,61 @@ export async function resumeRoute() {
     await stopRoute();
     return null;
   }
-  if (state.mode === 'foreground') await startForegroundWatch();
+  if (state.mode === 'foreground' && !state.paused) await startForegroundWatch();
   return state;
+}
+
+/** Pause: stops location updates but keeps today's route (and its queued points) for Resume. */
+export async function pauseRoute() {
+  const state = await getRouteState();
+  if (!state || state.paused) return state;
+  try {
+    if (await Location.hasStartedLocationUpdatesAsync(TASK_NAME)) await Location.stopLocationUpdatesAsync(TASK_NAME);
+  } catch {
+    // Not running
+  }
+  if (foregroundWatch) {
+    foregroundWatch.remove();
+    foregroundWatch = null;
+  }
+  await flushRoute();
+  const next = { ...state, paused: true };
+  await AsyncStorage.setItem(STATE_KEY, JSON.stringify(next));
+  return next;
+}
+
+/** Resume a paused route in the same mode (background if it was allowed, otherwise while the app is open). */
+export async function unpauseRoute() {
+  const state = await getRouteState();
+  if (!state || !state.paused) return state;
+  if (state.day !== istDate()) {
+    await stopRoute();
+    return null;
+  }
+  if (!(await Location.hasServicesEnabledAsync().catch(() => true))) {
+    throw new Error('Turn on Location on your phone to resume your route.');
+  }
+  let mode = 'foreground';
+  if (state.mode === 'background') {
+    try {
+      await Location.startLocationUpdatesAsync(TASK_NAME, {
+        accuracy: Location.Accuracy.High,
+        timeInterval: 15000,
+        distanceInterval: 20,
+        pausesUpdatesAutomatically: false,
+        showsBackgroundLocationIndicator: true,
+        foregroundService: {
+          notificationTitle: 'Recording your campaign route',
+          notificationBody: 'Your location is shared with FlexRiders until you end the route.',
+        },
+      });
+      mode = 'background';
+    } catch {
+      mode = 'foreground';
+    }
+  }
+  if (mode === 'foreground') await startForegroundWatch();
+  const next = { ...state, paused: false, mode };
+  await AsyncStorage.setItem(STATE_KEY, JSON.stringify(next));
+  return next;
 }

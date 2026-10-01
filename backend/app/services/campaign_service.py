@@ -7,7 +7,7 @@ import re
 from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
-from sqlalchemy import func
+from sqlalchemy import and_, func
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -33,6 +33,7 @@ from app.models.campaign_models import (
     VehicleCategory,
 )
 from app.services import fulfillment_service as fs
+from app.services import geo_service as geo
 from app.services import kit_service as ks
 from app.services import terms_service as terms
 from app.services.fulfillment_service import today_ist, to_ist_date  # noqa: F401  (re-exported)
@@ -62,6 +63,26 @@ def slots_used(db: Session, campaign_id: int) -> int:
     )
 
 
+def slots_reserved(db: Session, campaign_id: int) -> int:
+    """Slots taken: riders in the campaign plus pending join requests, which hold a slot until an admin
+    approves (it becomes an assignment), rejects or the rider withdraws (the slot frees up)."""
+    pending = (
+        db.query(func.count(CampaignApplication.id))
+        .filter(CampaignApplication.campaign_id == campaign_id, CampaignApplication.status == ApplicationStatus.REQUESTED)
+        .scalar()
+    )
+    return slots_used(db, campaign_id) + pending
+
+
+def remaining_slots(db: Session, campaign: Campaign) -> int:
+    return max(slot_capacity(campaign) - slots_reserved(db, campaign.id), 0)
+
+
+def campaign_code(campaign_id: int) -> str:
+    """The one campaign ID shown everywhere (brand, admin, rider, public page, exports)."""
+    return f"CMP-{campaign_id:06d}"
+
+
 def slot_capacity(campaign: Campaign) -> int:
     """Required riders plus replacement slots opened by an admin. Contracted rider-days never change."""
     return campaign.total_slots + (campaign.extra_replacement_slots or 0)
@@ -81,19 +102,32 @@ def sync_campaign_status(db: Session, campaign: Campaign, today: Optional[date] 
     ACTIVE and new riders can no longer join."""
     today = today or today_ist()
     changed = False
+    grown = None
 
     if campaign.status in CampaignStatus.PUBLISHED:
         if not campaign.live_at and campaign.start_date <= today:
-            go_live(db, campaign, None)
-            return campaign
+            should_go_live = True
+            if campaign.start_date == today and campaign.daily_start_time:
+                # Riders can still join on the start day until the campaign's daily start time.
+                if geo.now_ist() < geo.parse_campaign_start_datetime(campaign.start_date, campaign.daily_start_time):
+                    should_go_live = False
+            if should_go_live:
+                go_live(db, campaign, None)
+                return campaign
+        reserved = slots_reserved(db, campaign.id)
         if campaign.live_at:
             new_status = CampaignStatus.ACTIVE
-        elif slots_used(db, campaign.id) >= slot_capacity(campaign):
+        elif reserved >= slot_capacity(campaign):
             new_status = CampaignStatus.FULL
         else:
             new_status = CampaignStatus.OPEN
         if new_status != campaign.status:
             campaign.status = new_status
+            changed = True
+        grown = geo.advance_radius(
+            campaign, max(slot_capacity(campaign) - reserved, 0), accepting=campaign.status == CampaignStatus.OPEN
+        )
+        if grown:
             changed = True
 
     if campaign.start_date <= today and campaign.status not in CampaignStatus.CLOSED:
@@ -112,7 +146,62 @@ def sync_campaign_status(db: Session, campaign: Campaign, today: Optional[date] 
     if changed:
         db.commit()
         db.refresh(campaign)
+    if grown and campaign.status in CampaignStatus.PUBLISHED:
+        _after_radius_growth(db, campaign, *grown, admin=None)
     return campaign
+
+
+def _after_radius_growth(db: Session, campaign: Campaign, old: float, new: float, admin: Optional[User]) -> int:
+    """Audit the expansion and tell riders the campaign has just reached (once per rider and campaign)."""
+    log_admin_action(
+        db=db, admin_user=admin, action="CAMPAIGN_RADIUS_EXPANDED", target_type="CAMPAIGN", target_id=str(campaign.id),
+        details=f"{campaign_code(campaign.id)} {campaign.name}: radius {old:g} km → {new:g} km" + ("" if admin else " (automatic)"),
+    )
+    from app.services.realtime_service import broadcast_campaign_update
+    broadcast_campaign_update(campaign, "radius_expanded")
+    sent = 0
+    for rider, match in geo.riders_in_reach(db, campaign, rider_filter=Rider.status.in_(ELIGIBLE_RIDER_STATUSES), limit=300):
+        nearest = min(d for d in (match["distance_km"], match["working_area_distance_km"], 1e9) if d is not None)
+        if nearest <= old:
+            continue  # Already reached before this expansion
+        if not rider.user_id or vehicle_block_reason(campaign, rider):
+            continue
+        sent += bool(send_notification(
+            db=db, user_id=rider.user_id, title="New campaign near you",
+            message=f"{campaign.name} is now open in your area. ₹{campaign.daily_rate:,.0f}/day · {remaining_slots(db, campaign)} slots left.",
+            category="CAMPAIGN", reference_id=str(campaign.id), dedupe_key=f"CAMPAIGN_REACH:{campaign.id}:{rider.id}",
+        ))
+    return sent
+
+
+def notify_slots_available(db: Session, campaign: Campaign) -> int:
+    """'Good news! N slots are now available' to riders the campaign reaches, when a slot frees up
+    (request withdrawn or rejected, or capacity raised). Sent at most once per rider per hour."""
+    db.refresh(campaign)
+    if campaign.status != CampaignStatus.OPEN or rider_visibility(campaign):
+        return 0
+    free = remaining_slots(db, campaign)
+    if free <= 0:
+        return 0
+    from app.services.realtime_service import broadcast_campaign_update
+    broadcast_campaign_update(campaign, "slots_available")
+    if geo.is_targeted(campaign):
+        candidates = [r for r, _ in geo.riders_in_reach(db, campaign, rider_filter=Rider.status.in_(ELIGIBLE_RIDER_STATUSES), limit=300)]
+    else:
+        return 0  # Untargeted campaigns are visible to everyone; don't message every rider on the platform.
+    hour = datetime.utcnow().strftime("%Y%m%d%H")
+    sent = 0
+    for rider in candidates:
+        if not rider.user_id or vehicle_block_reason(campaign, rider):
+            continue
+        if current_assignment(db, rider.id) or pending_application(db, rider.id):
+            continue
+        sent += bool(send_notification(
+            db=db, user_id=rider.user_id, title="🟢 Good news!",
+            message=f"{free} slot{'s are' if free != 1 else ' is'} now available in {campaign.name}.",
+            category="CAMPAIGN", reference_id=str(campaign.id), dedupe_key=f"SLOTS_OPEN:{campaign.id}:{rider.id}:{hour}",
+        ))
+    return sent
 
 
 def go_live(db: Session, campaign: Campaign, admin: Optional[User]) -> Campaign:
@@ -218,9 +307,9 @@ def rider_visibility(campaign: Campaign, today: Optional[date] = None) -> Option
         return "Cancelled"
     if fs.effective_end_date(campaign) < today:
         return f"Ended on {fs.effective_end_date(campaign):%d %b %Y}"
-    # Riders only discover upcoming campaigns. Once a campaign has started (live, or its start date has come)
+    # Riders only discover upcoming campaigns. Once a campaign has started (live, or past its start date)
     # or is paused, only riders already in it see it (My Campaign / History).
-    if campaign.live_at or today >= campaign.start_date:
+    if campaign.live_at or today > campaign.start_date:
         return "Started: only riders already in this campaign can see it"
     if campaign.status == CampaignStatus.PAUSED:
         return "Paused"
@@ -283,11 +372,18 @@ def vehicle_block_reason(campaign: Campaign, rider: Rider) -> Optional[str]:
 
 
 def join_eligibility(
-    db: Session, campaign: Campaign, rider: Rider, today: Optional[date] = None, by_admin: bool = False
+    db: Session,
+    campaign: Campaign,
+    rider: Rider,
+    today: Optional[date] = None,
+    by_admin: bool = False,
+    rider_coords: Optional[Tuple[float, float]] = None,
 ) -> Tuple[bool, Optional[str]]:
     """Returns (can_join, reason shown to the rider when they cannot).
 
-    by_admin: an admin adding a (replacement) rider directly may do so after the campaign went live."""
+    by_admin: an admin adding a (replacement) rider directly may do so after the campaign went live, and
+    isn't limited by the campaign's geo-targeting.
+    rider_coords: the rider's current location from the app; defaults to their last recent location."""
     today = today or today_ist()
 
     assignment = current_assignment(db, rider.id)
@@ -320,6 +416,10 @@ def join_eligibility(
         return False, "This campaign has ended."
     if target_reached(db, campaign):
         return False, "This campaign has reached its target."
+    if not by_admin and geo.is_targeted(campaign):
+        match = geo.rider_match(campaign, rider_coords or geo.fresh_rider_location(rider), geo.working_areas_of(rider))
+        if not match["in_reach"]:
+            return False, match["reason"]
     return True, None
 
 
@@ -332,42 +432,55 @@ def _kit_choice(db: Session, campaign: Campaign, tshirt_size: Optional[str], pic
 
 def request_to_join(
     db: Session, campaign: Campaign, rider: Rider, tshirt_size: Optional[str] = None, pickup_location_id: Optional[int] = None,
-    terms_version: Optional[int] = None,
+    terms_version: Optional[int] = None, rider_coords: Optional[Tuple[float, float]] = None,
 ) -> CampaignApplication:
-    sync_campaign_status(db, campaign)
-    can_join, reason = join_eligibility(db, campaign, rider)
+    # A request holds a slot, so lock the campaign row: two riders can't both take the last slot
+    # (FOR UPDATE on PostgreSQL; SQLite serialises writes itself).
+    locked_campaign = db.query(Campaign).filter(Campaign.id == campaign.id).with_for_update().one()
+    sync_campaign_status(db, locked_campaign)
+    can_join, reason = join_eligibility(db, locked_campaign, rider, rider_coords=rider_coords)
     if not can_join:
         raise CampaignError(reason)
-    size, location_id = _kit_choice(db, campaign, tshirt_size, pickup_location_id)
+    if slots_reserved(db, locked_campaign.id) >= slot_capacity(locked_campaign):
+        raise CampaignError("Campaign is currently full.")
+    size, location_id = _kit_choice(db, locked_campaign, tshirt_size, pickup_location_id)
     # The current Terms & Conditions (if the campaign has any) must be accepted to request to join.
-    current_terms = terms.current_terms(db, campaign.id)
-    if current_terms and not terms.has_accepted_current(db, campaign.id, rider.id) and terms_version != current_terms.version:
+    current_terms = terms.current_terms(db, locked_campaign.id)
+    if current_terms and not terms.has_accepted_current(db, locked_campaign.id, rider.id) and terms_version != current_terms.version:
         raise CampaignError(
-            f"Please read and accept the current Terms & Conditions for {campaign.name} (version {current_terms.version})."
+            f"Please read and accept the current Terms & Conditions for {locked_campaign.name} (version {current_terms.version})."
             if terms_version is None else
             f"These terms have been updated to version {current_terms.version}. Please review the latest version and accept it."
         )
 
     application = CampaignApplication(
-        campaign_id=campaign.id, rider_id=rider.id, tshirt_size=size, pickup_location_id=location_id,
-        kit_status=ks.initial_request_kit_status(campaign),
+        campaign_id=locked_campaign.id, rider_id=rider.id, tshirt_size=size, pickup_location_id=location_id,
+        kit_status=ks.initial_request_kit_status(locked_campaign),
     )
     db.add(application)
     db.commit()
     db.refresh(application)
     if current_terms:
         try:
-            terms.accept(db, campaign, rider, current_terms.version, application_id=application.id, source="JOIN")
+            terms.accept(db, locked_campaign, rider, current_terms.version, application_id=application.id, source="JOIN")
         except terms.TermsError as e:
             raise CampaignError(str(e))
+
+    sync_campaign_status(db, locked_campaign)  # The last slot makes it Full
+    log_admin_action(
+        db=db, admin_user=None, action="CAMPAIGN_RIDER_REQUESTED", target_type="CAMPAIGN", target_id=str(locked_campaign.id),
+        details=f"{rider.full_name} ({rider.rider_id}) requested to join {campaign_code(locked_campaign.id)} {locked_campaign.name}; slot reserved",
+    )
+    from app.services.realtime_service import broadcast_campaign_update
+    broadcast_campaign_update(locked_campaign, "slot_requested")
 
     send_notification(
         db=db,
         title=f"Campaign request: {rider.full_name}",
-        message=f"{rider.full_name} ({rider.rider_id}) requested to join {campaign.name}.",
+        message=f"{rider.full_name} ({rider.rider_id}) requested to join {locked_campaign.name}.",
         is_admin=True,
         category="CAMPAIGN",
-        reference_id=str(campaign.id),
+        reference_id=str(locked_campaign.id),
     )
     return application
 
@@ -386,6 +499,8 @@ def withdraw_request(db: Session, campaign: Campaign, rider: Rider) -> CampaignA
         raise CampaignError("You have no pending request for this campaign.")
     application.status = ApplicationStatus.WITHDRAWN
     db.commit()
+    sync_campaign_status(db, campaign)  # The freed slot may reopen a Full campaign
+    notify_slots_available(db, campaign)
     return application
 
 
@@ -456,6 +571,9 @@ def approve_application(
     db.refresh(assignment)
     sync_campaign_status(db, campaign)
 
+    from app.services.realtime_service import broadcast_campaign_update
+    broadcast_campaign_update(campaign, "rider_joined")
+
     rider = application.rider
     log_admin_action(
         db=db,
@@ -493,6 +611,8 @@ def reject_application(db: Session, application: CampaignApplication, admin: Use
     db.commit()
 
     campaign, rider = application.campaign, application.rider
+    sync_campaign_status(db, campaign)
+    notify_slots_available(db, campaign)
     log_admin_action(
         db=db,
         admin_user=admin,
@@ -895,6 +1015,9 @@ def review_photo(db: Session, photo: CampaignActivityPhoto, admin: User, approve
             category="CAMPAIGN",
             reference_id=str(campaign.id),
         )
+    if approve:  # Approved photos appear for the brand and on the public page
+        from app.services.realtime_service import broadcast_campaign_update
+        broadcast_campaign_update(campaign, "photo_approved")
     db.refresh(photo)
     return photo
 
@@ -1057,9 +1180,170 @@ def pay_payout(db: Session, payout: CampaignPayout, admin: User) -> CampaignPayo
 # Campaign lifecycle (admin)
 # ---------------------------------------------------------------------------
 
+REQUEST_STATUSES = (CampaignStatus.PENDING_APPROVAL, CampaignStatus.CHANGES_REQUIRED)
+
+
+def brand_status(campaign: Campaign) -> Dict:
+    """The lifecycle as the brand sees it: DRAFT → REQUESTED → APPROVED → LIVE → COMPLETED (plus changes
+    requested, rejected, paused, cancelled). LIVE means riders can see and join it (published)."""
+    status = campaign.status
+    if status == CampaignStatus.DRAFT:
+        # Admin-created campaigns need no review; a brand's own draft stays a draft until approved.
+        key = "APPROVED" if campaign.approved_at or not _created_by_brand(campaign) else "DRAFT"
+    elif status == CampaignStatus.PENDING_APPROVAL:
+        key = "REQUESTED"
+    elif status == CampaignStatus.CHANGES_REQUIRED:
+        key = "CHANGES_REQUESTED"
+    elif status in CampaignStatus.PUBLISHED:
+        key = "LIVE"
+    else:
+        key = status  # REJECTED, PAUSED, COMPLETED, CANCELLED
+    labels = {
+        "DRAFT": "Draft", "REQUESTED": "Pending Admin Review", "CHANGES_REQUESTED": "Changes Requested",
+        "APPROVED": "Approved", "LIVE": "Live", "REJECTED": "Rejected", "PAUSED": "Paused",
+        "COMPLETED": "Completed", "CANCELLED": "Cancelled",
+    }
+    return {"key": key, "label": labels.get(key, key.title())}
+
+
+def _created_by_brand(campaign: Campaign) -> bool:
+    return bool(campaign.created_by and campaign.created_by.role == "CUSTOMER")
+
+
+def is_brand_request(campaign: Campaign) -> bool:
+    """A brand's campaign that an admin hasn't approved yet (draft, awaiting review, changes requested or
+    rejected). It belongs to Campaign Requests, not the admin's Campaigns list, and can't be published."""
+    return _created_by_brand(campaign) and campaign.approved_at is None
+
+
+def brand_request_filter(creator):
+    """SQL form of is_brand_request; `creator` is a User alias joined on Campaign.created_by_id."""
+    return and_(func.coalesce(creator.role, "") == "CUSTOMER", Campaign.approved_at.is_(None))  # No creator = admin/legacy
+
+
+def notify_brand(db: Session, campaign: Campaign, title: str, message: str) -> int:
+    """In-app notification to every login of the campaign's brand, plus a realtime signal."""
+    users = db.query(User).filter(User.brand_id == campaign.brand_id, User.role == "CUSTOMER", User.is_active == True).all()  # noqa: E712
+    for u in users:
+        send_notification(db=db, user_id=u.id, title=title, message=message, category="CAMPAIGN", reference_id=str(campaign.id))
+    return len(users)
+
+
+def validate_for_approval(db: Session, campaign: Campaign) -> Optional[str]:
+    """Why a brand's request can't be approved as it stands, or None."""
+    from app.models.all_models import Brand
+
+    brand = db.get(Brand, campaign.brand_id)
+    if not brand or not brand.is_active:
+        return "The brand account is inactive."
+    if campaign.end_date < campaign.start_date:
+        return "The end date is before the start date."
+    if campaign.end_date < today_ist():
+        return "This campaign's dates have already passed. Ask the brand to change them."
+    if not campaign.total_slots or campaign.total_slots < 1:
+        return "Required riders must be at least 1."
+    if not campaign.daily_rate or campaign.daily_rate <= 0:
+        return "Set the rider payout per day before approving."
+    problem = geo.validate_geo_config(campaign.initial_radius_km, campaign.max_radius_km, campaign.expansion_step_km, campaign.expansion_interval_min)
+    if problem:
+        return problem
+    return None
+
+
+def review_brand_request(db: Session, campaign: Campaign, admin: User, action: str, note: Optional[str] = None) -> Campaign:
+    """Admin decision on a brand's campaign request. The same campaign row is kept throughout (same ID and
+    brand); approval moves it into the normal campaign system as an approved draft, which only goes live
+    for riders when an admin publishes it."""
+    if campaign.status not in REQUEST_STATUSES:
+        raise CampaignError("Only campaigns awaiting review can be approved, rejected or sent back.")
+    note = (note or "").strip() or None
+    code = campaign_code(campaign.id)
+    old_label = brand_status(campaign)["label"]
+    if action == "approve":
+        problem = validate_for_approval(db, campaign)
+        if problem:
+            raise CampaignError(problem)
+        campaign.status = CampaignStatus.DRAFT
+        campaign.visibility = CampaignVisibility.DRAFT
+        campaign.approved_at = datetime.utcnow()
+        campaign.approved_by_id = admin.id
+        campaign.admin_feedback = note
+        title, message, audit = "Campaign approved", f"{campaign.name} ({code}) was approved. We'll let you know when it goes live.", "CAMPAIGN_REQUEST_APPROVED"
+    elif action == "reject":
+        if not note:
+            raise CampaignError("Please give a reason for rejecting this campaign.")
+        campaign.status = CampaignStatus.REJECTED
+        campaign.admin_feedback = note
+        title, message, audit = "Campaign not approved", f"{campaign.name} ({code}) was not approved. Reason: {note}", "CAMPAIGN_REQUEST_REJECTED"
+    elif action == "request_changes":
+        if not note:
+            raise CampaignError("Please describe the changes the brand needs to make.")
+        campaign.status = CampaignStatus.CHANGES_REQUIRED
+        campaign.admin_feedback = note
+        title, message, audit = "Changes requested", f"Changes requested on {campaign.name} ({code}): {note}", "CAMPAIGN_REQUEST_CHANGES"
+    else:
+        raise CampaignError("Unknown review action.")
+    db.commit()
+    db.refresh(campaign)
+    log_admin_action(
+        db=db, admin_user=admin, action=audit, target_type="CAMPAIGN", target_id=str(campaign.id),
+        details=f"{code} {campaign.name} ({campaign.brand.name if campaign.brand else 'brand'}): {old_label} → {brand_status(campaign)['label']}" + (f". Note: {note}" if note else ""),
+    )
+    notify_brand(db, campaign, title, message)
+    from app.services.realtime_service import broadcast_campaign_update
+    broadcast_campaign_update(campaign, "campaign_reviewed")
+    return campaign
+
+
+def set_radius(db: Session, campaign: Campaign, admin: User, action: str, radius_km: Optional[float] = None) -> Campaign:
+    """Admin control of the expansion engine: expand now, pause, resume or set the current radius."""
+    if not geo.is_targeted(campaign):
+        raise CampaignError("Set a target location and initial radius first.")
+    if campaign.status in CampaignStatus.CLOSED:
+        raise CampaignError("This campaign has ended.")
+    old = geo.current_radius(campaign)
+    max_r = float(campaign.max_radius_km or old)
+    if action == "expand":
+        step = float(campaign.expansion_step_km) if campaign.expansion_step_km else None
+        if step is None:
+            raise CampaignError("Set an expansion step to expand this campaign.")
+        if old >= max_r:
+            raise CampaignError("The campaign is already at its maximum radius.")
+        campaign.current_radius_km = min(max_r, old + step)
+        campaign.radius_updated_at = datetime.utcnow()
+    elif action == "set":
+        if radius_km is None or radius_km <= 0:
+            raise CampaignError("Enter a radius above 0 km.")
+        if radius_km > max_r:
+            raise CampaignError(f"The radius can't exceed the maximum of {max_r:g} km. Raise the maximum first.")
+        campaign.current_radius_km = float(radius_km)
+        campaign.radius_updated_at = datetime.utcnow()
+    elif action == "pause":
+        campaign.expansion_paused = True
+    elif action == "resume":
+        campaign.expansion_paused = False
+        campaign.radius_updated_at = datetime.utcnow()
+    else:
+        raise CampaignError("Unknown radius action.")
+    db.commit()
+    new = geo.current_radius(campaign)
+    if action in ("pause", "resume"):
+        log_admin_action(db=db, admin_user=admin, action=f"CAMPAIGN_EXPANSION_{action.upper()}D", target_type="CAMPAIGN",
+                         target_id=str(campaign.id), details=f"{campaign_code(campaign.id)} {campaign.name}: automatic expansion {action}d at {new:g} km")
+    elif new > old and campaign.status in CampaignStatus.PUBLISHED:
+        _after_radius_growth(db, campaign, old, new, admin)
+    else:
+        log_admin_action(db=db, admin_user=admin, action="CAMPAIGN_RADIUS_SET", target_type="CAMPAIGN", target_id=str(campaign.id),
+                         details=f"{campaign_code(campaign.id)} {campaign.name}: radius {old:g} km → {new:g} km")
+        from app.services.realtime_service import broadcast_campaign_update
+        broadcast_campaign_update(campaign, "radius_changed")
+    return campaign
+
 def publish_campaign(db: Session, campaign: Campaign, admin: User) -> Campaign:
     if campaign.status != CampaignStatus.DRAFT:
         raise CampaignError("Only draft campaigns can be published.")
+    if is_brand_request(campaign):
+        raise CampaignError("This is a brand's campaign request. Approve it in Campaign Requests before publishing.")
     if campaign.end_date < today_ist():
         raise CampaignError("A campaign that has already ended cannot be published.")
     campaign.status = CampaignStatus.OPEN
@@ -1067,9 +1351,15 @@ def publish_campaign(db: Session, campaign: Campaign, admin: User) -> Campaign:
     campaign.published_at = datetime.utcnow()
     # The brand's commitment is fixed from here on: required riders × contract days.
     campaign.contracted_rider_days = campaign.total_slots * fs.contract_days(campaign)
+    if campaign.approved_at is None:
+        campaign.approved_at, campaign.approved_by_id = campaign.published_at, admin.id
+    geo.start_expansion_clock(campaign, campaign.published_at)  # Radius expansion starts once riders can see it
     db.commit()
     sync_campaign_status(db, campaign)
-    log_admin_action(db=db, admin_user=admin, action="CAMPAIGN_PUBLISHED", target_type="CAMPAIGN", target_id=str(campaign.id), details=f"{campaign.name} published")
+    log_admin_action(db=db, admin_user=admin, action="CAMPAIGN_PUBLISHED", target_type="CAMPAIGN", target_id=str(campaign.id), details=f"{campaign_code(campaign.id)} {campaign.name} is LIVE for riders (published)")
+    from app.services.realtime_service import broadcast_campaign_update
+    broadcast_campaign_update(campaign, "campaign_live")
+    notify_brand(db, campaign, "Your campaign is LIVE", f"{campaign.name} ({campaign_code(campaign.id)}) is now live and open to riders.")
     return campaign
 
 
@@ -1166,6 +1456,8 @@ def pause_campaign(db: Session, campaign: Campaign, admin: User) -> Campaign:
     campaign.status = CampaignStatus.PAUSED
     db.commit()
     log_admin_action(db=db, admin_user=admin, action="CAMPAIGN_PAUSED", target_type="CAMPAIGN", target_id=str(campaign.id), details=f"{campaign.name} paused")
+    from app.services.realtime_service import broadcast_campaign_update
+    broadcast_campaign_update(campaign, "campaign_paused")
     return campaign
 
 
@@ -1173,9 +1465,12 @@ def resume_campaign(db: Session, campaign: Campaign, admin: User) -> Campaign:
     if campaign.status != CampaignStatus.PAUSED:
         raise CampaignError("Only paused campaigns can be resumed.")
     campaign.status = CampaignStatus.OPEN
+    geo.start_expansion_clock(campaign)
     db.commit()
     sync_campaign_status(db, campaign)
     log_admin_action(db=db, admin_user=admin, action="CAMPAIGN_RESUMED", target_type="CAMPAIGN", target_id=str(campaign.id), details=f"{campaign.name} resumed")
+    from app.services.realtime_service import broadcast_campaign_update
+    broadcast_campaign_update(campaign, "campaign_resumed")
     return campaign
 
 
@@ -1227,6 +1522,8 @@ def _close_campaign(db: Session, campaign: Campaign, admin: User, status: str) -
                 category="CAMPAIGN",
                 reference_id=str(campaign.id),
             )
+    from app.services.realtime_service import broadcast_campaign_update
+    broadcast_campaign_update(campaign, f"campaign_{word}")
     return campaign
 
 
@@ -1438,7 +1735,9 @@ def campaign_stats(db: Session, campaign: Campaign) -> dict:
         "total_slots": campaign.total_slots,
         "slot_capacity": capacity,
         "assigned_riders": used,
-        "remaining_slots": max(capacity - used, 0),
+        # Pending requests hold a slot until reviewed, so they count against what's left.
+        "reserved_slots": used + requested,
+        "remaining_slots": max(capacity - used - requested, 0),
         "requested_riders": requested,
         "approved_riders": used,
         "active_riders": assignment_counts.get(AssignmentStatus.ACTIVE, 0) + assignment_counts.get(AssignmentStatus.ASSIGNED, 0),

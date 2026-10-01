@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
-import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { Alert, Image, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useStyles, useTheme } from '../theme';
 import { Card, OutlineButton, PrimaryButton, ScreenHeader, SectionHeader, StatusBadge } from '../components/ui';
 import { AutocompleteField, DateOfBirthField, FieldLabel, VehicleCategoryField, ageOn, vehicleCategoryLabel } from '../components/formFields';
 import ConfirmSheet from '../components/ConfirmSheet';
-import { VEHICLE_MODELS, areaSuggestionsFor } from '../data/suggestions';
+import { Badge, Button, Header, Section } from '../components/ds';
+import { useT } from '../i18n';
+import { VEHICLE_MODELS } from '../data/suggestions';
 import { mobileApi } from '../services/api';
 import { getInitials } from '../utils';
 
@@ -19,7 +21,6 @@ const THEME_OPTIONS = [
 const EDITABLE = [
   ['dob', 'dob'],
   ['vehicle_type', 'vehicle'],
-  ['primary_area', 'area'],
   ['upi_id', 'upi_id'],
   ['gpay_number', 'gpay_number'],
 ];
@@ -91,7 +92,6 @@ function EditProfileModal({ rider, visible, onClose, onSaved }) {
             hint={rider.vehicle_category ? 'Set. Contact your operations manager to change it.' : 'Needed to join campaigns for two or three wheelers. You can set this once.'}
           />
           <AutocompleteField label="Vehicle Model" icon="bicycle-outline" value={form.vehicle_type} onChangeText={set('vehicle_type')} options={VEHICLE_MODELS} placeholder="e.g. Honda Activa" />
-          <AutocompleteField label="Area / Zone" value={form.primary_area} onChangeText={set('primary_area')} options={areaSuggestionsFor(rider.city)} placeholder="e.g. Sector 29" />
           <ClearableField label="UPI ID" value={form.upi_id} onChangeText={set('upi_id')} autoCapitalize="none" autoCorrect={false} placeholder="yourname@upi" />
           <ClearableField label="Google Pay / PhonePe Number" value={form.gpay_number} onChangeText={set('gpay_number')} keyboardType="phone-pad" placeholder="10-digit number" />
 
@@ -114,47 +114,86 @@ function EditProfileModal({ rider, visible, onClose, onSaved }) {
   );
 }
 
-export default function ProfileScreen({ rider, onLogout, onProfileChanged, onAccountDeleted, onOpenRefer, onOpenNotifications, onOpenSupport, supportUnread = 0, unreadCount = 0 }) {
+const STATUS_BADGE = {
+  APPROVED: ['VERIFIED', 'success'],
+  ACTIVE: ['VERIFIED', 'success'],
+  PENDING: ['PENDING', 'warning'],
+  UNDER_REVIEW: ['IN REVIEW', 'warning'],
+  REJECTED: ['NOT APPROVED', 'danger'],
+  SUSPENDED: ['SUSPENDED', 'danger'],
+};
+
+/** "You": profile header and the settings menu from the design. Every row opens a real screen. */
+export default function ProfileScreen({ rider, onBack, onLogout, onProfileChanged, onAccountDeleted, onNavigate, onOpenSupport, supportUnread = 0, unreadCount = 0 }) {
   const styles = useStyles(makeStyles);
   const { colors, preference, setPreference } = useTheme();
+  const { t, lang } = useT();
   const [editing, setEditing] = useState(false);
+  const [photoFailed, setPhotoFailed] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const rows = [
-    { icon: 'call-outline', label: 'Mobile Number', value: rider.phone },
-    { icon: 'mail-outline', label: 'Email', value: rider.email },
-    { icon: 'speedometer-outline', label: 'Vehicle Type', value: vehicleCategoryLabel(rider.vehicle_category) },
-    { icon: 'bicycle-outline', label: 'Vehicle', value: rider.vehicle },
-    { icon: 'card-outline', label: 'Vehicle Number', value: rider.vehicle_number },
-    { icon: 'location-outline', label: 'Location', value: rider.location },
-    { icon: 'wallet-outline', label: 'UPI ID', value: rider.upi_id },
-  ];
+  const badge = STATUS_BADGE[rider.status] || ['PENDING', 'warning'];
+  const sub = [rider.vehicle_number, rider.city].filter(Boolean).join(' • ') || rider.rider_id;
+
+  const Row = ({ icon, label, onPress, right, last }) => (
+    <TouchableOpacity style={[styles.menuRow, last && { borderBottomWidth: 0 }]} onPress={onPress} activeOpacity={0.7} accessibilityRole="button">
+      <Ionicons name={icon} size={22} color={colors.primary} style={{ width: 32 }} />
+      <Text style={styles.menuLabel}>{label}</Text>
+      {right || null}
+      <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+    </TouchableOpacity>
+  );
+  const Group = ({ title, children }) => (
+    <>
+      <Section>{title}</Section>
+      <View style={styles.menu}>{children}</View>
+    </>
+  );
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.content}>
-      <ScreenHeader title="Profile" />
-
-      <Card style={styles.header}>
-        <View style={styles.avatar}>
-          <Text style={styles.initials}>{getInitials(rider.name)}</Text>
+      <Header title={t('You')} onBack={onBack} />
+      <View style={styles.profileCard}>
+        <View style={styles.avatarRing}>
+          {rider.has_photo && !photoFailed ? (
+            <Image source={mobileApi.authedImage('/riders/me/selfie')} style={styles.avatar} onError={() => setPhotoFailed(true)} />
+          ) : (
+            <View style={styles.avatar}>
+              <Text style={styles.initials}>{getInitials(rider.name)}</Text>
+            </View>
+          )}
         </View>
-        <View style={{ flex: 1, marginLeft: 14, gap: 4 }}>
+        <View style={{ flex: 1, marginLeft: 16 }}>
           <Text style={styles.name} numberOfLines={1}>{rider.name || 'Rider'}</Text>
-          <Text style={styles.riderId}>Rider ID: {rider.rider_id || '—'}</Text>
-          <StatusBadge status={rider.status} />
+          <Text style={styles.riderId} numberOfLines={2}>{sub}</Text>
         </View>
-      </Card>
+        <Badge label={badge[0]} tone={badge[1]} />
+      </View>
 
-      <SectionHeader title="Appearance" />
+      <Group title={t('Personal')}>
+        <Row icon="person-outline" label={t('Personal Information')} onPress={() => setEditing(true)} />
+        <Row icon="shield-outline" label={t('Verification Status')} onPress={() => onNavigate('verification')} right={<Badge label={badge[0]} tone={badge[1]} style={{ marginRight: 8 }} />} />
+        <Row icon="car-outline" label={t('My Vehicle')} onPress={() => onNavigate('vehicle')} />
+        <Row icon="location-outline" label={t('Working Areas')} onPress={() => onNavigate('areas')} last />
+      </Group>
+      <Group title={t('Payments')}>
+        <Row icon="wallet-outline" label={t('Payment / UPI Details')} onPress={() => setEditing(true)} right={rider.upi_id ? <Text style={styles.value}>{rider.upi_id}</Text> : <Badge label="ADD" tone="warning" style={{ marginRight: 8 }} />} last />
+      </Group>
+      <Group title={t('Campaign')}>
+        <Row icon="shirt-outline" label={t('Campaign T-Shirts')} onPress={() => onNavigate('tshirt')} />
+        <Row icon="gift-outline" label={t('Refer & Earn')} onPress={() => onNavigate('refer')} last />
+      </Group>
+      <Group title={t('App Settings')}>
+        <Row icon="notifications-outline" label={t('Notifications')} onPress={() => onNavigate('notifications')} right={unreadCount ? <Badge label={String(unreadCount)} tone="danger" style={{ marginRight: 8 }} /> : null} />
+        <Row icon="globe-outline" label={t('Language')} onPress={() => onNavigate('language')} right={<Text style={styles.value}>{lang === 'hi' ? 'हिंदी' : 'English'}</Text>} />
+        <Row icon="help-circle-outline" label={t('Help & Support')} onPress={onOpenSupport} right={supportUnread ? <Badge label={`${supportUnread} new`} tone="primary" style={{ marginRight: 8 }} /> : null} last />
+      </Group>
+
+      <Section>Appearance</Section>
       <View style={styles.segmented}>
         {THEME_OPTIONS.map((option) => {
           const active = preference === option.value;
           return (
-            <TouchableOpacity
-              key={option.value}
-              style={[styles.segment, active && styles.segmentActive]}
-              onPress={() => setPreference(option.value)}
-              activeOpacity={0.8}
-            >
+            <TouchableOpacity key={option.value} style={[styles.segment, active && styles.segmentActive]} onPress={() => setPreference(option.value)} activeOpacity={0.8}>
               <Ionicons name={option.icon} size={16} color={active ? colors.onPrimary : colors.textMuted} />
               <Text style={[styles.segmentText, active && { color: colors.onPrimary }]}>{option.label}</Text>
             </TouchableOpacity>
@@ -162,70 +201,11 @@ export default function ProfileScreen({ rider, onLogout, onProfileChanged, onAcc
         })}
       </View>
 
-      <SectionHeader title="Personal Details" actionLabel="Edit" onAction={() => setEditing(true)} />
-      <Card style={{ paddingVertical: 4 }}>
-        {rows.map((row, i) => (
-          <View key={row.label} style={[styles.row, i === rows.length - 1 && { borderBottomWidth: 0 }]}>
-            <Ionicons name={row.icon} size={18} color={colors.textMuted} style={{ width: 28 }} />
-            <Text style={styles.rowLabel}>{row.label}</Text>
-            <Text style={styles.rowValue} numberOfLines={1}>{row.value || 'Not provided'}</Text>
-          </View>
-        ))}
-      </Card>
-
-      <OutlineButton
-        label="Log Out"
-        onPress={onLogout}
-        style={{ marginTop: 24, borderColor: colors.danger }}
-        textStyle={{ color: colors.danger }}
-      />
-
-      <SectionHeader title="Settings" />
-      <TouchableOpacity style={styles.referRow} onPress={onOpenRefer} activeOpacity={0.7} accessibilityRole="button">
-        <View style={styles.referIcon}>
-          <Ionicons name="gift-outline" size={20} color={colors.primary} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.referTitle}>Refer & Earn</Text>
-          <Text style={styles.lockedText}>Earn ₹30 for every friend who completes their first Photo Streak</Text>
-        </View>
-        <Ionicons name="chevron-forward" size={18} color={colors.textSubtle} />
+      <Button label={t('Logout')} tone="soft" onPress={onLogout} style={{ marginTop: 28 }} />
+      <TouchableOpacity onPress={() => setDeleting(true)} style={styles.deleteRow} accessibilityRole="button">
+        <Ionicons name="trash-outline" size={16} color={colors.textMuted} />
+        <Text style={styles.deleteText}>Delete account</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={[styles.referRow, { marginTop: 10 }]} onPress={onOpenNotifications} activeOpacity={0.7} accessibilityRole="button">
-        <View style={styles.referIcon}>
-          <Ionicons name="notifications-outline" size={20} color={colors.primary} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.referTitle}>Notifications</Text>
-          <Text style={styles.lockedText}>{unreadCount ? `${unreadCount} unread` : 'Application, campaign and payment updates'}</Text>
-        </View>
-        {unreadCount ? <View style={styles.unreadDot} /> : null}
-        <Ionicons name="chevron-forward" size={18} color={colors.textSubtle} />
-      </TouchableOpacity>
-
-      <TouchableOpacity style={[styles.referRow, { marginTop: 10 }]} onPress={onOpenSupport} activeOpacity={0.7} accessibilityRole="button">
-        <View style={styles.referIcon}>
-          <Ionicons name="chatbubbles-outline" size={20} color={colors.primary} />
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.referTitle}>Help & Support</Text>
-          <Text style={styles.lockedText}>{supportUnread ? `${supportUnread} new ${supportUnread === 1 ? 'reply' : 'replies'} from support` : 'Chat with the FlexRiders team'}</Text>
-        </View>
-        {supportUnread ? <View style={styles.unreadDot} /> : null}
-        <Ionicons name="chevron-forward" size={18} color={colors.textSubtle} />
-      </TouchableOpacity>
-
-      <SectionHeader title="Account" />
-      <Card style={{ gap: 10 }}>
-        <Text style={styles.lockedText}>
-          Deleting your account removes your login, selfie, contact, payment, location and support-chat details. If you have payments or
-          campaign history, your name, Rider ID, phone and those records are kept for payouts and accounts.
-        </Text>
-        <TouchableOpacity onPress={() => setDeleting(true)} style={styles.deleteRow} accessibilityRole="button">
-          <Ionicons name="trash-outline" size={18} color={colors.danger} />
-          <Text style={styles.deleteText}>Delete Account</Text>
-        </TouchableOpacity>
-      </Card>
 
       {editing ? <EditProfileModal rider={rider} visible={editing} onClose={() => setEditing(false)} onSaved={onProfileChanged} /> : null}
       <ConfirmSheet
@@ -256,7 +236,16 @@ const makeStyles = (c) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: c.background },
     content: { paddingHorizontal: 20, paddingBottom: 32 },
+    profileCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: c.surface, borderRadius: 22, borderWidth: 1, borderColor: c.border, padding: 18 },
+    avatarRing: { padding: 3, borderRadius: 40, borderWidth: 2, borderColor: c.primary },
+    menu: { backgroundColor: c.surface, borderRadius: 20, borderWidth: 1, borderColor: c.border, overflow: 'hidden' },
+    menuRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, paddingVertical: 17, borderBottomWidth: 1, borderBottomColor: c.border },
+    menuLabel: { flex: 1, fontSize: 16, fontWeight: '600', color: c.text },
+    value: { fontSize: 14, color: c.textMuted, marginRight: 8, maxWidth: 140 },
     header: { flexDirection: 'row', alignItems: 'center' },
+    areasHint: { fontSize: 12, color: c.textMuted, marginTop: 8, paddingHorizontal: 4 },
+    areasEdit: { fontSize: 13, fontWeight: '700', color: c.primary },
+    areasAdd: { fontSize: 14, fontWeight: '700', color: c.primary },
     avatar: {
       width: 68,
       height: 68,
@@ -294,8 +283,8 @@ const makeStyles = (c) =>
     input: { flex: 1, paddingHorizontal: 14, paddingVertical: 13, fontSize: 15, color: c.text },
     lockedNote: { flexDirection: 'row', gap: 8, backgroundColor: c.surfaceAlt, borderRadius: 12, padding: 12, marginTop: 4 },
     lockedText: { flex: 1, fontSize: 12.5, color: c.textMuted, lineHeight: 18 },
-    deleteRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 6 },
-    deleteText: { fontSize: 15, fontWeight: '700', color: c.danger },
+    deleteRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 16 },
+    deleteText: { fontSize: 14, fontWeight: '600', color: c.textMuted },
     referRow: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: c.surface, borderWidth: 1, borderColor: c.border, borderRadius: 16, padding: 14 },
     referIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: c.primarySoft, alignItems: 'center', justifyContent: 'center' },
     referTitle: { fontSize: 15, fontWeight: '700', color: c.text },

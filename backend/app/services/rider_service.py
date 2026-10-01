@@ -53,6 +53,25 @@ def store_selfie(db: Session, rider: Rider, selfie: str) -> None:
         raise HTTPException(status_code=503, detail="The selfie couldn't be saved just now, so the account wasn't created. Please try again.")
 
 
+def selfie_response(rider: Rider):
+    """The rider's registration selfie as an image response: private, never cached. Served only to admins
+    and to the rider themself (their profile picture in the app)."""
+    from fastapi.responses import Response
+
+    from app.services import storage_service
+
+    if not rider.profile_photo:
+        raise HTTPException(status_code=404, detail="This rider has no selfie.")
+    try:
+        content = storage_service.read(rider.profile_photo)
+    except storage_service.StorageError:
+        raise HTTPException(status_code=503, detail="The selfie couldn't be loaded just now. Please try again.")
+    if content is None:
+        raise HTTPException(status_code=404, detail="The selfie file is missing.")
+    kind = "image/png" if content.startswith(b"\x89PNG") else "image/webp" if content[8:12] == b"WEBP" else "image/jpeg"
+    return Response(content=content, media_type=kind, headers={"Cache-Control": "private, no-store"})
+
+
 def commit_with_selfie(db: Session, rider: Rider) -> None:
     """Commits a new rider; if that fails, removes the already-stored selfie so nothing is left unlinked."""
     from app.services import storage_service
@@ -96,6 +115,12 @@ def register_new_rider(db: Session, reg: RiderRegistrationRequest) -> Rider:
             raise HTTPException(status_code=400, detail="The email code is incorrect or has expired. Request a new code.")
         email_verified = True
 
+    # Mobile number: verified by an SMS code once the SMS gateway is set up.
+    from app.services import sms_service as sms
+
+    if sms.configured() and not sms.check_proof(sms.ten_digits(reg.mobile_number), reg.phone_proof):
+        raise HTTPException(status_code=400, detail="Verify your mobile number with the SMS code first.")
+
     # Registration only ever creates a NEW account. A number that already has one (a rider, or an admin)
     # must log in with its password: registration never returns, reuses or attaches to an existing account.
     if db.query(User.id).filter(User.phone == reg.mobile_number).first():
@@ -125,6 +150,7 @@ def register_new_rider(db: Session, reg: RiderRegistrationRequest) -> Rider:
         mobile_number=reg.mobile_number,
         email=reg.email,
         dob=reg.dob,
+        gender=reg.gender or None,
         current_company=reg.current_company or "Independent",
         current_role=reg.current_role or "Rider",
         experience_years=reg.experience_years or 0,
@@ -132,7 +158,7 @@ def register_new_rider(db: Session, reg: RiderRegistrationRequest) -> Rider:
         vehicle_type=reg.vehicle_type or "Bike",
         vehicle_number=reg.vehicle_number,
         vehicle_category=reg.vehicle_category,
-        primary_city=reg.primary_city or "Gurugram",
+        primary_city=(reg.primary_city or "").strip(),
         primary_area=reg.primary_area,
         additional_locations=reg.additional_locations,
         preferred_radius=reg.preferred_radius or "10 km",
@@ -144,6 +170,16 @@ def register_new_rider(db: Session, reg: RiderRegistrationRequest) -> Rider:
     )
     db.add(rider)
     db.flush()
+
+    if reg.working_areas:
+        from app.models.all_models import RiderWorkingArea
+        from app.services.geo_service import valid_coords
+
+        for i, area in enumerate(reg.working_areas[:3]):
+            if valid_coords(area.lat, area.lng):
+                db.add(RiderWorkingArea(rider_id=rider.id, label=area.label.strip(), latitude=area.lat, longitude=area.lng, position=i))
+        if not rider.primary_area:
+            rider.primary_area = reg.working_areas[0].label.strip()[:120]
 
     if reg.selfie:  # Required unless settings.REQUIRE_DRIVER_SELFIE is off (testing)
         store_selfie(db, rider, reg.selfie)

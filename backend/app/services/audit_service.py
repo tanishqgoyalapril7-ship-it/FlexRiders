@@ -14,7 +14,7 @@ def log_admin_action(
 ) -> AuditLog:
     log_entry = AuditLog(
         admin_id=admin_user.id if admin_user else None,
-        admin_email=admin_user.email if admin_user else "system@superriders.com",
+        admin_email=(admin_user.email or admin_user.phone) if admin_user else "system@superriders.com",
         action=action,
         target_type=target_type,
         target_id=str(target_id) if target_id else None,

@@ -3,6 +3,7 @@ import { X, Check, CheckCircle2, XCircle, Clock, ImageOff, Flame, Trophy, Calend
 import { api } from '../services/api';
 import { toast } from './Feedback';
 import { KitSettingsEditor, kitToDraft, syncBrandKit } from './BrandKitEditor';
+import { GeoFields } from './GeoTargeting';
 import { formatDate, formatINR, StatusPill, EmptyState, SlotStatuses, VEHICLE_TYPES, CAMPAIGN_CATEGORIES } from './CampaignShared';
 
 const STEPS = ['Basics', 'Slots & Payout', 'T-Shirt & Pickup', 'Details'];
@@ -14,6 +15,15 @@ const SLOT_LABELS = { MORNING: 'Morning', EVENING: 'Evening', NIGHT: 'Night' };
 const ALL_VEHICLES = VEHICLE_TYPES.map(([value]) => value);
 // Stored empty = every type may join; the form shows that as all boxes ticked.
 const vehicleChoice = (categories) => (categories && categories.length ? categories : ALL_VEHICLES);
+
+const NO_TARGET = {
+  target_lat: null,
+  target_lng: null,
+  initial_radius_km: null,
+  max_radius_km: null,
+  expansion_step_km: null,
+  expansion_interval_min: null,
+};
 
 function emptyForm() {
   const start = new Date();
@@ -34,6 +44,7 @@ function emptyForm() {
     allow_payout_beyond_contract: false,
     continue_after_fulfillment: false,
     location_area: '',
+    ...NO_TARGET,
     vehicle_choice: ALL_VEHICLES,
     campaign_category: 'STANDARD',
     photo_slot_windows: DEFAULT_SLOTS,
@@ -63,6 +74,16 @@ export function CampaignFormModal({ brands = [], campaign, onClose, onSaved, onC
           allow_payout_beyond_contract: campaign.allow_payout_beyond_contract,
           continue_after_fulfillment: campaign.continue_after_fulfillment,
           location_area: campaign.location_area || '',
+          ...(campaign.geo && campaign.geo.targeted
+            ? {
+                target_lat: campaign.geo.target_lat,
+                target_lng: campaign.geo.target_lng,
+                initial_radius_km: campaign.geo.initial_radius_km,
+                max_radius_km: campaign.geo.max_radius_km,
+                expansion_step_km: campaign.geo.expansion_step_km,
+                expansion_interval_min: campaign.geo.expansion_interval_min,
+              }
+            : NO_TARGET),
           vehicle_choice: vehicleChoice(campaign.eligible_vehicle_categories),
           campaign_category: campaign.campaign_category || 'STANDARD',
           photo_slot_windows: campaign.photo_slot_windows || DEFAULT_SLOTS,
@@ -90,6 +111,19 @@ export function CampaignFormModal({ brands = [], campaign, onClose, onSaved, onC
       .finally(() => setKitLoaded(true));
   }, []);
   const set = (key) => (e) => setForm((prev) => ({ ...prev, [key]: e.target.value }));
+  const [geoDefaults, setGeoDefaults] = useState(null);
+  useEffect(() => {
+    api.getGeoDefaults().then(setGeoDefaults).catch(() => setGeoDefaults(null));
+  }, []);
+  // Geo fields take plain values; picking a target prefills the server's default radii once.
+  const setGeo = (key) => (value) =>
+    setForm((prev) => {
+      const nextForm = { ...prev, [key]: value };
+      if (key === 'target_lat' && value != null && prev.initial_radius_km == null && geoDefaults) {
+        Object.assign(nextForm, geoDefaults);
+      }
+      return nextForm;
+    });
 
   const days = Math.max(Math.round((new Date(form.end_date) - new Date(form.start_date)) / 86400000) + 1, 0);
   const riderDays = days * Number(form.total_slots || 0);
@@ -104,6 +138,7 @@ export function CampaignFormModal({ brands = [], campaign, onClose, onSaved, onC
       if (form.end_date < form.start_date) return 'End date must be on or after the start date.';
       if (!form.vehicle_choice.length) return 'Tick at least one eligible vehicle type.';
     }
+    if (index === 0 && form.target_lat != null && !(Number(form.initial_radius_km) > 0)) return 'Set an initial radius for the target location.';
     if (index === 1) {
       if (!(Number(form.total_slots) >= 1)) return 'Total slots must be at least 1.';
       if (editing && Number(form.total_slots) < campaign.stats.assigned_riders)
@@ -241,6 +276,7 @@ export function CampaignFormModal({ brands = [], campaign, onClose, onSaved, onC
               {locked ? (
                 <span className="form-hint">Dates and required riders are locked after publishing. Use an extension or replacement slots instead.</span>
               ) : null}
+              <GeoFields form={form} set={setGeo} />
               <div className="form-row-2">
                 <div className="form-group">
                   <label className="form-label">Location / Area</label>

@@ -38,6 +38,8 @@ import { JoinRequestsTable } from '../components/JoinRequests';
 // The map (Leaflet) only loads when an admin opens a route.
 const RouteMapModal = React.lazy(() => import('../components/RouteMap').then((m) => ({ default: m.RouteMapModal })));
 import { ConfirmDialog, CampaignFormModal, PLATE_NOT_VISIBLE, PhotoLightbox, PhotoReviewCard, RiderActivityModal } from '../components/CampaignModals';
+import { GeoPanel, ReviewDialog } from '../components/GeoTargeting';
+import { subscribeCampaignSignals } from '../services/realtime';
 import { CampaignStatusPill, EmptyState, SlotProgress, SlotStatuses, StatCard, StatusPill, VEHICLE_TYPES, formatDate, formatINR, vehicleLabel } from '../components/CampaignShared';
 import { TermsPanel } from '../components/CampaignTerms';
 import CampaignVideoCard from '../components/CampaignVideo';
@@ -273,9 +275,10 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
   const [fulfillment, setFulfillment] = useState(null);
   const [ridersAvailable, setRidersAvailable] = useState('');
   const [showSlots, setShowSlots] = useState(false);
-  const [showExtension, setShowExtension] = useState(false);
   const [vehicleFilter, setVehicleFilter] = useState('ALL');
   const [requestStatus, setRequestStatus] = useState('ALL');
+  const [showExtension, setShowExtension] = useState(false);
+  const [review, setReview] = useState(null); // 'approve' | 'request_changes' | 'reject' for a brand's request
 
   const load = async () => {
     try {
@@ -309,6 +312,15 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
     load();
     onChanged && onChanged();
   };
+
+  // Slots, status, radius and photo changes made elsewhere (rider app, brand, background task) show at once.
+  useEffect(
+    () =>
+      subscribeCampaignSignals((p) => {
+        if (p.campaign_id === campaignId && p.event_type !== 'route_points') load();
+      }),
+    [campaignId]
+  );
 
   // Opens a confirmation dialog; `run` receives the optional reason.
   const ask = (options, run) =>
@@ -401,6 +413,44 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
                 <button className="btn-secondary" onClick={() => setEditing(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                   <Pencil size={15} />
                   Edit
+                </button>
+              )}
+              {status === 'PENDING_APPROVAL' && (
+                <>
+                  <button
+                    className="btn-primary"
+                    onClick={() => setReview('approve')}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, backgroundColor: '#10B981', borderColor: '#10B981' }}
+                  >
+                    <CheckCircle2 size={15} />
+                    Approve Campaign
+                  </button>
+                  <button
+                    className="btn-secondary"
+                    onClick={() => setReview('request_changes')}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, borderColor: '#F59E0B', color: '#B45309' }}
+                  >
+                    <Pencil size={15} />
+                    Request Changes
+                  </button>
+                  <button
+                    className="btn-danger-outline"
+                    onClick={() => setReview('reject')}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  >
+                    <XCircle size={15} />
+                    Reject
+                  </button>
+                </>
+              )}
+              {status === 'CHANGES_REQUIRED' && (
+                <button
+                  className="btn-primary"
+                  onClick={() => setReview('approve')}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, backgroundColor: '#10B981', borderColor: '#10B981' }}
+                >
+                  <CheckCircle2 size={15} />
+                  Approve Anyway
                 </button>
               )}
               {status === 'DRAFT' && (
@@ -532,6 +582,56 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
           </div>
         </div>
       </div>
+
+      {/* Customer Submission Banner / Card */}
+      {campaign.requested_by_brand && (
+        <div className="card" style={{ marginBottom: 16, borderLeft: campaign.status === 'CHANGES_REQUIRED' ? '4px solid #EF4444' : '4px solid #3B82F6' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <div>
+              <strong style={{ fontSize: 15 }}>Brand request ({campaign.brand_name})</strong>
+              <p style={{ fontSize: 13, color: '#64748B', margin: '2px 0 0' }}>
+                {[campaign.campaign_type, campaign.campaign_objective].filter(Boolean).join(' • ') || 'No campaign type or objective given'}
+                {campaign.submitted_at ? ` · Submitted ${formatDate(campaign.submitted_at)}` : ''}
+              </p>
+            </div>
+            <StatusPill status={campaign.status} />
+          </div>
+
+          {campaign.status === 'CHANGES_REQUIRED' && (
+            <div style={{ backgroundColor: '#FEF2F2', border: '1px solid #FCA5A5', borderRadius: 8, padding: 12, marginBottom: 12 }}>
+              <strong style={{ color: '#B91C1C', fontSize: 13 }}>Note sent to brand:</strong>
+              <p style={{ color: '#7F1D1D', fontSize: 13, margin: '4px 0 0' }}>{campaign.admin_feedback}</p>
+            </div>
+          )}
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12, fontSize: 13, marginTop: 8 }}>
+            <div>
+              <span style={{ color: '#64748B' }}>Estimated Budget:</span>{' '}
+              <strong>{campaign.estimated_budget ? formatINR(campaign.estimated_budget) : '—'}</strong>
+            </div>
+            <div>
+              <span style={{ color: '#64748B' }}>Target Rider Rate:</span>{' '}
+              <strong>{campaign.expected_rider_rate ? `${formatINR(campaign.expected_rider_rate)} / day` : '—'}</strong>
+            </div>
+            <div>
+              <span style={{ color: '#64748B' }}>Daily Hours:</span>{' '}
+              <strong>{campaign.daily_start_time && campaign.daily_end_time ? `${campaign.daily_start_time} – ${campaign.daily_end_time}` : 'Not specified'}</strong>
+            </div>
+            <div>
+              <span style={{ color: '#64748B' }}>Required Fleet:</span>{' '}
+              <strong>{campaign.eligible_vehicle_label || 'Any'}</strong>
+            </div>
+          </div>
+
+          {campaign.instructions ? (
+            <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid #E2E8F0', fontSize: 13 }}>
+              <span style={{ color: '#64748B' }}>Instructions:</span> {campaign.instructions}
+            </div>
+          ) : null}
+        </div>
+      )}
+
+      <GeoPanel campaign={campaign} onChanged={reload} />
 
       <RiderVisibility
         campaign={campaign}
@@ -1027,6 +1127,7 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
           }}
         />
       ) : null}
+      {review ? <ReviewDialog campaign={campaign} action={review} onClose={() => setReview(null)} onDone={reload} /> : null}
     </div>
   );
 }

@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.security import verify_password, get_password_hash, create_access_token, UserRole
 from app.core.config import settings
-from app.models.all_models import User, Rider
+from app.models.all_models import User, Rider, Brand
 from app.schemas.all_schemas import Token, LoginRequest, OTPRequest, OTPVerifyRequest, RiderRegistrationRequest
 from app.services.rider_service import register_new_rider
 from app.api.deps import get_current_user
@@ -13,8 +14,9 @@ router = APIRouter()
 
 @router.post("/login", response_model=Token)
 def login(request: LoginRequest, db: Session = Depends(get_db)):
-    """Authenticate user with phone + password, returns JWT token with role"""
-    user = db.query(User).filter(User.phone == request.phone.strip()).first()
+    """Authenticate user with phone or email + password, returns JWT token with role"""
+    ident = request.phone.strip()
+    user = db.query(User).filter(or_(User.phone == ident, func.lower(User.email) == ident.lower())).first()
     # One message for an unknown number and a wrong password, so login can't be used to find accounts.
     bad_login = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect phone number or password")
     if request.password:
@@ -30,7 +32,8 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
 
     rider = db.query(Rider).filter(Rider.user_id == user.id).first()
     rider_sr_id = rider.rider_id if rider else None
-    user_name = rider.full_name if rider else (user.email or user.phone)
+    brand = db.query(Brand).filter(Brand.id == user.brand_id).first() if user.brand_id else None
+    user_name = brand.contact_person or brand.name if brand else (rider.full_name if rider else (user.email or user.phone))
 
     token = create_access_token(
         subject=user.id,
@@ -45,12 +48,22 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
         role=user.role,
         user_id=user.id,
         rider_id=rider_sr_id,
+        brand_id=user.brand_id,
+        brand_name=brand.name if brand else None,
         name=user_name,
         must_change_password=bool(user.must_change_password),
     )
 
 
+def _sms_login() -> bool:
+    from app.services import sms_service as sms
+
+    return sms.configured()
+
+
 def _require_otp_enabled() -> None:
+    if _sms_login():
+        return  # Real SMS codes through the gateway phone
     # There is no SMS provider yet: the "OTP" is a fixed development code. It must be switched off
     # (ENABLE_OTP_LOGIN=false) wherever real riders use the system, or anyone could log in as them.
     # Hosted servers never allow it: there is no SMS provider, only a fixed development code.
@@ -59,9 +72,26 @@ def _require_otp_enabled() -> None:
 
 
 @router.post("/otp/send")
-def send_otp(request: OTPRequest, db: Session = Depends(get_db)):
-    """Sends OTP for login/verification (in dev, fixed OTP 123456 is accepted)"""
+def send_otp(request: OTPRequest, http: Request, db: Session = Depends(get_db)):
+    """Texts a login code (SMS gateway). Without a gateway, local development accepts a fixed code."""
     _require_otp_enabled()
+    if _sms_login():
+        from app.services import sms_service as sms
+        from app.api.v1.endpoints.password import _client
+
+        phone = sms.ten_digits(request.phone)
+        user = db.query(User).filter(User.phone.like(f"%{phone}"), User.role == UserRole.RIDER, User.is_active == True).first() if phone else None  # noqa: E712
+        reply = {"success": True, "message": "If this number has a rider account, a code is on its way by SMS."}
+        if not user:
+            return reply  # Same answer: login can't be used to find accounts
+        key = _client(http)
+        if sms.rate_limited(db, sms.LOGIN, phone, key):
+            raise HTTPException(status_code=429, detail="Too many codes requested. Please wait a while and try again.")
+        try:
+            test_code = sms.send_code(db, sms.LOGIN, phone, key, user.id)
+        except sms.SmsError as e:
+            raise HTTPException(status_code=503, detail=str(e))
+        return {**reply, "otp_hint": test_code} if test_code else reply
     return {
         "success": True,
         "message": f"OTP successfully sent to {request.phone}. For testing, use code: {settings.MOCK_OTP_CODE}",
@@ -73,13 +103,22 @@ def send_otp(request: OTPRequest, db: Session = Depends(get_db)):
 def verify_otp(request: OTPVerifyRequest, db: Session = Depends(get_db)):
     """Verify OTP and authenticate user"""
     _require_otp_enabled()
-    if request.otp != settings.MOCK_OTP_CODE:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid OTP code. Please enter the 6-digit code received.",
-        )
+    if _sms_login():
+        from app.services import sms_service as sms
 
-    user = db.query(User).filter(User.phone == request.phone.strip()).first()
+        phone = sms.ten_digits(request.phone)
+        try:
+            row = sms.consume(db, sms.LOGIN, phone, request.otp)
+        except sms.CodeError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        user = db.query(User).filter(User.id == row.user_id).first()
+    else:
+        if request.otp != settings.MOCK_OTP_CODE:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid OTP code. Please enter the 6-digit code received.",
+            )
+        user = db.query(User).filter(User.phone == request.phone.strip()).first()
     # The OTP is a fixed development code, so it must never unlock an admin account.
     if user and user.role in UserRole.ADMIN_ROLES:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin accounts must log in with a password.")

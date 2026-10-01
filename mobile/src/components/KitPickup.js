@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useStyles, useTheme } from '../theme';
 import { Card, SectionHeader, toneColors } from './ui';
 import { mobileApi } from '../services/api';
+import { getCachedDeviceLocation } from '../services/locationService';
 import { formatDate, formatINR } from '../utils';
 import { TermsSheet } from './CampaignTerms';
 
@@ -63,7 +64,9 @@ function JoinKitSheet({ campaign, visible, onClose, onDone, termsVersion }) {
     setBusy(true);
     setError('');
     try {
-      await mobileApi.joinCampaign(campaign.id, size, locationId, termsVersion);
+      const cached = await getCachedDeviceLocation().catch(() => null);
+      const coords = cached ? { lat: cached.latitude, lng: cached.longitude } : null; // Checked by the server for geo-targeted campaigns
+      await mobileApi.joinCampaign(campaign.id, size, locationId, termsVersion, coords);
       onClose();
       await onDone();
     } catch (err) {
@@ -212,7 +215,9 @@ export function useJoinCampaign(campaign, onChanged) {
     }
     setJoining(true);
     try {
-      await mobileApi.joinCampaign(campaign.id, null, null, version);
+      const cached = await getCachedDeviceLocation().catch(() => null);
+      const coords = cached ? { lat: cached.latitude, lng: cached.longitude } : null; // Checked by the server for geo-targeted campaigns
+      await mobileApi.joinCampaign(campaign.id, null, null, version, coords);
       await done();
     } catch (err) {
       Alert.alert('Could not join', err.message);
@@ -237,7 +242,9 @@ export function useJoinCampaign(campaign, onChanged) {
               setOpen(true);
               return;
             }
-            await mobileApi.joinCampaign(campaign.id, null, null, version); // Errors show in the sheet
+            const cached = await getCachedDeviceLocation().catch(() => null);
+            const coords = cached ? { lat: cached.latitude, lng: cached.longitude } : null; // Checked by the server for geo-targeted campaigns
+            await mobileApi.joinCampaign(campaign.id, null, null, version, coords); // Errors show in the sheet
             setTermsOpen(false);
             await done();
           }}

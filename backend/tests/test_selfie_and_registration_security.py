@@ -122,6 +122,10 @@ def test_selfie_is_admin_only_and_never_public(client, db_session, admin):
     # Riders and anonymous users can't.
     assert client.get(f"{API}/admin/riders/{rider.id}/selfie", headers=rider_headers).status_code == 403
     assert client.get(f"{API}/admin/riders/{rider.id}/selfie").status_code == 401
+    # The rider sees only their own selfie (their profile picture in the app).
+    own = client.get(f"{API}/riders/me/selfie", headers=rider_headers)
+    assert own.status_code == 200 and own.content == SELFIE_BYTES and "no-store" in own.headers["cache-control"]
+    assert client.get(f"{API}/riders/me/selfie").status_code == 401
     # The file route never serves selfies, even with the exact path.
     assert client.get(rider.profile_photo).status_code == 404
     assert storage_service.is_private(rider.profile_photo) and not storage_service.is_private("/uploads/campaign-proofs/1/x.jpg")

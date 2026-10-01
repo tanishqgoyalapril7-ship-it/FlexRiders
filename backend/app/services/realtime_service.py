@@ -11,7 +11,8 @@ Broadcasting is best effort: a failure never fails the request, and clients also
 import hashlib
 import hmac
 import logging
-from typing import Dict, Iterable
+from datetime import datetime
+from typing import Any, Dict, Iterable, Optional
 
 import httpx
 
@@ -52,8 +53,30 @@ def client_config(topic: str) -> Dict:
     }
 
 
+def campaign_discovery_topic() -> str:
+    """Signals for the rider app's campaign lists (slots, status, radius). Payloads carry only a campaign id."""
+    return _topic("campaigns", "discovery")
+
+
+def brand_topic(brand_id: int) -> str:
+    return _topic("brand", str(brand_id))
+
+
+def campaign_realtime_config() -> Dict:
+    """Client config for subscribing to campaign discovery updates."""
+    return {**client_config(campaign_discovery_topic()), "event": "campaigns"}
+
+
+def brand_realtime_config(brand_id: int) -> Dict:
+    return {**client_config(brand_topic(brand_id)), "event": "campaigns"}
+
+
 def broadcast(topics: Iterable[str], payload: Dict) -> bool:
-    """Sends the signal to each topic (one request). Returns False when it couldn't be sent."""
+    """Sends a support-chat signal to each topic (one request). Returns False when it couldn't be sent."""
+    return _send(topics, payload, "support")
+
+
+def _send(topics: Iterable[str], payload: Dict, event: str) -> bool:
     topics = list(dict.fromkeys(topics))
     if not topics or not enabled():
         return False
@@ -61,10 +84,35 @@ def broadcast(topics: Iterable[str], payload: Dict) -> bool:
         res = httpx.post(
             settings.SUPABASE_URL.rstrip("/") + "/realtime/v1/api/broadcast",
             headers={"apikey": settings.SUPABASE_SECRET_KEY, "Authorization": f"Bearer {settings.SUPABASE_SECRET_KEY}"},
-            json={"messages": [{"topic": t, "event": "support", "payload": payload, "private": False} for t in topics]},
+            json={"messages": [{"topic": t, "event": event, "payload": payload, "private": False} for t in topics]},
             timeout=5,
         )
         return res.status_code < 300
     except httpx.HTTPError as e:
         log.warning("realtime broadcast failed: %s", e.__class__.__name__)
         return False
+
+
+def broadcast_campaign_update(campaign, event_type: str) -> bool:
+    """A campaign's slots, status or reach changed: tell rider apps, the owning brand and admins to refetch.
+    The payload never contains personal data."""
+    payload = {"campaign_id": campaign.id, "event_type": event_type, "timestamp": datetime.utcnow().isoformat() + "Z"}
+    topics = [campaign_discovery_topic(), admin_topic()]
+    if getattr(campaign, "brand_id", None):
+        topics.append(brand_topic(campaign.brand_id))
+    return _send(topics, payload, "campaigns")
+
+
+def broadcast_admin_update(campaign, event_type: str, **extra) -> bool:
+    """Tracking/review activity (route points uploaded, photo submitted): only admins and the owning brand
+    need it, so rider apps aren't made to refetch on every GPS batch. No personal data in the payload."""
+    payload = {"campaign_id": campaign.id, "event_type": event_type, "timestamp": datetime.utcnow().isoformat() + "Z", **extra}
+    topics = [admin_topic()]
+    if getattr(campaign, "brand_id", None):
+        topics.append(brand_topic(campaign.brand_id))
+    return _send(topics, payload, "campaigns")
+
+
+def admin_campaign_config() -> Dict:
+    """Where the admin dashboard listens for campaign signals (same admin channel, campaign event)."""
+    return {**client_config(admin_topic()), "event": "campaigns"}

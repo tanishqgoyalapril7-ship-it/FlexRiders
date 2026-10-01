@@ -43,8 +43,10 @@ app.include_router(api_router, prefix=settings.API_V1_STR)
 # Uploaded campaign banners and daily proof photos: local folder, or the private Supabase bucket via a
 # short-lived signed link (the stored "/uploads/..." paths are the same either way).
 @app.get("/uploads/selfies/{path:path}", include_in_schema=False)
+@app.get("/uploads/rider-documents/{path:path}", include_in_schema=False)
 def private_upload(path: str):
-    """Driver selfies are never public (registered before the /uploads handlers so it always wins)."""
+    """Driver selfies and identity/vehicle documents are never public (registered before the /uploads
+    handlers so it always wins); they're served only through authenticated endpoints."""
     raise HTTPException(status_code=404, detail="File not found")
 
 
