@@ -108,3 +108,19 @@ export function formatLiveOpeningCountdown(seconds) {
   return `OPENING IN ${mins}M ${String(secs).padStart(2, '0')}S`;
 }
 
+
+// One fixed colour per brand (same brand → same colour everywhere: map bubble, tile, pay, cards). All are
+// dark enough for white text on top.
+const BRAND_COLORS = ['#2563EB', '#7C3AED', '#BE185D', '#C2410C', '#047857', '#0E7490', '#4F46E5', '#DC2626', '#B45309', '#0F766E'];
+export function brandColor(campaign) {
+  const key = String((campaign && (campaign.brand_id || campaign.brand_name || campaign.name)) || '');
+  let h = 0;
+  for (let i = 0; i < key.length; i += 1) h = (h * 31 + key.charCodeAt(i)) >>> 0;
+  return BRAND_COLORS[h % BRAND_COLORS.length];
+}
+
+/** A colour at the given opacity (0–1), for soft tinted backgrounds: '#2563EB', 0.12 → 'rgba(37,99,235,0.12)'. */
+export function tint(hex, alpha) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+}

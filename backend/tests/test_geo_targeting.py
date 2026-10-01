@@ -332,8 +332,8 @@ def test_realtime_signals_reach_the_right_audiences(client, db_session, admin_he
     client.post(f"{API}/campaigns/{cid}/publish", headers=admin_headers)
     assert {discovery, admins, brand_topic} <= last("campaign_live")
 
-    _, a = make_rider(client, db_session, "9300000021")
-    _, b = make_rider(client, db_session, "9300000022")
+    _, a = make_rider(client, db_session, "9300000051")
+    _, b = make_rider(client, db_session, "9300000052")
     here = km_north(TARGET, 0.5)
     client.post(f"{API}/riders/me/location", json={"lat": here[0], "lng": here[1]}, headers=b)
     client.post(f"{API}/riders/me/campaigns/{cid}/join", json={"lat": here[0], "lng": here[1]}, headers=a)
@@ -461,3 +461,40 @@ def test_brand_request_carries_the_same_details_as_the_admin_form(client, db_ses
     client.put(f"{API}/customer/campaigns/{cid}", json={"submit": True}, headers=brand)
     client.post(f"{API}/campaigns/{cid}/review", json={"action": "approve"}, headers=admin_headers)
     assert client.post(f"{API}/customer/campaigns/{cid}/image", files={"image": ("b.jpg", b"\xff\xd8x", "image/jpeg")}, headers=brand).status_code == 400
+
+
+def test_last_known_location_reaches_rider_after_six_hours_with_free_slots(client, db_session, admin_headers, brand_id):
+    campaign = geo_campaign(client, admin_headers, brand_id, slots=1)
+    rider, stale_headers = make_rider(client, db_session, "9300000091")
+    _, other_headers = make_rider(client, db_session, "9300000092")
+    # The rider last had the app open 1 km from the target, 5 hours ago (too old to count as current),
+    # and has no working area there.
+    rider.last_lat, rider.last_lng = km_north(TARGET, 1)
+    rider.last_located_at = datetime.utcnow() - timedelta(hours=5)
+    row = db_session.get(Campaign, campaign["id"])
+
+    def live_for(hours):
+        row.published_at = datetime.utcnow() - timedelta(hours=hours)
+        row.radius_updated_at = datetime.utcnow()  # Keep the radius at 2 km
+        db_session.commit()
+
+    def ids(headers):
+        return [c["id"] for c in listed(client, headers)["available"]]
+
+    live_for(2)
+    assert campaign["id"] not in ids(stale_headers)  # Live less than 6 hours: current location / working areas only
+    live_for(7)
+    card = next(c for c in listed(client, stale_headers)["available"] if c["id"] == campaign["id"])
+    assert card["can_join"] and card["distance_km"] == pytest.approx(1.0, abs=0.05)
+
+    # Once the last slot is taken, the last-known location no longer reaches the rider.
+    here = km_north(TARGET, 1)
+    assert client.post(f"{API}/riders/me/campaigns/{campaign['id']}/join", json={"lat": here[0], "lng": here[1]}, headers=other_headers).status_code == 200
+    assert campaign["id"] not in ids(stale_headers)
+
+    # A last location older than the limit never counts.
+    match = geo.rider_match(row, None, [], last_known=None)
+    assert not match["in_reach"]
+    rider.last_located_at = datetime.utcnow() - timedelta(days=31)
+    db_session.commit()
+    assert geo.last_known_location(rider) is None

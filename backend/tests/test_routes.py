@@ -84,3 +84,30 @@ def test_all_rider_routes_and_upload_rules(client, db_session):
     client.post(f"{API}/admin/riders", json=other_body, headers=admin)
     token = client.post(f"{API}/auth/login", json={"phone": other_body["mobile_number"], "password": "riderPass1"}).json()["access_token"]
     assert client.post(url, json={"points": _walk(28.6)}, headers={"Authorization": f"Bearer {token}"}).status_code == 400
+
+
+
+def test_brand_sees_a_route_card_per_rider_for_each_day(client, db_session):
+    from tests.test_geo_targeting import brand_login
+
+    admin, _ = make_admin(client, db_session)
+    brand_headers = brand_login(client, f"Card Brand {uuid.uuid4().hex[:4]}")
+    brand_id = client.get(f"{API}/customer/dashboard", headers=brand_headers).json()["brand_id"]
+    start = today_ist() - timedelta(days=1)
+    cid = client.post(f"{API}/campaigns", json={"name": "Card Campaign", "brand_id": brand_id, "start_date": start.isoformat(),
+                                               "end_date": (start + timedelta(days=9)).isoformat(), "total_slots": 1, "daily_rate": 10,
+                                               "visibility": "PUBLIC"}, headers=admin).json()["id"]
+    body = rider_payload(status="APPROVED")
+    rider = client.post(f"{API}/admin/riders", json=body, headers=admin).json()
+    client.post(f"{API}/campaigns/{cid}/riders", json={"rider_id": rider["id"]}, headers=admin)
+    token = client.post(f"{API}/auth/login", json={"phone": body["mobile_number"], "password": "riderPass1"}).json()["access_token"]
+    client.post(f"{API}/riders/me/campaigns/{cid}/route-points", json={"points": _walk(28.40, n=6)}, headers={"Authorization": f"Bearer {token}"})
+
+    today = today_ist().isoformat()
+    data = client.get(f"{API}/customer/campaigns/{cid}/map", headers=brand_headers).json()
+    assert data["route_dates"] == [today] and data["routes"] == []
+    card = client.get(f"{API}/customer/campaigns/{cid}/map?date={today}", headers=brand_headers).json()["routes"][0]
+    assert card["rider_name"] == rider["full_name"] and card["rider_code"] == rider["rider_id"]
+    assert card["duration_min"] == 5 and card["distance_km"] > 0 and len(card["points"]) == 6
+    assert card["approved_photos"] == 0 and card["in_progress"] is True
+    assert "mobile_number" not in card and "rider" not in card  # No private rider data

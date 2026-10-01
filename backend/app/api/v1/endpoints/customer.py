@@ -909,18 +909,35 @@ def customer_campaign_map(
     db: Session = Depends(get_db),
 ):
     """Campaign-level map: the target area and radius, the days with recorded routes and, for a chosen
-    day, the route lines of the brand's own campaign riders."""
+    day, each of the brand's campaign riders' route (an activity card per rider, like a fitness app):
+    the line plus facts measured from the recorded points (distance, first/last fix, time between them)
+    and that rider's approved photos that day. Today's routes are still growing (in_progress)."""
+    from app.models.campaign_models import CampaignDailyActivity
     from app.services import route_service as routes
 
     campaign = _own_campaign(db, customer, id)
     data = {"geo": _geo_dict(db, campaign), "route_dates": routes.route_dates(db, campaign), "routes": []}
     if day:
+        photos = dict(
+            db.query(CampaignActivityPhoto.rider_id, func.count(CampaignActivityPhoto.id))
+            .join(CampaignDailyActivity, CampaignActivityPhoto.activity_id == CampaignDailyActivity.id)
+            .filter(CampaignActivityPhoto.campaign_id == campaign.id, CampaignActivityPhoto.status == PhotoStatus.APPROVED,
+                    CampaignDailyActivity.activity_date == day)
+            .group_by(CampaignActivityPhoto.rider_id)
+            .all()
+        )
+        in_progress = day >= fs.today_ist()
         data["date"] = day.isoformat()
-        data["routes"] = [
-            {"rider_name": (r["rider"] or {}).get("full_name"), "points": r["points"], "started_at": r["started_at"],
-             "ended_at": r["ended_at"], "distance_km": r["distance_km"]}
-            for r in routes.routes_for_day(db, campaign, day)
-        ]
+        data["routes"] = []
+        for r in routes.routes_for_day(db, campaign, day):
+            rider = r["rider"] or {}
+            started, ended = (datetime.fromisoformat(r[k].rstrip("Z")) for k in ("started_at", "ended_at"))
+            data["routes"].append({
+                "rider_name": rider.get("full_name"), "rider_code": rider.get("rider_id"), "points": r["points"],
+                "started_at": r["started_at"], "ended_at": r["ended_at"], "distance_km": r["distance_km"],
+                "duration_min": int((ended - started).total_seconds() // 60),
+                "approved_photos": photos.get(rider.get("id"), 0), "in_progress": in_progress,
+            })
     return data
 
 

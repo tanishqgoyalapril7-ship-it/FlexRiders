@@ -132,10 +132,14 @@ export default function CampaignMapView({ campaigns = [], myLocation, workingAre
             >
               <View style={styles.pinWrap}>
                 {dark ? (
-                  // Price bubble: the rider's payout per day; Opening Soon in amber, the selected one inverted.
+                  // Label bubble: campaign name, then payout per day and slots left; Opening Soon in amber,
+                  // the selected one inverted.
                   <>
                     <View style={[styles.bubble, soon && styles.bubbleSoon, active && styles.bubbleActive]}>
-                      <Text style={[styles.bubbleText, active && { color: soon ? colors.warning : colors.primary }]}>{formatINR(c.daily_rate)}/day</Text>
+                      <Text style={[styles.bubbleName, active && { color: colors.text }]} numberOfLines={1}>{c.name}</Text>
+                      <Text style={[styles.bubbleText, active && { color: soon ? colors.warning : colors.primary }]} numberOfLines={1}>
+                        {formatINR(c.daily_rate)}/day · {c.remaining_slots > 0 ? `${c.remaining_slots} slot${c.remaining_slots === 1 ? '' : 's'}` : 'Full'}
+                      </Text>
                     </View>
                     <View style={[styles.bubbleTail, soon && { borderTopColor: colors.warning }, active && { borderTopColor: '#FFFFFF' }]} />
                   </>
@@ -169,12 +173,13 @@ const makeStyles = (c) =>
     // Explicit edges: StyleSheet.absoluteFillObject no longer exists in React Native 0.86.
     bleed: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 0, borderWidth: 0 },
     bubble: {
-      backgroundColor: c.primary, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7, borderWidth: 2, borderColor: '#FFFFFF',
+      backgroundColor: c.primary, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 2, borderColor: '#FFFFFF', alignItems: 'center',
       shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 6,
     },
     bubbleSoon: { backgroundColor: c.warning },
     bubbleActive: { backgroundColor: '#FFFFFF', borderColor: c.primary, transform: [{ scale: 1.08 }] },
-    bubbleText: { color: '#FFFFFF', fontWeight: '800', fontSize: 14 },
+    bubbleText: { color: '#FFFFFF', fontWeight: '800', fontSize: 12, opacity: 0.95 },
+    bubbleName: { color: '#FFFFFF', fontWeight: '800', fontSize: 13, maxWidth: 150 },
     bubbleTail: {
       width: 0, height: 0, marginTop: -1, borderLeftWidth: 7, borderRightWidth: 7, borderTopWidth: 8,
       borderLeftColor: 'transparent', borderRightColor: 'transparent', borderTopColor: '#FFFFFF',

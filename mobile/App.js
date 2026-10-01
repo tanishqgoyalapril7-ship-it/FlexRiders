@@ -165,6 +165,7 @@ function RiderApp() {
   // Signed out: the walkthrough shows on every launch; the language step only until a language is chosen.
   const [consent, setConsent] = useState(null); // Terms & Privacy status when a newer version needs accepting
   const consentChecked = useRef(false); // Checked once per login, not on every background refresh
+  const vehicleBack = useRef('vehicle'); // Change Vehicle opens from Profile or from My Vehicle; Back returns there
   const [forgotFor, setForgotFor] = useState('');
   const [forgotReturnScreen, setForgotReturnScreen] = useState('login');
   const [otpLogin, setOtpLogin] = useState(false); // Only where the server allows it (local development)
@@ -537,7 +538,7 @@ function RiderApp() {
       if (screen !== 'main' || tab === 'home') return false;
       const parent = {
         campaign: 'campaigns', payments: 'earnings', refer: 'profile', notifications: notificationsBack,
-        verification: 'profile', vehicle: 'profile', 'change-vehicle': 'vehicle', areas: 'profile', tshirt: 'profile', language: 'profile',
+        verification: 'profile', vehicle: 'profile', 'change-vehicle': vehicleBack.current, areas: 'profile', tshirt: 'profile', language: 'profile',
       }[tab];
       setTab(parent || 'home');
       return true;
@@ -578,7 +579,11 @@ function RiderApp() {
             onLogout={logout}
             onProfileChanged={refreshData}
             onAccountDeleted={handleAccountDeleted}
-            onNavigate={(target) => (target === 'notifications' ? openNotifications('profile') : setTab(target))}
+            onNavigate={(target) => {
+              if (target === 'notifications') return openNotifications('profile');
+              if (target === 'change-vehicle') vehicleBack.current = 'profile';
+              return setTab(target);
+            }}
             unreadCount={unreadCount}
           />
         );
@@ -592,17 +597,20 @@ function RiderApp() {
             title="My Vehicle"
             vehicle={{ category: vehicleCategoryLabel(rider.vehicle_category), model: rider.vehicle, number: rider.vehicle_number }}
             onBack={() => setTab('profile')}
-            onChangeVehicle={() => setTab('change-vehicle')}
+            onChangeVehicle={() => {
+              vehicleBack.current = 'vehicle';
+              setTab('change-vehicle');
+            }}
           />
         );
       case 'change-vehicle':
         return (
           <ChangeVehicleScreen
             rider={rider}
-            onBack={() => setTab('vehicle')}
+            onBack={() => setTab(vehicleBack.current)}
             onSaved={async () => {
               await refreshData();
-              setTab('vehicle');
+              setTab(vehicleBack.current);
             }}
           />
         );

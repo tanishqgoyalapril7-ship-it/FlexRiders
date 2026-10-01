@@ -208,6 +208,7 @@ TIER_LABELS = {
     2: "In campaign area",
     3: "Working-area match (currently farther away)",
     4: "Reached by radius expansion",
+    5: "Last known location (campaign live 6+ hours with free slots)",
 }
 
 
@@ -221,16 +222,38 @@ def fresh_rider_location(rider, now: Optional[datetime] = None) -> Optional[Tupl
     return float(rider.last_lat), float(rider.last_lng)
 
 
+def last_known_location(rider, now: Optional[datetime] = None) -> Optional[Tuple[float, float]]:
+    """Where the rider last had the app open, however long ago (up to RIDER_LAST_LOCATION_MAX_AGE_DAYS)."""
+    if not rider.last_located_at or not valid_coords(rider.last_lat, rider.last_lng):
+        return None
+    now = now or datetime.utcnow()
+    if now - rider.last_located_at > timedelta(days=settings.RIDER_LAST_LOCATION_MAX_AGE_DAYS):
+        return None
+    return float(rider.last_lat), float(rider.last_lng)
+
+
+def last_known_reach_open(campaign, now: Optional[datetime] = None) -> bool:
+    """True once a geo-targeted campaign has been live LAST_LOCATION_REACH_AFTER_HOURS (the caller also
+    checks it still has free slots)."""
+    if not is_targeted(campaign) or not campaign.published_at:
+        return False
+    now = now or datetime.utcnow()
+    return now - campaign.published_at >= timedelta(hours=settings.LAST_LOCATION_REACH_AFTER_HOURS)
+
+
 def rider_match(
     campaign,
     current: Optional[Tuple[float, float]],
     working_areas: List[Dict],
+    last_known: Optional[Tuple[float, float]] = None,
 ) -> Dict:
     """How a rider relates to a campaign's target. working_areas: [{"label", "lat", "lng"}].
 
     Tiers (lower is better): 1 inside the initial radius *and* a working-area match; 2 inside the initial
     radius; 3 a working area inside the current radius while the rider is farther away now; 4 inside the
-    current radius only because it expanded. in_reach is False for riders the campaign hasn't reached."""
+    current radius only because it expanded; 5 only the rider's last known location is inside the current
+    radius (passed as last_known by the caller once the campaign has been live 6+ hours with free slots).
+    in_reach is False for riders the campaign hasn't reached."""
     target = target_of(campaign)
     if target is None:
         return {"targeted": False, "in_reach": True, "tier": None, "distance_km": None,
@@ -257,6 +280,9 @@ def rider_match(
         tier = 3
     elif in_current:
         tier = 4
+    elif last_known and valid_coords(*last_known) and haversine_km(last_known, target) <= radius:
+        tier = 5
+        distance = haversine_km(last_known, target)  # From where the rider last had the app open
     else:
         tier = None
     if tier is not None:

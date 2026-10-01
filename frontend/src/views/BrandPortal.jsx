@@ -2,7 +2,7 @@ import logoDark from '../assets/fr-mark-dark.png';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { ArrowLeft, CalendarDays, Camera, Hash, IndianRupee, LogOut, MapPin, Route, Users } from 'lucide-react';
+import { ArrowLeft, CalendarDays, Camera, Hash, IndianRupee, LogOut, MapPin, Users } from 'lucide-react';
 import { subscribeSignals } from '../services/realtime';
 
 /** Brand web portal (/brand, /brand/campaign/<id>): the brand app's campaign view in the browser, so a brand
@@ -14,6 +14,10 @@ const TOKEN_KEY = 'fr_brand_token';
 const TILE_URL = import.meta.env.VITE_MAP_TILE_URL || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 const TILE_ATTRIBUTION =
   import.meta.env.VITE_MAP_ATTRIBUTION || '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+// Clean, light base map for the per-rider activity cards (like a fitness app's activity map).
+const CARD_TILE_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+const CARD_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>';
+const ACTIVITY_ORANGE = '#FC4C02';
 const ROUTE_COLORS = ['#2563EB', '#16A34A', '#DC2626', '#9333EA', '#EA580C', '#0891B2', '#DB2777', '#65A30D'];
 const STATUS_TONE = { LIVE: 'pub-pill-live', APPROVED: 'pub-pill-open', REQUESTED: 'bp-pill-wait', CHANGES_REQUESTED: 'bp-pill-wait' };
 
@@ -420,17 +424,70 @@ function MapTab({ id, token, version, onSignedOut }) {
         <p className="pub-muted">No rider routes recorded yet. The circle shows the campaign area.</p>
       )}
       <RoutesMap geo={g} routes={data.routes || []} />
-      {(data.routes || []).map((r, i) => (
-        <div key={`${r.rider_name}-${i}`} className="bp-route-row">
-          <span className="bp-swatch" style={{ background: ROUTE_COLORS[i % ROUTE_COLORS.length] }} />
-          <strong>{r.rider_name}</strong>
-          <span className="pub-muted bp-route-meta">
-            <Route size={14} /> {fmtTime(r.started_at)} – {fmtTime(r.ended_at)} · {r.distance_km} km
-          </span>
-        </div>
-      ))}
+      {data.routes && data.routes.length ? (
+        <section className="pub-section">
+          <h2>Rider activities · {fmtDate(day)}</h2>
+          <div className="bp-activities">
+            {data.routes.map((r, i) => (
+              <ActivityCard key={`${r.rider_code || r.rider_name}-${i}`} route={r} day={day} />
+            ))}
+          </div>
+        </section>
+      ) : null}
     </>
   );
+}
+
+const fmtDuration = (min) => (min >= 60 ? `${Math.floor(min / 60)}h ${String(min % 60).padStart(2, '0')}m` : `${min}m`);
+
+/** One rider's day, like a fitness app activity: who and when, the measured stats, and the route alone. */
+function ActivityCard({ route: r, day }) {
+  return (
+    <article className="bp-activity">
+      <header className="bp-activity-head">
+        <span className="bp-avatar">{(r.rider_name || '?').charAt(0).toUpperCase()}</span>
+        <div className="bp-activity-who">
+          <strong>{r.rider_name}</strong>
+          <span>
+            {fmtDate(day)} · {fmtTime(r.started_at)} – {fmtTime(r.ended_at)}
+          </span>
+        </div>
+        {r.in_progress ? <span className="bp-live">● Today, in progress</span> : null}
+      </header>
+      <div className="bp-stats">
+        <div>
+          <span>Distance</span>
+          <strong>{Number(r.distance_km).toFixed(1)} km</strong>
+        </div>
+        <div>
+          <span>Time on road</span>
+          <strong>{fmtDuration(r.duration_min)}</strong>
+        </div>
+        <div>
+          <span>Approved photos</span>
+          <strong>{r.approved_photos}</strong>
+        </div>
+      </div>
+      <ActivityMap points={r.points} />
+    </article>
+  );
+}
+
+/** Just this rider's route on a light map: orange line, green start, dark end. Not draggable, like a card. */
+function ActivityMap({ points }) {
+  const el = useRef(null);
+  useEffect(() => {
+    if (!points.length) return undefined;
+    const map = L.map(el.current, { zoomControl: false, dragging: false, scrollWheelZoom: false, doubleClickZoom: false, touchZoom: false, boxZoom: false, keyboard: false });
+    L.tileLayer(CARD_TILE_URL, { maxZoom: 19, attribution: CARD_ATTRIBUTION, subdomains: 'abcd' }).addTo(map);
+    map.fitBounds(L.latLngBounds(points), { padding: [24, 24], maxZoom: 16 });
+    L.polyline(points, { color: '#FFFFFF', weight: 7, opacity: 0.9 }).addTo(map); // Light edge so the line stands out
+    L.polyline(points, { color: ACTIVITY_ORANGE, weight: 4 }).addTo(map);
+    L.circleMarker(points[0], { radius: 6, color: '#FFFFFF', weight: 2, fillColor: '#16A34A', fillOpacity: 1 }).bindTooltip('Start').addTo(map);
+    L.circleMarker(points[points.length - 1], { radius: 6, color: '#FFFFFF', weight: 2, fillColor: '#0F172A', fillOpacity: 1 }).bindTooltip('End').addTo(map);
+    return () => map.remove();
+  }, [points]);
+  return <div ref={el} className="bp-activity-map" />;
 }
 
 /** Campaign area and each rider's route for the chosen day (start in green, end in red), like the brand app. */

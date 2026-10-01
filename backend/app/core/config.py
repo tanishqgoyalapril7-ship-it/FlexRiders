@@ -107,6 +107,12 @@ class Settings(BaseSettings):
     OPENING_SOON_HOURS: int = 48
     # A rider's reported location counts as "current" for this long; older fixes are ignored.
     RIDER_LOCATION_MAX_AGE_MIN: int = 180
+    # Last-known location: once a geo-targeted campaign has been live this many hours and still has free
+    # slots, it also reaches riders whose last location (where they last had the app open, up to
+    # RIDER_LAST_LOCATION_MAX_AGE_DAYS old) is inside its current radius, even if that is older than the
+    # RIDER_LOCATION_MAX_AGE_MIN window and no working area matches.
+    LAST_LOCATION_REACH_AFTER_HOURS: int = 6
+    RIDER_LAST_LOCATION_MAX_AGE_DAYS: int = 30
     # Area search (working areas, campaign targets). Nominatim/OpenStreetMap by default; no key needed,
     # but its usage policy requires an identifying User-Agent and at most ~1 request per second.
     GEOCODER_URL: str = "https://nominatim.openstreetmap.org/search"

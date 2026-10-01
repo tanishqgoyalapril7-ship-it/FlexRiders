@@ -78,6 +78,14 @@ def remaining_slots(db: Session, campaign: Campaign) -> int:
     return max(slot_capacity(campaign) - slots_reserved(db, campaign.id), 0)
 
 
+def last_known_for(db: Session, campaign: Campaign, rider, current) -> Optional[Tuple[float, float]]:
+    """The rider's last known location, counted only when no current location is known and the campaign
+    has been live LAST_LOCATION_REACH_AFTER_HOURS with free slots left (see geo.rider_match tier 5)."""
+    if current is not None or not geo.last_known_reach_open(campaign) or remaining_slots(db, campaign) <= 0:
+        return None
+    return geo.last_known_location(rider)
+
+
 def campaign_code(campaign_id: int) -> str:
     """The one campaign ID shown everywhere (brand, admin, rider, public page, exports)."""
     return f"CMP-{campaign_id:06d}"
@@ -417,7 +425,8 @@ def join_eligibility(
     if target_reached(db, campaign):
         return False, "This campaign has reached its target."
     if not by_admin and geo.is_targeted(campaign):
-        match = geo.rider_match(campaign, rider_coords or geo.fresh_rider_location(rider), geo.working_areas_of(rider))
+        current = rider_coords or geo.fresh_rider_location(rider)
+        match = geo.rider_match(campaign, current, geo.working_areas_of(rider), last_known_for(db, campaign, rider, current))
         if not match["in_reach"]:
             return False, match["reason"]
     return True, None

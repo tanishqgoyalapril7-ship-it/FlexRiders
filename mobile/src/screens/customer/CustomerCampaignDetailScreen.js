@@ -22,6 +22,7 @@ try {
 }
 
 const ROUTE_COLORS = ['#2563EB', '#7C3AED', '#EA580C', '#0891B2', '#DB2777', '#4F46E5'];
+const ACTIVITY_ORANGE = '#FC4C02';
 const STEPS = [
   ['REQUESTED', 'Requested'],
   ['APPROVED', 'Approved'],
@@ -370,17 +371,66 @@ function MapPanel({ campaignId }) {
           })}
         </MapView>
       </View>
+      {data.routes.length ? <Text style={styles.activitiesTitle}>Rider activities · {formatDate(day)}</Text> : null}
       {data.routes.map((r, i) => (
-        <View key={`${r.rider_name}-row-${i}`} style={styles.routeRow}>
-          <View style={[styles.swatch, { backgroundColor: ROUTE_COLORS[i % ROUTE_COLORS.length] }]} />
-          <Text style={[styles.rowLabel, { color: colors.text, flex: 1 }]}>{r.rider_name}</Text>
-          <Text style={styles.rowValue}>
-            {new Date(r.started_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })} –{' '}
-            {new Date(r.ended_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })} · {r.distance_km} km
-          </Text>
-        </View>
+        <ActivityCard key={`${r.rider_code || r.rider_name}-card-${i}`} route={r} day={day} />
       ))}
     </>
+  );
+}
+
+const fmtDuration = (min) => (min >= 60 ? `${Math.floor(min / 60)}h ${String(min % 60).padStart(2, '0')}m` : `${min}m`);
+const clock = (iso) => new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+
+/** One rider's day, like a fitness app activity: who and when, the measured stats, and the route alone. */
+function ActivityCard({ route: r, day }) {
+  const styles = useStyles(makeStyles);
+  const coords = r.points.map(([latitude, longitude]) => ({ latitude, longitude }));
+  const lats = coords.map((p) => p.latitude);
+  const lngs = coords.map((p) => p.longitude);
+  const region = {
+    latitude: (Math.min(...lats) + Math.max(...lats)) / 2,
+    longitude: (Math.min(...lngs) + Math.max(...lngs)) / 2,
+    latitudeDelta: Math.max((Math.max(...lats) - Math.min(...lats)) * 1.4, 0.006),
+    longitudeDelta: Math.max((Math.max(...lngs) - Math.min(...lngs)) * 1.4, 0.006),
+  };
+  return (
+    <View style={styles.activity}>
+      <View style={styles.activityHead}>
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>{(r.rider_name || '?').charAt(0).toUpperCase()}</Text>
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.activityName} numberOfLines={1}>{r.rider_name}</Text>
+          <Text style={styles.activityWhen}>
+            {formatDate(day)} · {clock(r.started_at)} – {clock(r.ended_at)}
+          </Text>
+        </View>
+        {r.in_progress ? <Text style={styles.inProgress}>● In progress</Text> : null}
+      </View>
+      <View style={styles.stats}>
+        {[
+          ['Distance', `${Number(r.distance_km).toFixed(1)} km`],
+          ['Time on road', fmtDuration(r.duration_min)],
+          ['Approved photos', String(r.approved_photos)],
+        ].map(([label, value]) => (
+          <View key={label} style={{ flex: 1 }}>
+            <Text style={styles.statLabel}>{label}</Text>
+            <Text style={styles.statValue}>{value}</Text>
+          </View>
+        ))}
+      </View>
+      {MapView && coords.length > 1 ? (
+        <View style={styles.activityMap} pointerEvents="none">
+          <MapView style={StyleSheet.absoluteFill} initialRegion={region} liteMode scrollEnabled={false} zoomEnabled={false} rotateEnabled={false} pitchEnabled={false} toolbarEnabled={false}>
+            <Polyline coordinates={coords} strokeColor="#FFFFFF" strokeWidth={7} />
+            <Polyline coordinates={coords} strokeColor={ACTIVITY_ORANGE} strokeWidth={4} />
+            <Marker coordinate={coords[0]} pinColor="green" />
+            <Marker coordinate={coords[coords.length - 1]} pinColor="black" />
+          </MapView>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -423,6 +473,16 @@ const makeStyles = (c) =>
     viewerImage: { width: '100%', height: '80%' },
     dayChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, backgroundColor: c.surface, borderWidth: 1, borderColor: c.border },
     mapWrap: { height: 320, borderRadius: 18, overflow: 'hidden', borderWidth: 1, borderColor: c.border },
-    routeRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10 },
-    swatch: { width: 10, height: 10, borderRadius: 5 },
+    activitiesTitle: { fontSize: 16, fontWeight: '800', color: c.text, marginTop: 18, marginBottom: 10 },
+    activity: { borderRadius: 18, borderWidth: 1, borderColor: c.border, backgroundColor: c.surface, overflow: 'hidden', marginBottom: 14 },
+    activityHead: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 14, paddingTop: 14 },
+    avatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: '#FFEDD5', alignItems: 'center', justifyContent: 'center' },
+    avatarText: { color: '#C2410C', fontWeight: '800', fontSize: 16 },
+    activityName: { fontSize: 15, fontWeight: '800', color: c.text },
+    activityWhen: { fontSize: 12, color: c.textMuted, marginTop: 1 },
+    inProgress: { fontSize: 11, fontWeight: '800', color: '#C2410C' },
+    stats: { flexDirection: 'row', gap: 8, paddingHorizontal: 14, paddingVertical: 12 },
+    statLabel: { fontSize: 11, color: c.textMuted, fontWeight: '600' },
+    statValue: { fontSize: 18, fontWeight: '800', color: c.text, marginTop: 2 },
+    activityMap: { height: 200, borderTopWidth: 1, borderTopColor: c.border },
   });

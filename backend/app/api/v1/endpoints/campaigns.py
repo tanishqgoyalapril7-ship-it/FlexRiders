@@ -1539,7 +1539,7 @@ def _rider_campaign_card(db: Session, campaign: Campaign, rider: Rider, rider_co
     used = svc.slots_used(db, campaign.id)
     reserved = svc.slots_reserved(db, campaign.id)
     capacity = svc.slot_capacity(campaign)
-    match = geo.rider_match(campaign, current, geo.working_areas_of(rider))
+    match = geo.rider_match(campaign, current, geo.working_areas_of(rider), svc.last_known_for(db, campaign, rider, current))
     starts_at = geo.parse_campaign_start_datetime(campaign.start_date, campaign.daily_start_time)
     seconds_to_start = (starts_at - geo.now_ist()).total_seconds()
     brand = campaign.brand
@@ -1637,14 +1637,14 @@ def rider_campaigns(
         reason = svc.rider_visibility(c, today) or svc.vehicle_block_reason(c, rider)
         tier = None
         if not reason and geo.is_targeted(c):
-            match = geo.rider_match(c, current, working_areas)
+            match = geo.rider_match(c, current, working_areas, svc.last_known_for(db, c, rider, current))
             reason, tier = (None, match["tier"]) if match["in_reach"] else (f"Out of reach ({match['reason']})", None)
         if reason:
             hidden[c.id] = reason
             continue
         public.append(c)
         if not active or c.id != active.campaign_id:
-            cards.append((tier or 5, _rider_campaign_card(db, c, rider, rider_coords=current)))
+            cards.append((tier or 6, _rider_campaign_card(db, c, rider, rider_coords=current)))
 
     if settings.CAMPAIGN_VISIBILITY_LOG:
         visibility_log.info(
@@ -1653,7 +1653,7 @@ def rider_campaigns(
             [(c.id, c.status) for c in public], hidden,
         )
     # Best match first (both signals, then current location, then working area, then expanded reach,
-    # then untargeted), nearest first within a tier, then soonest start.
+    # then last known location, then untargeted), nearest first within a tier, then soonest start.
     cards.sort(key=lambda tc: (tc[0], tc[1]["distance_km"] if tc[1]["distance_km"] is not None else 1e9, tc[1]["starts_at"]))
     targeted_needs_location = not current and not working_areas and any(geo.is_targeted(c) for c in candidates)
 

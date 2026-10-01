@@ -173,6 +173,12 @@ export default function ProfileScreen({ rider, onBack, onLogout, onProfileChange
         <Row icon="person-outline" label={t('Personal Information')} onPress={() => setEditing(true)} />
         <Row icon="shield-outline" label={t('Verification Status')} onPress={() => onNavigate('verification')} right={<Badge label={badge[0]} tone={badge[1]} style={{ marginRight: 8 }} />} />
         <Row icon="car-outline" label={t('My Vehicle')} onPress={() => onNavigate('vehicle')} />
+        <Row
+          icon="swap-horizontal-outline"
+          label={t('Change Vehicle')}
+          onPress={() => onNavigate('change-vehicle')}
+          right={rider.vehicle_category ? <Text style={styles.value}>{vehicleCategoryLabel(rider.vehicle_category)}</Text> : null}
+        />
         <Row icon="location-outline" label={t('Working Areas')} onPress={() => onNavigate('areas')} last />
       </Group>
       <Group title={t('Payments')}>
