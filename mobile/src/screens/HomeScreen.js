@@ -44,6 +44,7 @@ export default function HomeScreen({ rider, campaigns, unreadCount, onNavigate, 
   const { colors } = useTheme();
   const [sheet, setSheet] = useState(null);
   const [filter, setFilter] = useState('near');
+  const [panelH, setPanelH] = useState(150); // Height of the floating recommendations panel (measured)
   const list = useRef(null);
   const all = campaigns ? campaigns.available || [] : [];
   const test = FILTERS.find((f) => f.key === filter).test;
@@ -90,101 +91,128 @@ export default function HomeScreen({ rider, campaigns, unreadCount, onNavigate, 
     );
   }
 
+  const hasActivity = Boolean(active || pending);
+
+  const header = (
+    <View style={s.header} pointerEvents="box-none">
+      <View style={s.headRow} pointerEvents="box-none">
+        <View style={{ flex: 1 }} pointerEvents="box-none">
+          <Text style={s.hello} numberOfLines={1}>
+            {greeting()}, {firstName} 👋
+          </Text>
+          <TouchableOpacity
+            style={s.locRow}
+            onPress={live ? () => onNavigate('areas') : onRequestLocation}
+            disabled={!live && !loc.action}
+            activeOpacity={0.7}
+            hitSlop={8}
+            accessibilityLabel={live ? 'Your location. Change working areas' : loc.action || loc.text}
+          >
+            <Ionicons name={live ? 'location' : 'location-outline'} size={16} color={live ? colors.primary : colors.warning} />
+            <Text style={[s.place, !live && { color: colors.warning, fontWeight: '700' }]} numberOfLines={1}>
+              {live ? [place, placeSub].filter(Boolean).join(', ') : `${place}${placeSub ? ` · ${placeSub}` : ''}`}
+            </Text>
+            <Ionicons name="chevron-down" size={14} color={colors.textMuted} />
+            {live ? <View style={[s.dot, s.liveDot]} /> : null}
+          </TouchableOpacity>
+        </View>
+        <TouchableOpacity style={s.bell} onPress={() => onNavigate('notifications')} hitSlop={10} accessibilityLabel={`Notifications${unreadCount ? `, ${unreadCount} unread` : ''}`}>
+          <Ionicons name="notifications-outline" size={21} color={colors.text} />
+          {unreadCount ? <View style={s.bellDot} /> : null}
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
+  const chips = (bottom) => (
+    <View style={[s.chips, { bottom }]} pointerEvents="box-none">
+      {FILTERS.map((f) => {
+        const on = f.key === filter;
+        return (
+          <TouchableOpacity key={f.key} style={[s.chip, on && s.chipOn]} onPress={() => setFilter(f.key)} activeOpacity={0.85} accessibilityState={{ selected: on }}>
+            <Ionicons name={f.icon} size={13} color={on ? '#FFFFFF' : colors.primary} />
+            <Text style={[s.chipText, on && s.chipTextOn]}>{f.label}</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+
+  const recommended = (
+    <>
+      <View style={[s.sectionHead, !hasActivity && { marginTop: 4 }]}>
+        <Text style={s.sectionTitle}>Recommended for you</Text>
+        {nearby.length ? (
+          <TouchableOpacity onPress={() => onNavigate('campaigns')} hitSlop={10}>
+            <Text style={s.link}>See all</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
+      {notice || (
+        <FlatList
+          ref={list}
+          data={nearby.slice(0, 5)}
+          horizontal
+          keyExtractor={(c) => String(c.id)}
+          showsHorizontalScrollIndicator={false}
+          snapToInterval={CARD_W + 12}
+          decelerationRate="fast"
+          contentContainerStyle={{ gap: 12, paddingRight: 4 }}
+          onScrollToIndexFailed={() => {}}
+          renderItem={({ item: c }) => <RecommendedCard campaign={c} onOpen={() => onOpenCampaign(c.id)} />}
+        />
+      )}
+    </>
+  );
+
+  const map = (bottomInset) => (
+    <CampaignMapView
+      campaigns={nearby}
+      myLocation={myLocation}
+      workingAreas={campaigns ? campaigns.working_areas || [] : []}
+      fullBleed
+      dark
+      topInset={HEADER_H}
+      bottomInset={bottomInset}
+      selectedId={sheet ? sheet.id : null}
+      onSelect={select}
+    />
+  );
+
+  // No campaign yet: the map fills the screen, with the recommendations in a slim panel floating on it.
+  if (!hasActivity) {
+    return (
+      <View style={s.screen}>
+        {map(panelH + CHIPS_H)}
+        {header}
+        {chips(panelH + 12)}
+        <View style={s.floatPanel} onLayout={(e) => setPanelH(Math.round(e.nativeEvent.layout.height))}>
+          {recommended}
+        </View>
+        {sheet ? <CampaignSheet campaign={sheet} onClose={() => setSheet(null)} onOpen={onOpenCampaign} /> : null}
+      </View>
+    );
+  }
+
+  // In a campaign: map on top, then the recommendations, the active campaign and today's photo slots.
   return (
     <View style={s.screen}>
       <ScrollView contentContainerStyle={{ paddingBottom: 28 }} showsVerticalScrollIndicator={false}>
         <View style={{ height: MAP_H }}>
-          <CampaignMapView
-            campaigns={nearby}
-            myLocation={myLocation}
-            workingAreas={campaigns ? campaigns.working_areas || [] : []}
-            fullBleed
-            dark
-            topInset={HEADER_H}
-            bottomInset={CHIPS_H}
-            selectedId={sheet ? sheet.id : null}
-            onSelect={select}
-          />
-
-          {/* Header card: greeting and live location, bell in the corner. */}
-          <View style={s.header} pointerEvents="box-none">
-            <View style={s.headRow} pointerEvents="box-none">
-              <View style={{ flex: 1 }} pointerEvents="box-none">
-                <Text style={s.hello} numberOfLines={1}>
-                  {greeting()}, {firstName} 👋
-                </Text>
-                <TouchableOpacity
-                  style={s.locRow}
-                  onPress={live ? () => onNavigate('areas') : onRequestLocation}
-                  disabled={!live && !loc.action}
-                  activeOpacity={0.7}
-                  hitSlop={8}
-                  accessibilityLabel={live ? 'Your location. Change working areas' : loc.action || loc.text}
-                >
-                  <Ionicons name={live ? 'location' : 'location-outline'} size={16} color={live ? colors.primary : colors.warning} />
-                  <Text style={[s.place, !live && { color: colors.warning, fontWeight: '700' }]} numberOfLines={1}>
-                    {live ? [place, placeSub].filter(Boolean).join(', ') : `${place}${placeSub ? ` · ${placeSub}` : ''}`}
-                  </Text>
-                  <Ionicons name="chevron-down" size={14} color={colors.textMuted} />
-                  {live ? <View style={[s.dot, s.liveDot]} /> : null}
-                </TouchableOpacity>
-              </View>
-              <TouchableOpacity style={s.bell} onPress={() => onNavigate('notifications')} hitSlop={10} accessibilityLabel={`Notifications${unreadCount ? `, ${unreadCount} unread` : ''}`}>
-                <Ionicons name="notifications-outline" size={21} color={colors.text} />
-                {unreadCount ? <View style={s.bellDot} /> : null}
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={s.chips} pointerEvents="box-none">
-            {FILTERS.map((f) => {
-              const on = f.key === filter;
-              return (
-                <TouchableOpacity key={f.key} style={[s.chip, on && s.chipOn]} onPress={() => setFilter(f.key)} activeOpacity={0.85} accessibilityState={{ selected: on }}>
-                  <Ionicons name={f.icon} size={13} color={on ? '#FFFFFF' : colors.primary} />
-                  <Text style={[s.chipText, on && s.chipTextOn]}>{f.label}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          {map(CHIPS_H)}
+          {header}
+          {chips(30)}
         </View>
 
         <View style={s.body}>
+          {recommended}
           <View style={s.sectionHead}>
-            <Text style={s.sectionTitle}>Recommended for you</Text>
-            {nearby.length ? (
-              <TouchableOpacity onPress={() => onNavigate('campaigns')} hitSlop={10}>
-                <Text style={s.link}>See all</Text>
-              </TouchableOpacity>
-            ) : null}
+            <View>
+              <Text style={s.sectionTitle}>{active ? 'Active Campaign' : 'Join Request'}</Text>
+              <Text style={s.sectionSub}>{active ? 'You have 1 ongoing campaign' : 'Waiting for FlexRiders approval'}</Text>
+            </View>
           </View>
-          {notice || (
-            <FlatList
-              ref={list}
-              data={nearby.slice(0, 5)}
-              horizontal
-              keyExtractor={(c) => String(c.id)}
-              showsHorizontalScrollIndicator={false}
-              snapToInterval={CARD_W + 12}
-              decelerationRate="fast"
-              contentContainerStyle={{ gap: 12, paddingRight: 4 }}
-              onScrollToIndexFailed={() => {}}
-              renderItem={({ item: c }) => <RecommendedCard campaign={c} onOpen={() => onOpenCampaign(c.id)} />}
-            />
-          )}
-
-          {active || pending ? (
-            <>
-              <View style={s.sectionHead}>
-                <View>
-                  <Text style={s.sectionTitle}>{active ? 'Active Campaign' : 'Join Request'}</Text>
-                  <Text style={s.sectionSub}>{active ? 'You have 1 ongoing campaign' : 'Waiting for FlexRiders approval'}</Text>
-                </View>
-              </View>
-              <ActiveCard campaign={active || pending} pending={!active} onOpen={() => onOpenCampaign((active || pending).id)} />
-            </>
-          ) : null}
-
+          <ActiveCard campaign={active || pending} pending={!active} onOpen={() => onOpenCampaign((active || pending).id)} />
           <PhotoSlots
             active={active}
             pending={pending}
@@ -399,11 +427,16 @@ const makeStyles = (c) =>
     liveDot: { backgroundColor: c.success, marginLeft: 4 },
     bell: { width: 42, height: 42, borderRadius: 21, backgroundColor: c.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
     bellDot: { position: 'absolute', top: 9, right: 10, width: 9, height: 9, borderRadius: 5, backgroundColor: c.danger, borderWidth: 1.5, borderColor: c.surfaceAlt },
-    chips: { position: 'absolute', left: 0, right: 0, bottom: 30, flexDirection: 'row', justifyContent: 'center', gap: 8, paddingHorizontal: 12 },
+    chips: { position: 'absolute', left: 0, right: 0, flexDirection: 'row', justifyContent: 'center', gap: 8, paddingHorizontal: 12 },
     chip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.96)', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, shadowColor: '#000', shadowOpacity: 0.25, shadowRadius: 6, shadowOffset: { width: 0, height: 2 }, elevation: 4 },
     chipOn: { backgroundColor: c.primary },
     chipText: { fontSize: 13, fontWeight: '700', color: '#0F172A' },
     chipTextOn: { color: '#FFFFFF' },
+    floatPanel: {
+      position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: c.background, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+      paddingHorizontal: 20, paddingTop: 14, paddingBottom: 16,
+      shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 12, shadowOffset: { width: 0, height: -3 }, elevation: 10,
+    },
     body: { marginTop: -18, borderTopLeftRadius: 24, borderTopRightRadius: 24, backgroundColor: c.background, paddingHorizontal: 20, paddingTop: 8 },
     sectionHead: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', marginTop: 28, marginBottom: 12 },
     sectionTitle: { fontSize: 18, fontWeight: '800', color: c.text },

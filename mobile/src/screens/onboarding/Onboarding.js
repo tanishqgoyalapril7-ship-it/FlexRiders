@@ -22,17 +22,15 @@ export function BootSplash() {
   const logo = {
     transform: [
       { translateY: intro.interpolate({ inputRange: [0, 1], outputRange: [0, -64] }) },
-      { scale: intro.interpolate({ inputRange: [0, 1], outputRange: [1, 0.7] }) },
+      { scale: intro.interpolate({ inputRange: [0, 1], outputRange: [1, 0.9] }) },
     ],
   };
   const words = { opacity: intro, transform: [{ translateY: intro.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }] };
   const DOT_PHASES = [[1, 0.3, 0.3, 1], [0.3, 1, 0.3, 0.3], [0.3, 0.3, 1, 0.3]];
   return (
     <View style={boot.screen}>
-      <View style={[boot.blob, { top: -140, right: -120 }]} />
-      <View style={[boot.blob, boot.blobSmall, { bottom: -110, left: -90 }]} />
       <View style={boot.center}>
-        <Animated.Image source={require('../../../assets/splash-logo.png')} style={[boot.logo, logo]} accessibilityLabel="FlexRiders logo" />
+        <Animated.Image source={require('../../../assets/logo-tile.png')} style={[boot.logo, logo]} accessibilityLabel="FlexRiders logo" />
         <Animated.View style={[boot.words, words]}>
           <Text style={boot.name}>
             Flex<Text style={{ color: '#2563EB' }}>Riders</Text>
@@ -55,10 +53,8 @@ export function BootSplash() {
 const boot = StyleSheet.create({
   // Same background as the native splash (app.json), so the hand-over is invisible.
   screen: { flex: 1, backgroundColor: '#F3F3F3', overflow: 'hidden' },
-  blob: { position: 'absolute', width: 360, height: 360, borderRadius: 180, backgroundColor: 'rgba(37, 99, 235, 0.08)' },
-  blobSmall: { width: 280, height: 280, borderRadius: 140, backgroundColor: 'rgba(37, 99, 235, 0.06)' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  logo: { width: 200, height: 200 },
+  logo: { width: 110, height: 110 },
   words: { position: 'absolute', top: '50%', marginTop: 22, alignItems: 'center' },
   name: { color: '#0F172A', fontSize: 38, fontWeight: '800', letterSpacing: -0.5 },
   tag: { color: '#64748B', fontSize: 16, fontWeight: '600', marginTop: 6, letterSpacing: 0.3 },
@@ -139,9 +135,7 @@ export function Walkthrough({ onDone }) {
             <Ionicons name="chevron-back" size={22} color={colors.text} />
           </TouchableOpacity>
         ) : (
-          <View style={s.brandRow}>
-            <Image source={require('../../../assets/logo-mark.png')} style={s.brandLogo} resizeMode="contain" accessibilityLabel="FlexRiders" />
-          </View>
+          <View />
         )}
         {!last ? (
           <TouchableOpacity onPress={onDone} hitSlop={10}>
@@ -278,9 +272,6 @@ const makeStyles = (c) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: c.background },
     topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingTop: 14, minHeight: 58 },
-    brandRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    brandLogo: { width: 92, height: 46 },
-    brandName: { fontSize: 19, fontWeight: '800', color: c.text },
     backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: c.surface, borderWidth: 1, borderColor: c.border, alignItems: 'center', justifyContent: 'center' },
     skip: { color: c.textMuted, fontSize: 16, fontWeight: '700' },
     slide: { paddingHorizontal: 24, paddingTop: 8, flex: 1, alignItems: 'center', justifyContent: 'center' },
