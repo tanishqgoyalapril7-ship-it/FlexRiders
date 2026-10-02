@@ -73,6 +73,11 @@ class Settings(BaseSettings):
     # Keep them on wherever real riders use the app: they stop SMS spam and protect the SMS balance.
     SMS_PER_NUMBER_PER_HOUR: int = 3
     SMS_PER_CLIENT_PER_HOUR: int = 10
+    # Password login: failures allowed per account and per client within the window before login is
+    # blocked for that window (stops password guessing).
+    LOGIN_MAX_FAILURES_PER_ACCOUNT: int = 8
+    LOGIN_MAX_FAILURES_PER_CLIENT: int = 30
+    LOGIN_FAILURE_WINDOW_MIN: int = 15
     # Or 2Factor (2factor.in, Indian numbers): the API key from its dashboard; it texts the code the server
     # makes, using 2Factor's OTP template (or TWOFACTOR_TEMPLATE, the name of your own approved template).
     TWOFACTOR_API_KEY: str = ""

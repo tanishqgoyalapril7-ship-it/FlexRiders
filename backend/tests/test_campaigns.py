@@ -193,7 +193,7 @@ def test_payout_counts_only_approved_days(client, db_session, admin_headers, bra
     for n in range(3):
         res = client.post(
             f"{API}/riders/me/campaigns/{campaign['id']}/activity",
-            files={"photo": ("proof.jpg", f"fake-jpeg-bytes-{n}".encode(), "image/jpeg")},
+            files={"photo": ("proof.jpg", b"\xff\xd8\xff" + f"fake-jpeg-bytes-{n}".encode(), "image/jpeg")},
             headers=rider_headers,
         )
         assert res.status_code == 200, res.text

@@ -274,7 +274,7 @@ def test_brand_request_approval_live_monitoring_and_isolation(client, db_session
     db_session.commit()
     for n in range(2):
         res = client.post(f"{API}/riders/me/campaigns/{cid}/activity",
-                          files={"photo": ("proof.jpg", f"geo-proof-{n}".encode(), "image/jpeg")}, headers=rider_headers)
+                          files={"photo": ("proof.jpg", b"\xff\xd8\xff" + f"geo-proof-{n}".encode(), "image/jpeg")}, headers=rider_headers)
         assert res.status_code == 200, res.text
     queue = client.get(f"{API}/campaigns/photo-queue", headers=admin_headers).json()
     mine = [p for p in queue["photos"] if p["campaign_id"] == cid]
@@ -358,7 +358,7 @@ def test_realtime_signals_reach_the_right_audiences(client, db_session, admin_he
     assert up.status_code == 200 and up.json()["stored"] == 3, up.text
     route_topics = last("route_points")
     assert route_topics == {admins, brand_topic} and discovery not in route_topics
-    photo = client.post(f"{API}/riders/me/campaigns/{cid}/activity", files={"photo": ("p.jpg", b"signal-proof", "image/jpeg")}, headers=b)
+    photo = client.post(f"{API}/riders/me/campaigns/{cid}/activity", files={"photo": ("p.jpg", b"\xff\xd8\xff" + b"signal-proof", "image/jpeg")}, headers=b)
     assert photo.status_code == 200, photo.text
     assert last("photo_submitted") == {admins, brand_topic}
     pid = client.get(f"{API}/campaigns/photo-queue", params={"campaign_id": cid}, headers=admin_headers).json()["photos"][0]["id"]
@@ -460,7 +460,7 @@ def test_brand_request_carries_the_same_details_as_the_admin_form(client, db_ses
     # After approval the banner is the admin's to change.
     client.put(f"{API}/customer/campaigns/{cid}", json={"submit": True}, headers=brand)
     client.post(f"{API}/campaigns/{cid}/review", json={"action": "approve"}, headers=admin_headers)
-    assert client.post(f"{API}/customer/campaigns/{cid}/image", files={"image": ("b.jpg", b"\xff\xd8x", "image/jpeg")}, headers=brand).status_code == 400
+    assert client.post(f"{API}/customer/campaigns/{cid}/image", files={"image": ("b.jpg", b"\xff\xd8\xff" + b"\xff\xd8x", "image/jpeg")}, headers=brand).status_code == 400
 
 
 def test_last_known_location_reaches_rider_after_six_hours_with_free_slots(client, db_session, admin_headers, brand_id):

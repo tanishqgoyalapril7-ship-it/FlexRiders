@@ -13,14 +13,22 @@ router = APIRouter()
 
 
 @router.post("/login", response_model=Token)
-def login(request: LoginRequest, db: Session = Depends(get_db)):
+def login(request: LoginRequest, http: Request, db: Session = Depends(get_db)):
     """Authenticate user with phone or email + password, returns JWT token with role"""
+    from app.api.v1.endpoints.password import _client
+    from app.services import login_guard
+
     ident = request.phone.strip()
+    client = _client(http)
+    if login_guard.blocked(db, ident, client):
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                            detail=f"Too many failed login attempts. Please wait {settings.LOGIN_FAILURE_WINDOW_MIN} minutes and try again, or reset your password.")
     user = db.query(User).filter(or_(User.phone == ident, func.lower(User.email) == ident.lower())).first()
     # One message for an unknown number and a wrong password, so login can't be used to find accounts.
     bad_login = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect phone number or password")
     if request.password:
         if not user or not verify_password(request.password, user.hashed_password):
+            login_guard.record_failure(db, ident, client)
             raise bad_login
     else:
         raise HTTPException(
@@ -30,6 +38,7 @@ def login(request: LoginRequest, db: Session = Depends(get_db)):
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This account has been deactivated. Contact support.")
 
+    login_guard.clear(db, ident)
     rider = db.query(Rider).filter(Rider.user_id == user.id).first()
     rider_sr_id = rider.rider_id if rider else None
     brand = db.query(Brand).filter(Brand.id == user.brand_id).first() if user.brand_id else None

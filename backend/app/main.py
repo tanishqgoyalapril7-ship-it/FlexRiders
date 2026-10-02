@@ -21,9 +21,11 @@ if _migrate == "true" or (_migrate != "false" and not settings.VERCEL):
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    openapi_url=f"{settings.API_V1_STR}/openapi.json",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    # The interactive API docs and schema are for development only: hosted, they would publish a map of
+    # every endpoint.
+    openapi_url=None if settings.VERCEL else f"{settings.API_V1_STR}/openapi.json",
+    docs_url=None if settings.VERCEL else "/docs",
+    redoc_url=None if settings.VERCEL else "/redoc",
     description="Production REST API for FlexRiders Rider Management & Payment Tracking Platform",
     version="1.0.0",
 )
@@ -36,6 +38,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def security_headers(request, call_next):
+    """Browser hardening on every API response: no MIME sniffing, never framed, no referrer leaks."""
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    return response
+
 
 # Include API v1 Router
 app.include_router(api_router, prefix=settings.API_V1_STR)

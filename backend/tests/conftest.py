@@ -26,6 +26,7 @@ for _key in ("SMS_GATEWAY_URL", "SMS_GATEWAY_API_KEY", "FAST2SMS_API_KEY", "TWIL
 os.environ["SMS_TEST_MODE"] = "false"
 os.environ["SMS_PER_NUMBER_PER_HOUR"] = "3"
 os.environ["SMS_PER_CLIENT_PER_HOUR"] = "10"
+os.environ["LOGIN_MAX_FAILURES_PER_CLIENT"] = "100000"  # Tests share one client address
 
 from app.main import app
 from app.core.database import Base, get_db

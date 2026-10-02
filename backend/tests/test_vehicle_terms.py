@@ -198,7 +198,7 @@ def test_versioned_terms_acceptance(client, db_session, admin):
     assert len(note) == 1  # Only the assigned rider, once
     card = client.get(f"{API}/riders/me/campaigns/{cid}", headers=headers).json()
     assert card["terms"]["needs_acceptance"] is True and card["terms"]["accepted_version"] == 1
-    up = client.post(f"{API}/riders/me/campaigns/{cid}/activity", files={"photo": ("p.jpg", b"morning", "image/jpeg")}, data={"slot": "MORNING"}, headers=headers)
+    up = client.post(f"{API}/riders/me/campaigns/{cid}/activity", files={"photo": ("p.jpg", b"\xff\xd8\xff" + b"morning", "image/jpeg")}, data={"slot": "MORNING"}, headers=headers)
     assert up.status_code == 200, up.text
 
     # Accepting a stale version is refused; the current one adds a new row (v1 row untouched).
@@ -418,7 +418,7 @@ def test_standard_terms_published_as_a_version_and_accepted(client, db_session, 
         assert client.post(join, json={"terms_version": v1 + 1}, headers=newcomer_h).status_code == 200
 
     # The rider already in the campaign keeps uploading photos and can still see what they accepted.
-    up = client.post(f"{API}/riders/me/campaigns/{cid}/activity", files={"photo": ("p.jpg", b"morning", "image/jpeg")}, data={"slot": "MORNING"}, headers=headers)
+    up = client.post(f"{API}/riders/me/campaigns/{cid}/activity", files={"photo": ("p.jpg", b"\xff\xd8\xff" + b"morning", "image/jpeg")}, data={"slot": "MORNING"}, headers=headers)
     assert up.status_code == 200, up.text
     card = client.get(f"{API}/riders/me/campaigns/{cid}", headers=headers).json()
     assert card["terms"]["accepted_version"] == v1 and card["terms"]["needs_acceptance"] is True
@@ -459,7 +459,7 @@ def test_auto_and_three_wheeler_photos_must_show_number_plate(client, db_session
         assert rider["vehicle_number"]  # Compulsory for Auto / Three Wheeler
 
     # The reviewer sees the number to match against the plate in the photo.
-    up = client.post(f"{API}/riders/me/campaigns/{c['id']}/activity", files={"photo": ("p.jpg", b"plate-" + category.encode(), "image/jpeg")}, data={"slot": "MORNING"}, headers=headers)
+    up = client.post(f"{API}/riders/me/campaigns/{c['id']}/activity", files={"photo": ("p.jpg", b"\xff\xd8\xff" + b"plate-" + category.encode(), "image/jpeg")}, data={"slot": "MORNING"}, headers=headers)
     assert up.status_code == 200, up.text
     photos = client.get(f"{API}/campaigns/{c['id']}/photos", headers=admin).json()
     items = photos if isinstance(photos, list) else photos.get("items", photos.get("photos", []))

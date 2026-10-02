@@ -128,7 +128,22 @@ async def _read_image(upload: UploadFile) -> (bytes, str):
     content = await upload.read()
     if len(content) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=400, detail="Image must be 8 MB or smaller.")
+    # The declared type is only the client's claim: the bytes must really be that kind of image.
+    if not _looks_like(content, extension):
+        raise HTTPException(status_code=400, detail="This file isn't a valid image. Please take or choose a JPG, PNG, WEBP or HEIC photo.")
     return content, extension
+
+
+def _looks_like(content: bytes, extension: str) -> bool:
+    if extension == ".jpg":
+        return content[:3] == b"\xff\xd8\xff"
+    if extension == ".png":
+        return content[:8] == b"\x89PNG\r\n\x1a\n"
+    if extension == ".webp":
+        return content[:4] == b"RIFF" and content[8:12] == b"WEBP"
+    if extension == ".heic":
+        return content[4:8] == b"ftyp" and content[8:12] in (b"heic", b"heix", b"hevc", b"hevx", b"mif1", b"msf1", b"heim", b"heis")
+    return False
 
 
 async def _save_image(upload: UploadFile, folder: str) -> str:

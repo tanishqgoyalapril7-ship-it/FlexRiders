@@ -83,11 +83,11 @@ def test_proof_photo_goes_to_bucket_under_campaign_and_rider(client, db_session,
         app_id = client.get(f"{API}/campaigns/{cid}/applications", headers=admin).json()[0]["id"]
         client.post(f"{API}/campaigns/{cid}/applications/{app_id}/approve", headers=admin)
 
-    res = client.post(f"{API}/riders/me/campaigns/{cid}/activity", files={"photo": ("p.jpg", b"morning-selfie", "image/jpeg")}, data={"slot": "MORNING"}, headers=headers)
+    res = client.post(f"{API}/riders/me/campaigns/{cid}/activity", files={"photo": ("p.jpg", b"\xff\xd8\xff" + b"morning-selfie", "image/jpeg")}, data={"slot": "MORNING"}, headers=headers)
     assert res.status_code == 200, res.text
     photo = client.get(f"{API}/campaigns/{cid}/photos", headers=admin).json()[0]
     assert photo["photo_url"].startswith(f"/uploads/campaign-proofs/{cid}/{rider['id']}/") and photo["slot"] == "MORNING"
-    assert fake_storage.objects[photo["photo_url"][len("/uploads/"):]] == b"morning-selfie"
+    assert fake_storage.objects[photo["photo_url"][len("/uploads/"):]] == b"\xff\xd8\xff" + b"morning-selfie"
 
 
 def test_cron_endpoint_requires_secret_and_is_idempotent(client, db_session, monkeypatch):

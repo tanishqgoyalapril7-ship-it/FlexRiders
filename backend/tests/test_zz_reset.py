@@ -29,7 +29,7 @@ def _seed(client, admin):
     token = client.post(f"{API}/auth/login", json={"phone": body["mobile_number"], "password": "riderPass1"}).json()["access_token"]
     upload = client.post(
         f"{API}/riders/me/campaigns/{campaign['id']}/activity",
-        files={"photo": ("p.jpg", uuid.uuid4().bytes, "image/jpeg")},
+        files={"photo": ("p.jpg", b"\xff\xd8\xff" + uuid.uuid4().bytes, "image/jpeg")},
         headers={"Authorization": f"Bearer {token}"},
     )
     assert upload.status_code == 200, upload.text

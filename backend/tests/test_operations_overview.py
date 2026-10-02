@@ -36,7 +36,7 @@ def test_operations_overview_matches_detail_pages(client, db_session):
 
     # Rider 1 completes today's Photo-Day; rider 2 submits nothing.
     for slot in ("MORNING", "EVENING", "NIGHT"):
-        client.post(f"{API}/riders/me/campaigns/{cid}/activity", files={"photo": ("p.jpg", uuid.uuid4().bytes, "image/jpeg")}, data={"slot": slot}, headers=riders[0][1])
+        client.post(f"{API}/riders/me/campaigns/{cid}/activity", files={"photo": ("p.jpg", b"\xff\xd8\xff" + uuid.uuid4().bytes, "image/jpeg")}, data={"slot": slot}, headers=riders[0][1])
     for p in client.get(f"{API}/campaigns/{cid}/photos?status=PENDING", headers=admin).json():
         client.post(f"{API}/campaigns/{cid}/photos/{p['id']}/approve", headers=admin)
     # One paid manual payment and one failed one.

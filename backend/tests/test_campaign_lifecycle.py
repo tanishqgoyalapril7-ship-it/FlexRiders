@@ -109,7 +109,7 @@ def test_assigned_rider_continues_after_start_and_start_date_goes_live(client, d
     detail = client.get(f"{API}/riders/me/campaigns/{cid}", headers=headers).json()
     assert detail["lifecycle"]["key"] == "LIVE" and detail["my_status"] == "ACTIVE"
     assert any("is now LIVE" in t for t in _titles(db_session, rider["id"]))
-    up = client.post(f"{API}/riders/me/campaigns/{cid}/activity", files={"photo": ("p.jpg", b"morning", "image/jpeg")}, data={"slot": "MORNING"}, headers=headers)
+    up = client.post(f"{API}/riders/me/campaigns/{cid}/activity", files={"photo": ("p.jpg", b"\xff\xd8\xff" + b"morning", "image/jpeg")}, data={"slot": "MORNING"}, headers=headers)
     assert up.status_code == 200, up.text
 
 
@@ -135,7 +135,7 @@ def test_slot_notifications(client, db_session, admin):
     assert "between 6:00 AM and 11:00 AM" in msg
 
     # E. Morning photo submitted: no "closes soon" reminder for it.
-    up = client.post(f"{API}/riders/me/campaigns/{cid}/activity", files={"photo": ("p.jpg", b"m", "image/jpeg")}, data={"slot": "MORNING"}, headers=headers)
+    up = client.post(f"{API}/riders/me/campaigns/{cid}/activity", files={"photo": ("p.jpg", b"\xff\xd8\xff" + b"m", "image/jpeg")}, data={"slot": "MORNING"}, headers=headers)
     assert up.status_code == 200
     slot_reminder_service.run_once(db_session, at(10, 45))
     assert "Morning slot closes soon" not in _titles(db_session, rider["id"])

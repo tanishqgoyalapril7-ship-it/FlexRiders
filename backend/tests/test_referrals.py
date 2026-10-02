@@ -59,7 +59,7 @@ def test_referral_reward_after_first_photo_streak(client, db_session):
     assert client.post(f"{API}/campaigns/{cid}/riders", json={"rider_id": b_id}, headers=admin).status_code == 200
     b_headers = _login(client, b_phone)
     for slot in ("MORNING", "EVENING", "NIGHT"):
-        client.post(f"{API}/riders/me/campaigns/{cid}/activity", files={"photo": ("p.jpg", uuid.uuid4().bytes, "image/jpeg")}, data={"slot": slot}, headers=b_headers)
+        client.post(f"{API}/riders/me/campaigns/{cid}/activity", files={"photo": ("p.jpg", b"\xff\xd8\xff" + uuid.uuid4().bytes, "image/jpeg")}, data={"slot": slot}, headers=b_headers)
     photos = {p["slot"]: p for p in client.get(f"{API}/campaigns/{cid}/photos?status=PENDING", headers=admin).json()}
 
     def rewards():
@@ -73,7 +73,7 @@ def test_referral_reward_after_first_photo_streak(client, db_session):
     assert rewards() == []
 
     # Night retaken and approved → first Photo Streak → ₹30 to A (a real pending payment).
-    client.post(f"{API}/riders/me/campaigns/{cid}/activity", files={"photo": ("p.jpg", uuid.uuid4().bytes, "image/jpeg")}, data={"slot": "NIGHT"}, headers=b_headers)
+    client.post(f"{API}/riders/me/campaigns/{cid}/activity", files={"photo": ("p.jpg", b"\xff\xd8\xff" + uuid.uuid4().bytes, "image/jpeg")}, data={"slot": "NIGHT"}, headers=b_headers)
     night = next(p for p in client.get(f"{API}/campaigns/{cid}/photos?status=PENDING", headers=admin).json() if p["slot"] == "NIGHT")
     client.post(f"{API}/campaigns/{cid}/photos/{night['id']}/approve", headers=admin)
     paid = rewards()

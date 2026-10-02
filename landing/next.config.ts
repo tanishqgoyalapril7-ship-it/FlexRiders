@@ -11,6 +11,22 @@ const nextConfig: NextConfig = {
   // One domain for everything: flexriders.in is this site; /admin (and public /campaign pages) are
   // served by the admin dashboard deployment (as is the /brand portal), and /api/v1 + /uploads by the backend. Each is only
   // forwarded once its address is configured.
+  // Browser hardening for the website (the /admin, /brand and /campaign pages proxied from the dashboard
+  // deployment get the same headers there): never framed, no MIME sniffing, no referrer leaks.
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'none'; object-src 'none'; base-uri 'self'" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=()" },
+        ],
+      },
+    ];
+  },
   async rewrites() {
     const admin = process.env.ADMIN_APP_URL?.replace(/\/$/, "");
     const api = process.env.BACKEND_URL?.replace(/\/$/, "");

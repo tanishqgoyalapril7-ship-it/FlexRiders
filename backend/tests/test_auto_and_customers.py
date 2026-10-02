@@ -149,7 +149,7 @@ def test_customer_dashboard_uses_real_campaign_data(client, db_session, admin):
     with before_start(db_session, auto["id"]):
         client.post(f"{API}/campaigns/{auto['id']}/applications/{app_id}/approve", headers=admin)
     client.post(f"{API}/campaigns/{auto['id']}/brand-payments", json={"kind": "RECEIVED", "payment_mode": "UPI", "amount": 400, "record_date": today_ist().isoformat(), "reference": "UTR1"}, headers=admin)
-    client.post(f"{API}/riders/me/campaigns/{auto['id']}/activity", files={"photo": ("p.jpg", b"auto-morning", "image/jpeg")}, data={"slot": "MORNING"}, headers=headers)
+    client.post(f"{API}/riders/me/campaigns/{auto['id']}/activity", files={"photo": ("p.jpg", b"\xff\xd8\xff" + b"auto-morning", "image/jpeg")}, data={"slot": "MORNING"}, headers=headers)
 
     dash = client.get(f"{API}/brands/{brand['id']}/dashboard", headers=admin)
     assert dash.status_code == 200, dash.text

@@ -39,7 +39,7 @@ def _upload(client, headers, cid, slot=None, data=None):
     form = {"slot": slot} if slot else {}
     return client.post(
         f"{API}/riders/me/campaigns/{cid}/activity",
-        files={"photo": ("p.jpg", data or uuid.uuid4().bytes, "image/jpeg")},
+        files={"photo": ("p.jpg", b"\xff\xd8\xff" + (data or uuid.uuid4().bytes), "image/jpeg")},
         data=form,
         headers=headers,
     )

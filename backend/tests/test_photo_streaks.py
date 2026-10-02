@@ -235,7 +235,7 @@ def test_photo_upload_api(client, db_session):
         client.post(f"{API}/campaigns/{cid}/applications/{app_id}/approve", headers=admin_headers)
 
     upload = lambda data: client.post(
-        f"{API}/riders/me/campaigns/{cid}/activity", files={"photo": ("p.jpg", data, "image/jpeg")}, headers=rider_headers
+        f"{API}/riders/me/campaigns/{cid}/activity", files={"photo": ("p.jpg", b"\xff\xd8\xff" + data, "image/jpeg")}, headers=rider_headers
     )
     assert upload(b"photo-1").json()["photos_uploaded"] == 1
     dup = upload(b"photo-1")

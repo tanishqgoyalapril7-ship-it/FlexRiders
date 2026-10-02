@@ -88,6 +88,9 @@ function AndroidMap({ circles, lines, pins, labels, interactive, style }) {
     <View style={[StyleSheet.absoluteFill, style]} pointerEvents={interactive ? 'auto' : 'none'}>
       <WebView
         originWhitelist={['*']}
+        // The map page never navigates: links (e.g. the map credits) can't open other sites inside the app.
+        onShouldStartLoadWithRequest={(req) => req.url === 'about:blank' || req.url.startsWith('https://flexriders.in')}
+        setSupportMultipleWindows={false}
         source={{ html, baseUrl: 'https://flexriders.in' }}
         style={{ backgroundColor: '#E5E7EB' }}
         javaScriptEnabled
@@ -104,8 +107,8 @@ function buildHtml(data) {
   const json = JSON.stringify(data).replace(/</g, '\\u003c');
   return `<!doctype html><html><head>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <style>
   html,body,#map{margin:0;padding:0;height:100%;width:100%;background:#E5E7EB;}
   body{font-family:-apple-system,Roboto,sans-serif;}
