@@ -36,7 +36,7 @@ const clock = (hhmm) => {
   return `${hour}${m ? `:${String(m).padStart(2, '0')}` : ''} ${h < 12 ? 'AM' : 'PM'}`;
 };
 
-/** Home: the dark map of the campaigns that reach this rider (real targets, payouts and slots, as labelled
+/** Home: the map of the campaigns that reach this rider (real targets, payouts and slots, as labelled
  * bubbles) with the greeting and live location on top, filters, recommended campaigns, the rider's active
  * campaign and today's photo slots. No earnings or streak summary here (those live under Earnings). */
 export default function HomeScreen({ rider, campaigns, unreadCount, onNavigate, onOpenCampaign, deviceLocation, locationState, onRequestLocation }) {

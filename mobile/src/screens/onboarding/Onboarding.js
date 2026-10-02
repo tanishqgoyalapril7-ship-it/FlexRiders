@@ -140,10 +140,7 @@ export function Walkthrough({ onDone }) {
           </TouchableOpacity>
         ) : (
           <View style={s.brandRow}>
-            <Image source={require('../../../assets/app-logo.png')} style={s.brandLogo} />
-            <Text style={s.brandName}>
-              Flex<Text style={{ color: colors.primary }}>Riders</Text>
-            </Text>
+            <Image source={require('../../../assets/logo-mark.png')} style={s.brandLogo} resizeMode="contain" accessibilityLabel="FlexRiders" />
           </View>
         )}
         {!last ? (
@@ -155,6 +152,8 @@ export function Walkthrough({ onDone }) {
       <ScrollView
         ref={pager}
         horizontal
+        style={{ flex: 1 }}
+        contentContainerStyle={{ alignItems: 'stretch' }}
         pagingEnabled
         showsHorizontalScrollIndicator={false}
         onMomentumScrollEnd={(e) => setIndex(Math.round(e.nativeEvent.contentOffset.x / width))}
@@ -168,19 +167,19 @@ export function Walkthrough({ onDone }) {
         ))}
       </ScrollView>
       <View style={s.footer}>
-        <View style={{ flexDirection: 'row', gap: 6 }}>
+        <View style={s.dotsRow}>
           {SLIDES.map((slide, i) => (
             <View key={slide.title} style={[s.pageDot, i === index && { width: 26, backgroundColor: SLIDES[index].accent }]} />
           ))}
         </View>
         <TouchableOpacity
-          style={[s.nextBtn, { backgroundColor: SLIDES[index].accent }, last && s.nextBtnWide]}
+          style={[s.nextBtn, { backgroundColor: SLIDES[index].accent }]}
           onPress={() => (last ? onDone() : go(index + 1))}
           activeOpacity={0.85}
           accessibilityLabel={last ? t('Get Started') : t('Next')}
         >
-          {last ? <Text style={s.nextText}>{t('Get Started')}</Text> : null}
-          <Ionicons name="arrow-forward" size={22} color="#FFFFFF" />
+          <Text style={s.nextText}>{last ? t('Get Started') : t('Next')}</Text>
+          <Ionicons name="arrow-forward" size={20} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
     </View>
@@ -280,11 +279,11 @@ const makeStyles = (c) =>
     screen: { flex: 1, backgroundColor: c.background },
     topRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 24, paddingTop: 14, minHeight: 58 },
     brandRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-    brandLogo: { width: 34, height: 34, borderRadius: 10 },
+    brandLogo: { width: 92, height: 46 },
     brandName: { fontSize: 19, fontWeight: '800', color: c.text },
     backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: c.surface, borderWidth: 1, borderColor: c.border, alignItems: 'center', justifyContent: 'center' },
     skip: { color: c.textMuted, fontSize: 16, fontWeight: '700' },
-    slide: { paddingHorizontal: 24, paddingTop: 12 },
+    slide: { paddingHorizontal: 24, paddingTop: 8, flex: 1, alignItems: 'center', justifyContent: 'center' },
     art: { width: '100%', height: 330, borderRadius: 32, alignItems: 'center', justifyContent: 'center', marginBottom: 32, overflow: 'hidden' },
     ring: { position: 'absolute', width: 300, height: 300, borderRadius: 150, borderWidth: 2 },
     ringInner: { width: 220, height: 220, borderRadius: 110 },
@@ -293,12 +292,12 @@ const makeStyles = (c) =>
     medal: { width: 150, height: 150, borderRadius: 75, backgroundColor: c.surface, alignItems: 'center', justifyContent: 'center', shadowOpacity: 0.25, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }, elevation: 8 },
     chip: { position: 'absolute', flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: c.surface, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 3 },
     chipText: { fontSize: 13, fontWeight: '700', color: c.text },
-    slideTitle: { fontSize: 28, fontWeight: '800', color: c.text, lineHeight: 34, letterSpacing: -0.3 },
-    slideText: { fontSize: 16, color: c.textMuted, marginTop: 12, lineHeight: 24 },
-    footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 24, paddingBottom: 28, paddingTop: 12 },
+    slideTitle: { fontSize: 27, fontWeight: '800', color: c.text, lineHeight: 34, letterSpacing: -0.3, textAlign: 'center', maxWidth: 340 },
+    slideText: { fontSize: 16, color: c.textMuted, marginTop: 12, lineHeight: 24, textAlign: 'center', maxWidth: 330 },
+    footer: { alignItems: 'center', gap: 18, paddingHorizontal: 24, paddingBottom: 28, paddingTop: 12 },
+    dotsRow: { flexDirection: 'row', gap: 6, justifyContent: 'center' },
     pageDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: c.border },
-    nextBtn: { height: 60, minWidth: 60, borderRadius: 30, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 18 },
-    nextBtnWide: { paddingHorizontal: 26 },
+    nextBtn: { height: 56, alignSelf: 'stretch', borderRadius: 28, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
     nextText: { color: '#FFFFFF', fontSize: 17, fontWeight: '800' },
     centerTitle: { fontSize: 20, fontWeight: '700', color: c.text, textAlign: 'center', marginTop: 24 },
     bigTitle: { fontSize: 28, fontWeight: '800', color: c.text, lineHeight: 34 },

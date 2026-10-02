@@ -55,6 +55,27 @@ export default function CampaignMapView({ campaigns = [], myLocation, workingAre
   const { colors } = useTheme();
   const mapRef = useRef(null);
   const [ready, setReady] = useState(false);
+  // Map look, switched by the rider: light street map (default), satellite, or night.
+  const [mode, setMode] = useState('standard');
+  const MODES = [
+    ['standard', 'Map', 'map-outline'],
+    ['satellite', 'Satellite', 'earth-outline'],
+    ['night', 'Night', 'moon-outline'],
+  ];
+  const current = MODES.find((m) => m[0] === mode);
+  const nextMode = () => setMode(MODES[(MODES.findIndex((m) => m[0] === mode) + 1) % MODES.length][0]);
+  const modeButton = (
+    <TouchableOpacity
+      style={[styles.modeBtn, { bottom: bottomInset + 64 }]}
+      onPress={nextMode}
+      activeOpacity={0.85}
+      accessibilityRole="button"
+      accessibilityLabel={`Map style: ${current[1]}. Tap to change`}
+    >
+      <Ionicons name={current[2]} size={18} color={colors.primary} />
+      <Text style={styles.modeText}>{current[1]}</Text>
+    </TouchableOpacity>
+  );
   const targeted = useMemo(() => campaigns.filter((c) => c.target && c.target.lat != null), [campaigns]);
   const selected = targeted.find((c) => c.id === selectedId);
 
@@ -91,7 +112,7 @@ export default function CampaignMapView({ campaigns = [], myLocation, workingAre
       <View style={[styles.wrap, fullBleed ? styles.bleed : { height }]}>
         <WebMapView
           ref={mapRef}
-          dark={dark}
+          mode={mode}
           insets={{ top: topInset, bottom: bottomInset }}
           me={myLocation}
           areas={workingAreas.filter((a) => a.lat != null && a.lng != null).map((a) => ({ label: a.label, lat: a.lat, lng: a.lng }))}
@@ -111,6 +132,7 @@ export default function CampaignMapView({ campaigns = [], myLocation, workingAre
             if (c) onSelect(c);
           }}
         />
+        {modeButton}
         {myLocation ? (
           <TouchableOpacity style={[styles.recenter, { bottom: bottomInset + 12 }]} onPress={() => mapRef.current && mapRef.current.recenter()} accessibilityLabel="Center on my location">
             <Ionicons name="locate" size={20} color={colors.primary} />
@@ -129,8 +151,9 @@ export default function CampaignMapView({ campaigns = [], myLocation, workingAre
   return (
     <View style={[styles.wrap, fullBleed ? styles.bleed : { height }]}>
       <MapView
-        customMapStyle={dark ? DARK_STYLE : undefined}
-        userInterfaceStyle={dark ? 'dark' : undefined}
+        mapType={mode === 'satellite' ? 'hybrid' : 'standard'}
+        customMapStyle={mode === 'night' ? DARK_STYLE : undefined}
+        userInterfaceStyle={mode === 'night' ? 'dark' : 'light'}
         ref={mapRef}
         style={StyleSheet.absoluteFill}
         initialRegion={initialRegion}
@@ -141,9 +164,12 @@ export default function CampaignMapView({ campaigns = [], myLocation, workingAre
         onMapReady={() => setReady(true)}
       >
         {workingAreas.map((a) => (
-          <Marker key={`wa-${a.label}`} coordinate={{ latitude: a.lat, longitude: a.lng }} title={a.label} description="Your working area" tracksViewChanges={false} zIndex={1}>
-            <View style={styles.areaDot}>
-              <Ionicons name="home" size={11} color="#FFFFFF" />
+          <Marker key={`wa-${a.label}`} coordinate={{ latitude: a.lat, longitude: a.lng }} title={a.label} description="Your working area" tracksViewChanges={false} zIndex={1} anchor={{ x: 0.5, y: 1 }}>
+            <View style={styles.areaPinWrap}>
+              <View style={styles.areaPin}>
+                <Ionicons name="home" size={13} color="#FFFFFF" />
+              </View>
+              <Text style={styles.areaName} numberOfLines={1}>{String(a.label || '').split(',')[0]}</Text>
             </View>
           </Marker>
         ))}
@@ -196,6 +222,7 @@ export default function CampaignMapView({ campaigns = [], myLocation, workingAre
           );
         })}
       </MapView>
+      {modeButton}
       {myLocation ? (
         <TouchableOpacity style={[styles.recenter, { bottom: bottomInset + 12 }]} onPress={recenter} accessibilityLabel="Center on my location">
           <Ionicons name="locate" size={20} color={colors.primary} />
@@ -265,7 +292,25 @@ const makeStyles = (c) =>
     },
     pinTailSoon: { borderTopColor: c.warning },
     pinTailActive: { borderTopColor: c.primary },
-    areaDot: { width: 20, height: 20, borderRadius: 10, backgroundColor: '#7C3AED', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#FFFFFF' },
+    areaPinWrap: { alignItems: 'center' },
+    areaPin: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#7C3AED', alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: '#FFFFFF', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
+    areaName: { marginTop: 3, backgroundColor: '#FFFFFF', color: '#4C1D95', fontWeight: '800', fontSize: 11, paddingHorizontal: 7, paddingVertical: 2, borderRadius: 999, overflow: 'hidden', maxWidth: 120 },
+    modeBtn: {
+      position: 'absolute',
+      right: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 6,
+      height: 40,
+      paddingHorizontal: 12,
+      borderRadius: 20,
+      backgroundColor: c.surface,
+      shadowColor: '#000',
+      shadowOpacity: 0.15,
+      shadowRadius: 4,
+      elevation: 3,
+    },
+    modeText: { fontSize: 13, fontWeight: '800', color: c.text },
     recenter: {
       position: 'absolute',
       right: 12,

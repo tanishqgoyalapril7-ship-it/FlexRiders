@@ -2,7 +2,7 @@
   "expo": {
     "name": "FlexRiders",
     "slug": "flexriders",
-    "version": "1.0.2",
+    "version": "1.0.3",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "assetBundlePatterns": [
@@ -24,7 +24,7 @@
     },
     "android": {
       "package": "com.flexriders.app",
-      "versionCode": 3,
+      "versionCode": 4,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#F3F3F3"
