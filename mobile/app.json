@@ -2,7 +2,7 @@
   "expo": {
     "name": "FlexRiders",
     "slug": "flexriders",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "assetBundlePatterns": [
@@ -24,7 +24,7 @@
     },
     "android": {
       "package": "com.flexriders.app",
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#F3F3F3"
@@ -79,6 +79,12 @@
       "flexriders",
       "superriders"
     ],
-    "icon": "./assets/icon.png"
+    "icon": "./assets/icon.png",
+    "extra": {
+      "eas": {
+        "projectId": "35702162-982b-461e-9062-bb7cd702eec4"
+      }
+    },
+    "owner": "flexriderss-team"
   }
 }

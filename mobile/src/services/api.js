@@ -22,6 +22,12 @@ const devHost = () => {
 const getDefaultBaseUrl = () => {
   if (process.env.EXPO_PUBLIC_API_URL) {
     const configured = process.env.EXPO_PUBLIC_API_URL;
+    // A release build must never point at a developer's laptop: a local address in .env (from development)
+    // would make the published app unusable, so release builds fall back to the live API.
+    const configuredHostOnly = (/^https?:\/\/([^:/]+)/.exec(configured) || [])[1] || '';
+    if (!__DEV__ && (LAN_HOST.test(configuredHostOnly) || configuredHostOnly === 'localhost' || configuredHostOnly === '127.0.0.1')) {
+      return PRODUCTION_API_URL;
+    }
     const host = __DEV__ ? devHost() : '';
     const [, scheme, configuredHost, rest] = /^(https?:\/\/)([^:/]+)(.*)$/.exec(configured) || [];
     return host && LAN_HOST.test(configuredHost || '') ? `${scheme}${host}${rest}` : configured;
