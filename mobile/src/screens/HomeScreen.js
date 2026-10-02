@@ -6,7 +6,7 @@ import CampaignMapView from '../components/CampaignMapView';
 import { CampaignSheet, distanceLabel } from '../components/CampaignBits';
 import { LOCATION_TEXT, isLive } from '../services/locationService';
 import { assetUrl } from '../services/api';
-import { formatINR } from '../utils';
+import { brandColor, formatINR, tint } from '../utils';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const CARD_W = Math.min(SCREEN_W * 0.68, 270);
@@ -208,13 +208,17 @@ function RecommendedCard({ campaign: c, onOpen }) {
     .filter(Boolean)
     .join(' · ');
   return (
-    <TouchableOpacity style={[s.card, { width: CARD_W }]} activeOpacity={0.9} onPress={onOpen} accessibilityLabel={`${c.name}, ${meta}, ${formatINR(c.daily_rate)} per day`}>
+    <TouchableOpacity
+      style={[s.card, { width: CARD_W, backgroundColor: tint(brandColor(c), 0.08), borderColor: tint(brandColor(c), 0.28) }]}
+      activeOpacity={0.9}
+      onPress={onOpen}
+      accessibilityLabel={`${c.name}, ${meta}, ${formatINR(c.daily_rate)} per day`}>
       <BrandTile campaign={c} />
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={s.recName} numberOfLines={1}>{c.name}</Text>
         <Text style={[s.recMeta, full && { color: colors.warning }]} numberOfLines={1}>{meta}</Text>
       </View>
-      <Text style={s.recRate}>
+      <Text style={[s.recRate, { color: brandColor(c) }]}>
         {formatINR(c.daily_rate)}
         <Text style={s.recUnit}>/day</Text>
       </Text>
@@ -230,7 +234,10 @@ function ActiveCard({ campaign: c, pending, onOpen }) {
   const total = p.total_campaign_days || 0;
   const done = p.completed_days || 0;
   return (
-    <TouchableOpacity style={s.activeCard} onPress={onOpen} activeOpacity={0.9}>
+    <TouchableOpacity style={[s.activeCard, { backgroundColor: tint(brandColor(c), 0.1), borderColor: tint(brandColor(c), 0.3) }]} onPress={onOpen} activeOpacity={0.9}>
+      {/* Soft brand-colour glows: a light gradient look without an extra library. */}
+      <View style={[s.glow, { backgroundColor: tint(brandColor(c), 0.18), top: -60, right: -40 }]} pointerEvents="none" />
+      <View style={[s.glow, { backgroundColor: tint(brandColor(c), 0.1), bottom: -80, left: -30 }]} pointerEvents="none" />
       <View style={s.activeTop}>
         <BrandTile campaign={c} />
         <View style={{ flex: 1 }}>
@@ -245,7 +252,7 @@ function ActiveCard({ campaign: c, pending, onOpen }) {
       {!pending && total ? (
         <>
           <View style={s.progressTrack}>
-            <View style={[s.progressFill, { width: `${Math.min(100, Math.round((done / total) * 100))}%` }]} />
+            <View style={[s.progressFill, { backgroundColor: brandColor(c), width: `${Math.min(100, Math.round((done / total) * 100))}%` }]} />
           </View>
           <Text style={s.meta}>
             {done} of {total} days completed · {formatINR(c.daily_rate)} / day
@@ -348,7 +355,7 @@ function BrandTile({ campaign: c }) {
   const image = c.image_url || c.brand_logo;
   if (image) return <Image source={{ uri: assetUrl(image) }} style={s.tileSmall} />;
   return (
-    <View style={[s.tileSmall, s.tileEmpty]}>
+    <View style={[s.tileSmall, s.tileEmpty, { backgroundColor: brandColor(c) }]}>
       <Text style={s.tileText}>{(c.brand_name || c.name || '?').charAt(0).toUpperCase()}</Text>
     </View>
   );
@@ -404,7 +411,7 @@ const makeStyles = (c) =>
     link: { color: c.primary, fontWeight: '800', fontSize: 13 },
     card: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: c.surface, borderRadius: 16, borderWidth: 1, borderColor: c.border, paddingVertical: 9, paddingHorizontal: 10 },
     tileSmall: { width: 42, height: 42, borderRadius: 11, backgroundColor: c.surfaceAlt },
-    tileEmpty: { backgroundColor: '#6D28D9', alignItems: 'center', justifyContent: 'center' },
+    tileEmpty: { alignItems: 'center', justifyContent: 'center' },
     tileText: { color: '#FFFFFF', fontSize: 17, fontWeight: '800' },
     recName: { fontSize: 13.5, fontWeight: '800', color: c.text },
     recMeta: { fontSize: 11.5, color: c.textMuted, marginTop: 2 },
@@ -412,7 +419,8 @@ const makeStyles = (c) =>
     recUnit: { fontSize: 10.5, fontWeight: '600', color: c.textMuted },
     cardName: { fontSize: 15, fontWeight: '800', color: c.text },
     meta: { fontSize: 12.5, color: c.textMuted, flexShrink: 1 },
-    activeCard: { backgroundColor: c.surface, borderRadius: 18, borderWidth: 1, borderColor: c.border, padding: 14, gap: 10 },
+    activeCard: { backgroundColor: c.surface, borderRadius: 18, borderWidth: 1, borderColor: c.border, padding: 14, gap: 10, overflow: 'hidden' },
+    glow: { position: 'absolute', width: 160, height: 160, borderRadius: 80 },
     activeTop: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     statusPill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: c.successSoft, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
     statusText: { fontSize: 11, fontWeight: '800', color: c.success },

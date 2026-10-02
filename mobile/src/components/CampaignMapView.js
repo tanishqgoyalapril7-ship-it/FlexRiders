@@ -1,10 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useStyles, useTheme } from '../theme';
-import { formatINR } from '../utils';
+import { brandColor, formatINR } from '../utils';
+import WebMapView from './WebMapView';
 
-// react-native-maps: Apple Maps on iOS; Google Maps on Android (needs GOOGLE_MAPS_ANDROID_API_KEY at build time).
+const slotsText = (c) => (c.remaining_slots > 0 ? `${c.remaining_slots} slot${c.remaining_slots === 1 ? '' : 's'}` : 'Full');
+
+// react-native-maps (Apple Maps) on iOS. Android uses WebMapView (OpenStreetMap tiles in a WebView): Google
+// Maps on Android needs an API key and shows a black map without one, in Expo Go and in release builds.
 let MapView = null;
 let Marker = null;
 let Circle = null;
@@ -82,6 +86,40 @@ export default function CampaignMapView({ campaigns = [], myLocation, workingAre
     );
   }
 
+  if (Platform.OS === 'android') {
+    return (
+      <View style={[styles.wrap, fullBleed ? styles.bleed : { height }]}>
+        <WebMapView
+          ref={mapRef}
+          dark={dark}
+          insets={{ top: topInset, bottom: bottomInset }}
+          me={myLocation}
+          areas={workingAreas.filter((a) => a.lat != null && a.lng != null).map((a) => ({ label: a.label, lat: a.lat, lng: a.lng }))}
+          circle={selected && selected.target.radius_km ? { lat: selected.target.lat, lng: selected.target.lng, radius_km: selected.target.radius_km } : null}
+          selectedId={selectedId == null ? null : selectedId}
+          markers={targeted.map((c) => ({
+            id: c.id,
+            lat: c.target.lat,
+            lng: c.target.lng,
+            title: c.name,
+            subtitle: `${formatINR(c.daily_rate)}/day · ${slotsText(c)}`,
+            color: brandColor(c),
+            soon: Boolean(c.opening_soon),
+          }))}
+          onSelect={(id) => {
+            const c = targeted.find((x) => x.id === id);
+            if (c) onSelect(c);
+          }}
+        />
+        {myLocation ? (
+          <TouchableOpacity style={[styles.recenter, { bottom: bottomInset + 12 }]} onPress={() => mapRef.current && mapRef.current.recenter()} accessibilityLabel="Center on my location">
+            <Ionicons name="locate" size={20} color={colors.primary} />
+          </TouchableOpacity>
+        ) : null}
+      </View>
+    );
+  }
+
   const recenter = () => {
     if (mapRef.current && myLocation) {
       mapRef.current.animateToRegion({ latitude: myLocation.lat, longitude: myLocation.lng, latitudeDelta: 0.05, longitudeDelta: 0.05 }, 350);
@@ -135,13 +173,13 @@ export default function CampaignMapView({ campaigns = [], myLocation, workingAre
                   // Label bubble: campaign name, then payout per day and slots left; Opening Soon in amber,
                   // the selected one inverted.
                   <>
-                    <View style={[styles.bubble, soon && styles.bubbleSoon, active && styles.bubbleActive]}>
+                    <View style={[styles.bubble, { backgroundColor: brandColor(c) }, soon && styles.bubbleSoon, active && styles.bubbleActive]}>
                       <Text style={[styles.bubbleName, active && { color: colors.text }]} numberOfLines={1}>{c.name}</Text>
-                      <Text style={[styles.bubbleText, active && { color: soon ? colors.warning : colors.primary }]} numberOfLines={1}>
-                        {formatINR(c.daily_rate)}/day · {c.remaining_slots > 0 ? `${c.remaining_slots} slot${c.remaining_slots === 1 ? '' : 's'}` : 'Full'}
+                      <Text style={[styles.bubbleText, active && { color: brandColor(c) }]} numberOfLines={1}>
+                        {formatINR(c.daily_rate)}/day · {slotsText(c)}
                       </Text>
                     </View>
-                    <View style={[styles.bubbleTail, soon && { borderTopColor: colors.warning }, active && { borderTopColor: '#FFFFFF' }]} />
+                    <View style={[styles.bubbleTail, { borderTopColor: soon ? colors.warning : brandColor(c) }, active && { borderTopColor: '#FFFFFF' }]} />
                   </>
                 ) : null}
                 {dark ? null : (
@@ -176,7 +214,7 @@ const makeStyles = (c) =>
       backgroundColor: c.primary, borderRadius: 14, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 2, borderColor: '#FFFFFF', alignItems: 'center',
       shadowColor: '#000', shadowOpacity: 0.35, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 6,
     },
-    bubbleSoon: { backgroundColor: c.warning },
+    bubbleSoon: { borderColor: c.warning, borderWidth: 3 }, // Opening Soon: amber ring around the brand colour
     bubbleActive: { backgroundColor: '#FFFFFF', borderColor: c.primary, transform: [{ scale: 1.08 }] },
     bubbleText: { color: '#FFFFFF', fontWeight: '800', fontSize: 12, opacity: 0.95 },
     bubbleName: { color: '#FFFFFF', fontWeight: '800', fontSize: 13, maxWidth: 150 },
