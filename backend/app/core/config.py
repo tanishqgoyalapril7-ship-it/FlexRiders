@@ -121,7 +121,7 @@ class Settings(BaseSettings):
     # Area search (working areas, campaign targets). Nominatim/OpenStreetMap by default; no key needed,
     # but its usage policy requires an identifying User-Agent and at most ~1 request per second.
     GEOCODER_URL: str = "https://nominatim.openstreetmap.org/search"
-    GEOCODER_USER_AGENT: str = "FlexRiders/1.0 (support@flexriders.in)"
+    GEOCODER_USER_AGENT: str = "FlexRiders/1.0 (flexridersindia@gmail.com)"
     GEOCODER_COUNTRY_CODES: str = "in"
     # Refer & Earn: paid to the referrer once, when the referred rider completes their first Photo Streak.
     REFERRAL_REWARD_AMOUNT: float = 30.0
@@ -137,8 +137,8 @@ class Settings(BaseSettings):
     REQUIRE_DRIVER_SELFIE: bool = True
     # Platform Terms & Conditions and Privacy Policy that riders accept at registration. Change a version when
     # the published text changes: riders are then asked to accept the new version (earlier acceptances are kept).
-    PLATFORM_TERMS_VERSION: str = "2026-09-26"
-    PRIVACY_POLICY_VERSION: str = "2026-09-26"
+    PLATFORM_TERMS_VERSION: str = "2026-10-02"
+    PRIVACY_POLICY_VERSION: str = "2026-10-02"
     TERMS_URL: str = "https://flexriders.in/terms"
     PRIVACY_URL: str = "https://flexriders.in/privacy"
     SLOT_REMINDER_MINUTES: int = 30  # "Closes soon" reminder this long before a slot ends

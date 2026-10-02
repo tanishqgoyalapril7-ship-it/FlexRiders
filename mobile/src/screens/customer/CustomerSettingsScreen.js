@@ -113,7 +113,7 @@ export default function CustomerSettingsScreen({ profile, onBack, unreadCount = 
           onPress={onOpenNotifications}
           right={unreadCount ? <Badge label={String(unreadCount)} tone="danger" style={{ marginRight: 8 }} /> : null}
         />
-        <Row icon="mail-outline" label="Help & Support" onPress={() => Linking.openURL('mailto:support@flexriders.in?subject=Brand%20support')} last />
+        <Row icon="mail-outline" label="Help & Support" onPress={() => Linking.openURL('mailto:flexridersindia@gmail.com?subject=Brand%20support')} last />
       </View>
 
       <Section>Appearance</Section>

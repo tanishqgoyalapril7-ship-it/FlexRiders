@@ -71,6 +71,7 @@ def test_registration_needs_terms_and_keeps_every_acceptance(client, db_session,
     assert status["accepted"]["terms_version"] == settings.PLATFORM_TERMS_VERSION
 
     # A new Terms version: the rider is asked again; the earlier acceptance is kept.
+    original_version = settings.PLATFORM_TERMS_VERSION
     monkeypatch.setattr(settings, "PLATFORM_TERMS_VERSION", "2099-01-01")
     assert client.get(f"{API}/auth/consent", headers=headers).json()["required"] is True
     assert client.post(f"{API}/auth/consent", json={"accept_terms": False}, headers=headers).status_code == 422
@@ -78,7 +79,7 @@ def test_registration_needs_terms_and_keeps_every_acceptance(client, db_session,
     assert after["required"] is False and after["accepted"]["source"] == "APP"
     client.post(f"{API}/auth/consent", json={"accept_terms": True}, headers=headers)  # Accepting twice adds nothing
     history = client.get(f"{API}/admin/riders/{me['id']}/consents", headers=admin).json()
-    assert [a["terms_version"] for a in history["acceptances"]] == ["2099-01-01", "2026-09-26"] and history["is_current"]
+    assert [a["terms_version"] for a in history["acceptances"]] == ["2099-01-01", original_version] and history["is_current"]
     assert client.get(f"{API}/admin/riders/{me['id']}/consents", headers=headers).status_code == 403
     assert client.get(f"{API}/auth/consent").status_code == 401
     user_id = db_session.query(User.id).filter(User.phone == me["mobile_number"]).scalar()
