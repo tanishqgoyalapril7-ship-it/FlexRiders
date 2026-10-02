@@ -271,7 +271,8 @@ export function ActiveCampaignView({ campaign, onBack, onDaily, onDetails }) {
     Alert.alert(
       'Location while you ride',
       'FlexRiders records your location from Start until you Stop (or the campaign day ends), even with the screen off, ' +
-        'to verify your campaign route. It is shared only with the FlexRiders team and never collected at other times.\n\n' +
+        "to verify your campaign route. The route is shared with the FlexRiders team and this campaign's brand, and " +
+        'your location is never recorded in the background at other times.\n\n' +
         'Choose "Allow all the time" on the next screen to keep recording with the screen off.',
       [
         { text: 'Only while app is open', onPress: () => run(() => startRoute(campaign.id, { askBackground: false })) },

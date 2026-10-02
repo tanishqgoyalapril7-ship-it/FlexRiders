@@ -52,7 +52,8 @@ export default function RouteCard({ campaignId }) {
       'Location while you ride',
       'FlexRiders collects your location to record your campaign route, even when the app is closed or not in use, ' +
         'from the moment you tap Start Route until you tap End Route (or the campaign day ends). The route is shared ' +
-        'only with the FlexRiders team to verify your campaign riding. It is never collected at other times.\n\n' +
+        "with the FlexRiders team and this campaign's brand to verify your campaign riding. It is never collected in " +
+        'the background at other times.\n\n' +
         'On the next screen, choose "Allow all the time" to keep recording with the screen off. ' +
         'If you don’t, the route records only while the app is open.',
       [
