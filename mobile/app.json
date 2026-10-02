@@ -23,7 +23,7 @@
       }
     },
     "android": {
-      "package": "in.flexriders.rider",
+      "package": "com.flexriders.app",
       "versionCode": 2,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
