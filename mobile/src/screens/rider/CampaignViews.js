@@ -8,20 +8,10 @@ import { assetUrl, mobileApi } from '../../services/api';
 import { useStyles, useTheme } from '../../theme';
 import { Badge, Button, Card, Header } from '../../components/ds';
 import { Countdown, distanceLabel } from '../../components/CampaignBits';
+import SimpleMap from '../../components/SimpleMap';
 import { formatDate, formatINR } from '../../utils';
 import { getRouteState, hasBackgroundPermission, istDate, pauseRoute, startRoute, stopRoute, unpauseRoute } from '../../services/routeTracker';
 
-let MapView = null;
-let Marker = null;
-let Circle = null;
-let Polyline = null;
-try {
-  const Maps = require('react-native-maps');
-  MapView = Maps.default || Maps;
-  ({ Marker, Circle, Polyline } = Maps);
-} catch (e) {
-  MapView = null;
-}
 
 const SLOT_ICONS = { MORNING: 'sunny-outline', EVENING: 'partly-sunny-outline', NIGHT: 'moon-outline' };
 const to12h = (t) => {
@@ -35,38 +25,29 @@ function ZoneMap({ campaign, height = 180, route }) {
   const s = useStyles(makeStyles);
   const { colors } = useTheme();
   const target = campaign.target;
-  if (!MapView || (!target && !(route && route.length))) {
+  if (!target && !(route && route.length)) {
     return (
       <View style={[s.zoneEmpty, { height }]}>
         <Ionicons name="map-outline" size={24} color={colors.textSubtle} />
-        <Text style={s.muted}>{target ? 'Map unavailable in this build.' : 'This campaign has no target zone: it runs across the city.'}</Text>
+        <Text style={s.muted}>This campaign has no target zone: it runs across the city.</Text>
       </View>
     );
   }
-  const points = [...(target ? [[target.lat, target.lng]] : []), ...(route || [])];
-  const lats = points.map((p) => p[0]);
-  const lngs = points.map((p) => p[1]);
-  const pad = target ? (target.radius_km / 111) * 2.4 : 0.01;
-  const region = {
-    latitude: (Math.min(...lats) + Math.max(...lats)) / 2,
-    longitude: (Math.min(...lngs) + Math.max(...lngs)) / 2,
-    latitudeDelta: Math.max(Math.max(...lats) - Math.min(...lats), pad) * 1.3,
-    longitudeDelta: Math.max(Math.max(...lngs) - Math.min(...lngs), pad) * 1.3,
-  };
+  const hasRoute = route && route.length > 1;
   return (
     <View style={[s.zone, { height }]}>
-      <MapView style={StyleSheet.absoluteFill} initialRegion={region} key={`${points.length}`}>
-        {target ? (
-          <Circle center={{ latitude: target.lat, longitude: target.lng }} radius={target.radius_km * 1000} strokeColor={colors.primary} strokeWidth={2} fillColor="rgba(53, 99, 233, 0.14)" />
-        ) : null}
-        {route && route.length > 1 ? (
-          <>
-            <Polyline coordinates={route.map(([latitude, longitude]) => ({ latitude, longitude }))} strokeColor={colors.primary} strokeWidth={5} />
-            <Marker coordinate={{ latitude: route[0][0], longitude: route[0][1] }} pinColor="green" title="Start" />
-            <Marker coordinate={{ latitude: route[route.length - 1][0], longitude: route[route.length - 1][1] }} pinColor="red" title="Latest" />
-          </>
-        ) : null}
-      </MapView>
+      <SimpleMap
+        circles={target ? [{ lat: target.lat, lng: target.lng, radiusM: target.radius_km * 1000, color: colors.primary, fill: 'rgba(53, 99, 233, 0.14)' }] : []}
+        lines={hasRoute ? [{ points: route, color: colors.primary, width: 5 }] : []}
+        pins={
+          hasRoute
+            ? [
+                { lat: route[0][0], lng: route[0][1], color: 'green', title: 'Start' },
+                { lat: route[route.length - 1][0], lng: route[route.length - 1][1], color: 'red', title: 'Latest' },
+              ]
+            : []
+        }
+      />
     </View>
   );
 }
@@ -311,11 +292,7 @@ export function ActiveCampaignView({ campaign, onBack, onDaily, onDetails }) {
   return (
     <View style={s.screen}>
       <View style={{ flex: 1 }}>
-        {MapView ? (
-          <ZoneMap campaign={campaign} route={route ? route.points : []} height="100%" />
-        ) : (
-          <View style={[s.zoneEmpty, { flex: 1 }]} />
-        )}
+        <ZoneMap campaign={campaign} route={route ? route.points : []} height="100%" />
         <View style={s.floatingHeader}>
           <TouchableOpacity onPress={onBack} style={s.backCircle} accessibilityLabel="Back">
             <Ionicons name="chevron-back" size={22} color={colors.text} />

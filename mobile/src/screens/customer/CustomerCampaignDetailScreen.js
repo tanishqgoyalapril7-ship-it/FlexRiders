@@ -8,18 +8,8 @@ import { Card, EmptyState, OutlineButton, PrimaryButton, ProgressBar, SectionHea
 import { Header as ScreenHeader } from '../../components/ds';
 import { formatDate, formatDateRange, formatINR } from '../../utils';
 import { BrandStatusPill } from './brandShared';
+import SimpleMap from '../../components/SimpleMap';
 
-let MapView = null;
-let Marker = null;
-let Circle = null;
-let Polyline = null;
-try {
-  const Maps = require('react-native-maps');
-  MapView = Maps.default || Maps;
-  ({ Marker, Circle, Polyline } = Maps);
-} catch (e) {
-  MapView = null;
-}
 
 const ROUTE_COLORS = ['#2563EB', '#7C3AED', '#EA580C', '#0891B2', '#DB2777', '#4F46E5'];
 const ACTIVITY_ORANGE = '#FC4C02';
@@ -328,16 +318,7 @@ function MapPanel({ campaignId }) {
   if (!data) return <ActivityIndicator color={colors.primary} style={{ marginTop: 20 }} />;
   const g = data.geo;
   const points = [...(g.targeted ? [[g.target_lat, g.target_lng]] : []), ...data.routes.flatMap((r) => r.points)];
-  if (!MapView) return <EmptyState icon="map-outline" title="Map unavailable" message="The map isn't available in this build of the app." />;
   if (!points.length) return <EmptyState icon="map-outline" title="Nothing to show yet" message="Routes appear here once riders record them during the campaign." />;
-  const lats = points.map((p) => p[0]);
-  const lngs = points.map((p) => p[1]);
-  const region = {
-    latitude: (Math.min(...lats) + Math.max(...lats)) / 2,
-    longitude: (Math.min(...lngs) + Math.max(...lngs)) / 2,
-    latitudeDelta: Math.max((Math.max(...lats) - Math.min(...lats)) * 1.5, 0.03),
-    longitudeDelta: Math.max((Math.max(...lngs) - Math.min(...lngs)) * 1.5, 0.03),
-  };
   return (
     <>
       {data.route_dates.length ? (
@@ -350,26 +331,18 @@ function MapPanel({ campaignId }) {
         </ScrollView>
       ) : null}
       <View style={styles.mapWrap}>
-        <MapView key={`${day}-${data.routes.length}`} style={StyleSheet.absoluteFill} initialRegion={region}>
-          {g.targeted ? (
-            <Circle
-              center={{ latitude: g.target_lat, longitude: g.target_lng }}
-              radius={g.current_radius_km * 1000}
-              strokeColor={colors.primary}
-              fillColor="rgba(37, 99, 235, 0.08)"
-            />
-          ) : null}
-          {data.routes.map((r, i) => {
-            const coords = r.points.map(([latitude, longitude]) => ({ latitude, longitude }));
-            return (
-              <React.Fragment key={`${r.rider_name}-${i}`}>
-                <Polyline coordinates={coords} strokeColor={ROUTE_COLORS[i % ROUTE_COLORS.length]} strokeWidth={4} />
-                <Marker coordinate={coords[0]} pinColor="green" title={`Start · ${r.rider_name}`} />
-                <Marker coordinate={coords[coords.length - 1]} pinColor="red" title={`End · ${r.rider_name}`} />
-              </React.Fragment>
-            );
-          })}
-        </MapView>
+        <SimpleMap
+          circles={g.targeted ? [{ lat: g.target_lat, lng: g.target_lng, radiusM: g.current_radius_km * 1000, color: colors.primary, fill: 'rgba(37, 99, 235, 0.08)' }] : []}
+          lines={data.routes.map((r, i) => ({ points: r.points, color: ROUTE_COLORS[i % ROUTE_COLORS.length], width: 4 }))}
+          pins={data.routes.flatMap((r) =>
+            r.points.length
+              ? [
+                  { lat: r.points[0][0], lng: r.points[0][1], color: 'green', title: `Start · ${r.rider_name}` },
+                  { lat: r.points[r.points.length - 1][0], lng: r.points[r.points.length - 1][1], color: 'red', title: `End · ${r.rider_name}` },
+                ]
+              : []
+          )}
+        />
       </View>
       {data.routes.length ? <Text style={styles.activitiesTitle}>Rider activities · {formatDate(day)}</Text> : null}
       {data.routes.map((r, i) => (
@@ -385,15 +358,6 @@ const clock = (iso) => new Date(iso).toLocaleTimeString('en-IN', { hour: '2-digi
 /** One rider's day, like a fitness app activity: who and when, the measured stats, and the route alone. */
 function ActivityCard({ route: r, day }) {
   const styles = useStyles(makeStyles);
-  const coords = r.points.map(([latitude, longitude]) => ({ latitude, longitude }));
-  const lats = coords.map((p) => p.latitude);
-  const lngs = coords.map((p) => p.longitude);
-  const region = {
-    latitude: (Math.min(...lats) + Math.max(...lats)) / 2,
-    longitude: (Math.min(...lngs) + Math.max(...lngs)) / 2,
-    latitudeDelta: Math.max((Math.max(...lats) - Math.min(...lats)) * 1.4, 0.006),
-    longitudeDelta: Math.max((Math.max(...lngs) - Math.min(...lngs)) * 1.4, 0.006),
-  };
   return (
     <View style={styles.activity}>
       <View style={styles.activityHead}>
@@ -420,14 +384,17 @@ function ActivityCard({ route: r, day }) {
           </View>
         ))}
       </View>
-      {MapView && coords.length > 1 ? (
+      {r.points.length > 1 ? (
         <View style={styles.activityMap} pointerEvents="none">
-          <MapView style={StyleSheet.absoluteFill} initialRegion={region} liteMode scrollEnabled={false} zoomEnabled={false} rotateEnabled={false} pitchEnabled={false} toolbarEnabled={false}>
-            <Polyline coordinates={coords} strokeColor="#FFFFFF" strokeWidth={7} />
-            <Polyline coordinates={coords} strokeColor={ACTIVITY_ORANGE} strokeWidth={4} />
-            <Marker coordinate={coords[0]} pinColor="green" />
-            <Marker coordinate={coords[coords.length - 1]} pinColor="black" />
-          </MapView>
+          <SimpleMap
+            lite
+            interactive={false}
+            lines={[{ points: r.points, color: ACTIVITY_ORANGE, width: 4, outline: '#FFFFFF' }]}
+            pins={[
+              { lat: r.points[0][0], lng: r.points[0][1], color: 'green', title: 'Start' },
+              { lat: r.points[r.points.length - 1][0], lng: r.points[r.points.length - 1][1], color: 'black', title: 'End' },
+            ]}
+          />
         </View>
       ) : null}
     </View>

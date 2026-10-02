@@ -10,20 +10,11 @@ import { useStyles, useTheme } from '../../theme';
 import { useT } from '../../i18n';
 import { Badge, Button, Card, Chip, Empty, Header, Screen } from '../../components/ds';
 import { ID_TYPES, pickDocument } from './RiderSignup';
+import SimpleMap from '../../components/SimpleMap';
 
 // The phone's recent GPS fix (if any), so nearby places rank first in area search.
 const nearMe = () => getCachedDeviceLocation().then((f) => (f ? { lat: f.latitude, lng: f.longitude } : null)).catch(() => null);
 
-let MapView = null;
-let Marker = null;
-let Circle = null;
-try {
-  const Maps = require('react-native-maps');
-  MapView = Maps.default || Maps;
-  ({ Marker, Circle } = Maps);
-} catch (e) {
-  MapView = null;
-}
 
 const DOC_TONE = { PENDING: ['Pending Verification', 'warning', 'time-outline'], VERIFIED: ['Verified', 'success', 'checkmark-circle'], REJECTED: ['Re-upload needed', 'danger', 'alert-circle'] };
 const PROFILE_TEXT = {
@@ -213,18 +204,6 @@ export function WorkingAreasScreen({ onBack, onSaved, saveLabel }) {
     }
   };
 
-  const region = areas && areas.length
-    ? (() => {
-        const lats = areas.map((a) => a.lat);
-        const lngs = areas.map((a) => a.lng);
-        return {
-          latitude: (Math.min(...lats) + Math.max(...lats)) / 2,
-          longitude: (Math.min(...lngs) + Math.max(...lngs)) / 2,
-          latitudeDelta: Math.max((Math.max(...lats) - Math.min(...lats)) * 1.8, 0.06),
-          longitudeDelta: Math.max((Math.max(...lngs) - Math.min(...lngs)) * 1.8, 0.06),
-        };
-      })()
-    : null;
 
   return (
     <Screen footer={<Button label={saveLabel || t('Save & Proceed')} onPress={save} loading={saving} disabled={!areas} />}>
@@ -273,22 +252,15 @@ export function WorkingAreasScreen({ onBack, onSaved, saveLabel }) {
           <Ionicons name="map-outline" size={28} color={colors.textSubtle} />
           <Text style={s.docSub}>Your selected areas appear on the map.</Text>
         </Card>
-      ) : MapView ? (
+      ) : (
         <View style={s.map}>
-          <MapView key={areas.map((a) => a.label).join('|')} style={StyleSheet.absoluteFill} initialRegion={region} scrollEnabled={false} zoomEnabled={false} pitchEnabled={false} rotateEnabled={false}>
-            {areas.map((a) => (
-              <React.Fragment key={a.label}>
-                <Circle center={{ latitude: a.lat, longitude: a.lng }} radius={1500} strokeColor={colors.primary} strokeWidth={1.5} fillColor="rgba(53, 99, 233, 0.18)" />
-                <Marker coordinate={{ latitude: a.lat, longitude: a.lng }} anchor={{ x: 0.5, y: 0.5 }} tracksViewChanges={false}>
-                  <View style={s.mapLabel}>
-                    <Text style={s.mapLabelText}>{a.label.split(',')[0]}</Text>
-                  </View>
-                </Marker>
-              </React.Fragment>
-            ))}
-          </MapView>
+          <SimpleMap
+            interactive={false}
+            circles={areas.map((a) => ({ lat: a.lat, lng: a.lng, radiusM: 1500, color: colors.primary, fill: 'rgba(53, 99, 233, 0.18)' }))}
+            labels={areas.map((a) => ({ lat: a.lat, lng: a.lng, text: a.label.split(',')[0] }))}
+          />
         </View>
-      ) : null}
+      )}
     </Screen>
   );
 }
