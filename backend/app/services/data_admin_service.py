@@ -118,7 +118,8 @@ def hard_delete_rider(db: Session, rider: Rider, admin: Optional[User], reason: 
     db.delete(rider)  # Cascades documents and support tickets
     db.flush()
     if user is not None:
-        db.delete(user)  # Cascades the rider's notifications
+        release_users(db, [user.id])
+        db.delete(user)
     db.commit()
     _remove_upload(selfie)  # The driver selfie is personal data: it goes with the rider
     if admin is not None:
@@ -287,6 +288,7 @@ def hard_delete_brand(db: Session, brand: Brand, admin: User) -> None:
         raise DataAdminError("This brand has campaigns, rider assignments or payments. Deactivate it instead to keep that history.")
     name = brand.name
     _unlink_enquiries(db, [brand.id])  # The lead stays; it just no longer points at a customer
+    _delete_brand_logins(db, [brand.id])
     db.delete(brand)
     db.commit()
     log_admin_action(db=db, admin_user=admin, action="BRAND_DELETED", target_type="BRAND", target_id=str(impact["id"]), details=f"Brand {name} permanently deleted")
@@ -352,6 +354,41 @@ RESET_SCOPES = {
     "all": "All application data",
 }
 RESET_CONFIRMATION = "RESET"
+
+
+def release_users(db: Session, user_ids: List[int]) -> None:
+    """Before rider or brand logins are deleted: their notifications go; records that must stay (audit log,
+    reviews, approvals, ...) keep their row but no longer point at the deleted login; rows that exist only
+    for the login (e.g. consents) go with it. Works from the table definitions, so new tables are covered."""
+    from sqlalchemy import delete, update
+
+    from app.core.database import Base
+
+    user_ids = [u for u in user_ids if u is not None]
+    if not user_ids:
+        return
+    # A NULL notification user means an admin broadcast, so the user's own notifications are deleted.
+    db.query(Notification).filter(Notification.user_id.in_(user_ids)).delete(synchronize_session=False)
+    for table in Base.metadata.sorted_tables:
+        if table.name in ("users", "riders", "notifications"):
+            continue  # Riders are deleted by their own rules first
+        for column in table.columns:
+            if not any(fk.column.table.name == "users" for fk in column.foreign_keys):
+                continue
+            if column.nullable:
+                db.execute(update(table).where(column.in_(user_ids)).values({column.name: None}))
+            else:
+                db.execute(delete(table).where(column.in_(user_ids)))
+
+
+def _delete_brand_logins(db: Session, brand_ids: Optional[List[int]]) -> int:
+    """Brand (customer) logins for these brands (all brands when None): they can't exist without the brand."""
+    query = db.query(User.id).filter(User.role == UserRole.CUSTOMER)
+    if brand_ids is not None:
+        query = query.filter(User.brand_id.in_(brand_ids))
+    ids = [uid for (uid,) in query]
+    release_users(db, ids)
+    return db.query(User).filter(User.id.in_(ids)).delete(synchronize_session=False) if ids else 0
 
 
 def _remove_upload(url: Optional[str]) -> None:
@@ -431,6 +468,7 @@ def _reset_riders(db: Session) -> Dict[str, int]:
     removed["notifications"] = (
         db.query(Notification).filter(Notification.user_id.in_(rider_user_ids)).delete(synchronize_session=False) if rider_user_ids else 0
     )
+    release_users(db, [uid for (uid,) in db.query(User.id).filter(User.role == UserRole.RIDER)])
     removed["users"] = db.query(User).filter(User.role == UserRole.RIDER).delete(synchronize_session=False)
     return removed
 
@@ -442,6 +480,7 @@ def _reset_brands(db: Session) -> Dict[str, int]:
     removed.update(_delete_all(db, RiderBrandAssignment))
     db.query(Rider).filter(Rider.status == RiderStatus.ACTIVE).update({Rider.status: RiderStatus.APPROVED}, synchronize_session=False)
     _unlink_enquiries(db, None)
+    removed["brand_logins"] = _delete_brand_logins(db, None)
     removed.update(_delete_all(db, Brand))
     return removed
 
