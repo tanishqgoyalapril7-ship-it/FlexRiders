@@ -218,7 +218,7 @@ def test_geo_search_uses_real_geocoder_results(client, monkeypatch):
 def brand_login(client, name):
     res = client.post(f"{API}/customer/auth/signup", json={
         "full_name": f"{name} Owner", "company_name": name, "mobile_number": f"97{uuid.uuid4().int % 10**8:08d}",
-        "email": f"{uuid.uuid4().hex[:8]}@brand.in", "password": "BrandPass123",
+        "email": f"{uuid.uuid4().hex[:8]}@brand.in", "password": "BrandPass123", "accept_terms": True,
     })
     assert res.status_code == 200, res.text
     return {"Authorization": f"Bearer {res.json()['access_token']}"}
@@ -301,7 +301,7 @@ def test_brand_request_approval_live_monitoring_and_isolation(client, db_session
 def test_brand_signup_cannot_take_over_an_existing_brand(client, db_session, brand_id):
     res = client.post(f"{API}/customer/auth/signup", json={
         "full_name": "Impostor", "company_name": "campaign brand", "mobile_number": "9700000123",
-        "email": "impostor@x.in", "password": "BrandPass123",
+        "email": "impostor@x.in", "password": "BrandPass123", "accept_terms": True,
     })
     assert res.status_code == 400 and "already registered" in res.json()["detail"]
 

@@ -4,6 +4,8 @@ import { mobileApi } from '../../services/api';
 import { useStyles, useTheme } from '../../theme';
 import { Button, Field, Header, LinkText, Screen, Title } from '../../components/ds';
 import { CodeBoxes } from '../onboarding/RiderSignup';
+import { TermsCheckbox } from '../TermsConsentScreen';
+import { Ionicons } from '@expo/vector-icons';
 
 function strength(pw) {
   let n = 0;
@@ -22,6 +24,7 @@ export default function CustomerSignupScreen({ onBack, onSignedUp, onOpenLogin }
   const [f, setF] = useState({ company: '', name: '', mobile: '', email: '', password: '', gst: '', address: '' });
   const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [accepted, setAccepted] = useState(false);
   const [step, setStep] = useState('form'); // form | verify
   const [smsOn, setSmsOn] = useState(false);
   const [codeLen, setCodeLen] = useState(4);
@@ -71,6 +74,7 @@ export default function CustomerSignupScreen({ onBack, onSignedUp, onOpenLogin }
     if (mobile.length !== 10) return Alert.alert('Mobile number', 'Enter a valid 10-digit mobile number.');
     if (!/^\S+@\S+\.\S+$/.test(f.email.trim())) return Alert.alert('Email', 'Enter a valid email address.');
     if (f.password.length < 6) return Alert.alert('Password', 'Use at least 6 characters.');
+    if (!accepted) return Alert.alert('Terms & Privacy', 'Please agree to the Terms & Conditions and Privacy Policy.');
     if (smsOn) return sendCode(); // The account is created after the number is verified
     return createAccount(null);
   };
@@ -99,6 +103,7 @@ export default function CustomerSignupScreen({ onBack, onSignedUp, onOpenLogin }
         gst_number: f.gst.trim() ? f.gst.trim().toUpperCase() : undefined,
         company_address: f.address.trim() || undefined,
         phone_proof: phoneProof || undefined,
+        accept_terms: true,
       });
       onSignedUp(result);
     } catch (err) {
@@ -145,11 +150,13 @@ export default function CustomerSignupScreen({ onBack, onSignedUp, onOpenLogin }
           value={f.password}
           onChangeText={set('password')}
           secureTextEntry={!show}
+          autoCapitalize="none"
+          autoCorrect={false}
           placeholder="At least 6 characters"
           style={{ marginBottom: 8 }}
           trailing={
-            <TouchableOpacity onPress={() => setShow(!show)} hitSlop={8}>
-              <Text style={s.show}>{show ? 'Hide' : 'Show'}</Text>
+            <TouchableOpacity onPress={() => setShow(!show)} hitSlop={10} accessibilityRole="button" accessibilityLabel={show ? 'Hide password' : 'Show password'}>
+              <Ionicons name={show ? 'eye-off-outline' : 'eye-outline'} size={22} color={colors.textMuted} />
             </TouchableOpacity>
           }
         />
@@ -165,6 +172,7 @@ export default function CustomerSignupScreen({ onBack, onSignedUp, onOpenLogin }
         ) : null}
         <Field label="GST Number" right="OPTIONAL" value={f.gst} onChangeText={set('gst')} autoCapitalize="characters" placeholder="22AAAAA0000A1Z5" style={{ marginTop: 16 }} />
         <Field label="Company Address" right="OPTIONAL" value={f.address} onChangeText={set('address')} placeholder="Office address" multiline />
+        <TermsCheckbox checked={accepted} onChange={setAccepted} />
         <Text style={s.prompt}>
           Already have a brand account?  <LinkText onPress={onOpenLogin}>Login</LinkText>
         </Text>
@@ -175,7 +183,6 @@ export default function CustomerSignupScreen({ onBack, onSignedUp, onOpenLogin }
 
 const makeStyles = (c) =>
   StyleSheet.create({
-    show: { color: c.primary, fontWeight: '700', fontSize: 15 },
     meter: { flexDirection: 'row', gap: 6 },
     meterBar: { flex: 1, height: 5, borderRadius: 3, backgroundColor: c.border },
     meterText: { fontSize: 13, fontWeight: '700', marginTop: 6 },

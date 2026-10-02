@@ -16,6 +16,8 @@ class CustomerSignupRequest(BaseModel):
     company_address: Optional[str] = None
     # Proof the mobile number was verified by SMS code (from /auth/phone/verify-code); needed when SMS is set up.
     phone_proof: Optional[str] = Field(None, max_length=200)
+    # The brand agreed to the FlexRiders Terms & Conditions and Privacy Policy (recorded with the versions).
+    accept_terms: bool = False
 
 
 class CustomerLocationItem(BaseModel):

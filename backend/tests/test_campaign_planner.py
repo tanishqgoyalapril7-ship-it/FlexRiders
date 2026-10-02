@@ -25,7 +25,7 @@ def create_customer_auth(client):
             "company_name": f"Planner Brand {uid}",
             "mobile_number": phone,
             "email": f"planner_{uid}@enterprise.in",
-            "password": "PasswordPlanner123",
+            "password": "PasswordPlanner123", "accept_terms": True,
         },
     )
     assert res.status_code == 200, res.text

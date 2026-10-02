@@ -1,4 +1,5 @@
 import json
+import uuid
 import pytest
 from datetime import date, timedelta
 from app.models.campaign_models import CampaignStatus, VehicleCategory
@@ -21,7 +22,7 @@ def test_customer_signup_and_login_flow(client):
             "company_name": "Organic Harvest Ltd",
             "mobile_number": "9811223344",
             "email": "vikram@organicharvest.in",
-            "password": "CustomerSecret123",
+            "password": "CustomerSecret123", "accept_terms": True,
             "gst_number": "07AAAAA0000A1Z5",
             "company_address": "Cyber Hub, Gurugram, Haryana",
         },
@@ -43,7 +44,7 @@ def test_customer_signup_and_login_flow(client):
             "full_name": "Another Person",
             "company_name": "Organic Harvest Ltd",
             "mobile_number": "9811223344",
-            "password": "Password123",
+            "password": "Password123", "accept_terms": True,
         },
     )
     assert dup.status_code == 400
@@ -84,7 +85,7 @@ def test_customer_campaign_creation_draft_and_submission(client, admin):
             "company_name": "QuickBite Foods",
             "mobile_number": "9877001122",
             "email": "meera@quickbite.com",
-            "password": "SecurePassword999",
+            "password": "SecurePassword999", "accept_terms": True,
         },
     ).json()
     headers = {"Authorization": f"Bearer {signup['access_token']}"}
@@ -204,14 +205,14 @@ def test_customer_security_and_tenant_isolation(client, admin):
     # Customer A
     user_a = client.post(
         f"{API}/customer/auth/signup",
-        json={"full_name": "User A", "company_name": "Company Alpha", "mobile_number": "9900112233", "password": "Password123"},
+        json={"full_name": "User A", "company_name": "Company Alpha", "mobile_number": "9900112233", "password": "Password123", "accept_terms": True},
     ).json()
     headers_a = {"Authorization": f"Bearer {user_a['access_token']}"}
 
     # Customer B
     user_b = client.post(
         f"{API}/customer/auth/signup",
-        json={"full_name": "User B", "company_name": "Company Beta", "mobile_number": "9900112244", "password": "Password123"},
+        json={"full_name": "User B", "company_name": "Company Beta", "mobile_number": "9900112244", "password": "Password123", "accept_terms": True},
     ).json()
     headers_b = {"Authorization": f"Bearer {user_b['access_token']}"}
 
@@ -243,3 +244,16 @@ def test_customer_security_and_tenant_isolation(client, admin):
     # 4. Customer A cannot access Rider APIs -> MUST BE 403/404
     rider_access = client.get(f"{API}/riders/me/profile", headers=headers_a)
     assert rider_access.status_code in (403, 404)
+
+
+def test_brand_signup_requires_and_records_terms(client, db_session):
+    from app.models.all_models import PlatformConsent, User
+
+    body = {"full_name": "Terms Owner", "company_name": f"Terms Brand {uuid.uuid4().hex[:5]}", "mobile_number": "9900112299",
+            "email": f"{uuid.uuid4().hex[:8]}@brand.in", "password": "Password123"}
+    res = client.post(f"{API}/customer/auth/signup", json=body)
+    assert res.status_code == 422 and "Terms" in res.json()["detail"]
+    assert client.post(f"{API}/customer/auth/signup", json={**body, "accept_terms": True}).status_code == 200
+    user = db_session.query(User).filter(User.phone == "9900112299").first()
+    consent = db_session.query(PlatformConsent).filter(PlatformConsent.user_id == user.id).first()
+    assert consent is not None and consent.terms_version and consent.privacy_version

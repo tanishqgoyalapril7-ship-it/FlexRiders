@@ -242,7 +242,7 @@ def test_limits_can_be_switched_off_for_local_testing(client, db_session, gatewa
 def test_brand_signup_needs_the_sms_code(client, db_session, gateway, monkeypatch):
     monkeypatch.setattr(settings, "SMS_PER_CLIENT_PER_HOUR", 100)  # Earlier tests in this file used this client's codes
     body = {"full_name": "Brand Owner", "company_name": f"Sms Brand {len(gateway)}", "mobile_number": "9410000015",
-            "email": "owner9410000015@example.com", "password": "brandPass1"}
+            "email": "owner9410000015@example.com", "password": "brandPass1", "accept_terms": True}
     assert "Verify your mobile" in client.post(f"{API}/customer/auth/signup", json=body).json()["detail"]
     client.post(f"{API}/auth/phone/verification-code", json={"phone": "9410000015"})
     proof = client.post(f"{API}/auth/phone/verify-code", json={"phone": "9410000015", "code": code_in(gateway[-1])}).json()["phone_proof"]

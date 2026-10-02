@@ -200,6 +200,7 @@ export default function RiderSignup({ onBack, onLogin, onRegistered, initialRefe
   const [config, setConfig] = useState({ selfie_required: true, email_required: false, terms_url: TERMS_URL, privacy_url: PRIVACY_URL });
   const [f, setF] = useState({ mobile: '', email: '', password: '', full_name: '', dob: '', gender: '', vehicle_category: '', vehicle_type: '', vehicle_number: '', referral_code: initialReferralCode });
   const [accepted, setAccepted] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const [code, setCode] = useState('');
   const [phoneCode, setPhoneCode] = useState('');
   const smsLen = config.sms_code_length || 4; // Digits in the SMS code (6 with Twilio Verify)
@@ -356,7 +357,26 @@ export default function RiderSignup({ onBack, onLogin, onRegistered, initialRefe
           placeholder="Enter email address"
           hint="Used to reset your password if you forget it."
         />
-        <Field label={t('Create Password')} value={f.password} onChangeText={set('password')} secureTextEntry placeholder="At least 6 characters" style={{ marginBottom: 8 }} />
+        <Field
+          label={t('Create Password')}
+          value={f.password}
+          onChangeText={set('password')}
+          secureTextEntry={!showPassword}
+          autoCapitalize="none"
+          autoCorrect={false}
+          placeholder="At least 6 characters"
+          style={{ marginBottom: 8 }}
+          trailing={
+            <TouchableOpacity
+              onPress={() => setShowPassword(!showPassword)}
+              hitSlop={10}
+              accessibilityRole="button"
+              accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+            >
+              <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={22} color={colors.textMuted} />
+            </TouchableOpacity>
+          }
+        />
         {f.password ? (
           <>
             <View style={s.meter}>

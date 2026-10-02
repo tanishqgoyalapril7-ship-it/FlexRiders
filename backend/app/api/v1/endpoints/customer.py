@@ -183,6 +183,8 @@ def customer_signup(request: CustomerSignupRequest, db: Session = Depends(get_db
     phone = request.mobile_number.strip()
     email = request.email.strip() if request.email else None
 
+    if not request.accept_terms:
+        raise HTTPException(status_code=422, detail="Please accept the FlexRiders Terms & Conditions and Privacy Policy to create your account.")
     # The mobile number is verified by an SMS code (same rule as rider sign-up) once SMS is set up.
     from app.services import sms_service as sms
 
@@ -234,6 +236,9 @@ def customer_signup(request: CustomerSignupRequest, db: Session = Depends(get_db
         is_active=True,
     )
     db.add(user)
+    db.flush()
+    from app.services import consent_service
+    consent_service.record(db, user, consent_service.REGISTRATION)
     db.commit()
     db.refresh(user)
     log_admin_action(db=db, admin_user=None, action="BRAND_SIGNED_UP", target_type="BRAND", target_id=str(brand.id),
