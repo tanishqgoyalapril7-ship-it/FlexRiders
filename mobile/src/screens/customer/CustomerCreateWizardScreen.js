@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { DatePickerField, TimePickerField, parseDate, toISODate } from '../../components/PickerFields';
 import {
   Alert,
   Image,
@@ -71,11 +72,9 @@ export default function CustomerCreateWizardScreen({
   );
 
   // Dates & Times
-  const [startDate, setStartDate] = useState(initialCampaign?.start_date || new Date().toISOString().split('T')[0]);
-  const [endDate, setEndDate] = useState(
-    initialCampaign?.end_date ||
-    new Date(Date.now() + 14 * 86400000).toISOString().split('T')[0]
-  );
+  // Local dates (IST on Indian phones), not UTC: just after midnight UTC is still "yesterday".
+  const [startDate, setStartDate] = useState(initialCampaign?.start_date || toISODate(new Date()));
+  const [endDate, setEndDate] = useState(initialCampaign?.end_date || toISODate(new Date(Date.now() + 14 * 86400000)));
   const [dailyStartTime, setDailyStartTime] = useState(initialCampaign?.daily_start_time || '09:00 AM');
   const [dailyEndTime, setDailyEndTime] = useState(initialCampaign?.daily_end_time || '06:00 PM');
 
@@ -540,63 +539,50 @@ export default function CustomerCreateWizardScreen({
             <Text style={styles.stepHeading}>Step 3: Campaign Schedule</Text>
             <Text style={styles.stepDesc}>Set running dates and daily operating time windows.</Text>
 
-            <Text style={styles.label}>Start Date (YYYY-MM-DD) *</Text>
-            <TextInput
-              style={styles.input}
-              value={startDate}
-              onChangeText={setStartDate}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={colors.textSubtle}
-            />
-
-            <Text style={styles.label}>End Date (YYYY-MM-DD) *</Text>
-            <TextInput
-              style={styles.input}
-              value={endDate}
-              onChangeText={setEndDate}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={colors.textSubtle}
-            />
-
-            <View style={{ flexDirection: 'row', gap: 12, marginTop: 12 }}>
+            <View style={{ flexDirection: 'row', gap: 12 }}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.label}>Daily Start Time</Text>
-                <TextInput
-                  style={styles.input}
-                  value={dailyStartTime}
-                  onChangeText={setDailyStartTime}
-                  placeholder="09:00 AM"
-                  placeholderTextColor={colors.textSubtle}
+                <DatePickerField
+                  label="Start Date"
+                  required
+                  value={startDate}
+                  minimumDate={new Date(new Date().setHours(0, 0, 0, 0))}
+                  onChange={(d) => {
+                    setStartDate(d);
+                    if (!endDate || endDate < d) setEndDate(d); // The end can't be before the start
+                  }}
                 />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.label}>Daily End Time</Text>
-                <TextInput
-                  style={styles.input}
-                  value={dailyEndTime}
-                  onChangeText={setDailyEndTime}
-                  placeholder="06:00 PM"
-                  placeholderTextColor={colors.textSubtle}
-                />
+                <DatePickerField label="End Date" required value={endDate} minimumDate={parseDate(startDate) || undefined} onChange={setEndDate} />
+              </View>
+            </View>
+
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <View style={{ flex: 1 }}>
+                <TimePickerField label="Daily Start Time" value={dailyStartTime} onChange={setDailyStartTime} placeholder="09:00 AM" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <TimePickerField label="Daily End Time" value={dailyEndTime} onChange={setDailyEndTime} placeholder="06:00 PM" />
               </View>
             </View>
 
             <Text style={[styles.label, { marginTop: 16 }]}>Daily Photo Slots (IST)</Text>
-            <Text style={styles.stepDesc}>Riders upload one photo in each window every day (24-hour time).</Text>
+            <Text style={styles.stepDesc}>Riders upload one photo in each window every day. Tap a time to change it.</Text>
             {SLOTS.map(([key, label]) => (
               <View key={key} style={styles.slotRow}>
                 <Text style={styles.slotName}>{label}</Text>
                 {[0, 1].map((i) => (
-                  <TextInput
-                    key={i}
-                    style={[styles.input, styles.slotInput]}
-                    value={slots[key][i]}
-                    onChangeText={(v) => setSlot(key, i, v.replace(/[^0-9:]/g, '').slice(0, 5))}
-                    placeholder={DEFAULT_SLOTS[key][i]}
-                    placeholderTextColor={colors.textSubtle}
-                    keyboardType="numbers-and-punctuation"
-                    maxLength={5}
-                  />
+                  <View key={i} style={styles.slotInput}>
+                    <TimePickerField
+                      compact
+                      label={i === 0 ? `${label} from` : `${label} until`}
+                      hideLabel
+                      format="24h"
+                      value={slots[key][i]}
+                      onChange={(v) => setSlot(key, i, v)}
+                      placeholder={DEFAULT_SLOTS[key][i]}
+                    />
+                  </View>
                 ))}
               </View>
             ))}
