@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 
 /**
- * Android map: OpenStreetMap / CARTO tiles drawn by Leaflet in a WebView. Google Maps on Android needs a
+ * Android map: OpenStreetMap tiles drawn by Leaflet in a WebView. Google Maps on Android needs a
  * Google Maps API key (and renders black without one), so Android uses this instead; iOS keeps Apple Maps.
  * Same data as the native map: campaign label bubbles (tap to select), the rider's location, working areas
  * and the selected campaign's reach circle.
@@ -56,9 +56,9 @@ const WebMapView = React.forwardRef(function WebMapView({ markers, areas, me, ci
 export default WebMapView;
 
 function buildHtml(dark) {
-  const tiles = dark
-    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-    : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+  // Standard OpenStreetMap tiles (no API key; same as the admin website). The dark look is made on the
+  // device by inverting the tiles, so no dark-tile provider (which would need a key) is used.
+  const tiles = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
   return `<!doctype html><html><head>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
@@ -66,6 +66,7 @@ function buildHtml(dark) {
 <style>
   html,body,#map{margin:0;padding:0;height:100%;width:100%;background:${dark ? '#1d2433' : '#E5E7EB'};}
   body{font-family:-apple-system,Roboto,sans-serif;-webkit-tap-highlight-color:transparent;}
+  ${dark ? '.leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.85) contrast(.9) saturate(.6);}' : ''}
   .leaflet-control-attribution{font-size:9px;background:rgba(0,0,0,0.35)!important;color:#cbd5e1!important;}
   .leaflet-control-attribution a{color:#cbd5e1!important;}
   .pin{display:flex;flex-direction:column;align-items:center;transform:translate(-50%,-100%);}
@@ -82,8 +83,8 @@ function buildHtml(dark) {
     box-shadow:0 0 0 6px rgba(37,99,235,.25);}
 </style></head><body><div id="map"></div><script>
   var map = L.map('map',{zoomControl:false,attributionControl:true}).setView([28.46,77.03],12);
-  L.tileLayer('${tiles}',{maxZoom:19,subdomains:'abcd',
-    attribution:'&copy; OpenStreetMap &copy; CARTO'}).addTo(map);
+  L.tileLayer('${tiles}',{maxZoom:19,
+    attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
   var layer = L.layerGroup().addTo(map), state = null, fitted = false, lastSelected = null;
   function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
   function icon(html){return L.divIcon({html:html,className:'',iconSize:[0,0]});}
