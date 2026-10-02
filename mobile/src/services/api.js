@@ -150,6 +150,33 @@ const authedRequest = async (method, path, body) => {
 
 export const getAuthToken = () => authToken;
 
+/** Multipart file upload. Expo's fetch (the global fetch since SDK 52) rejects React Native's
+ *  { uri, name, type } file parts ("Unsupported FormDataPart implementation"), so files are sent with
+ *  React Native's XMLHttpRequest, which reads the file from its uri. Resolves with the JSON reply; rejects
+ *  with a readable message (tooLarge for 413, fallback when the server gives no detail). */
+const uploadForm = (path, form, { fallback, tooLarge, timeoutMs = 60000 }) =>
+  new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${API_BASE_URL}${path}`);
+    xhr.setRequestHeader('Authorization', `Bearer ${authToken}`);
+    xhr.setRequestHeader('Accept', 'application/json');
+    xhr.timeout = timeoutMs; // Photo uploads can be slow on mobile data
+    xhr.onload = () => {
+      let data = {};
+      try {
+        data = xhr.responseText ? JSON.parse(xhr.responseText) : {};
+      } catch (e) {
+        data = {};
+      }
+      if (xhr.status >= 200 && xhr.status < 300) return resolve(data);
+      if (xhr.status === 413) return reject(new Error(tooLarge));
+      return reject(new Error(formatError(data, fallback)));
+    };
+    xhr.onerror = () => reject(new Error('Network error. Check your internet connection and try again.'));
+    xhr.ontimeout = () => reject(new Error('The upload took too long. Please try again on a better connection.'));
+    xhr.send(form);
+  });
+
 export const mobileApi = {
   login: async (phone, password) => {
     const cleanPhone = phone.replace(/\s+/g, '').replace('+', '');
@@ -303,18 +330,10 @@ export const mobileApi = {
     const form = new FormData();
     form.append('photo', { uri: photo.uri, name: photo.fileName || 'proof.jpg', type: photo.mimeType || 'image/jpeg' });
     if (slot) form.append('slot', slot); // MORNING / EVENING / NIGHT
-    const res = await fetch(`${API_BASE_URL}/riders/me/campaigns/${campaignId}/activity`, {
-      timeoutMs: 60000, // Photo uploads can be slow on mobile data
-      method: 'POST',
-      headers: { Authorization: `Bearer ${authToken}` },
-      body: form,
+    return uploadForm(`/riders/me/campaigns/${campaignId}/activity`, form, {
+      fallback: 'Could not upload your photo',
+      tooLarge: 'This photo is too large to upload. Please take it again.',
     });
-    if (res.status === 413) throw new Error('This photo is too large to upload. Please take it again.');
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(formatError(err, 'Could not upload your photo'));
-    }
-    return res.json();
   },
 
   // Identity / vehicle documents (private files, reviewed by the FlexRiders team)
@@ -323,18 +342,10 @@ export const mobileApi = {
     const form = new FormData();
     form.append('doc_type', docType);
     form.append('file', { uri: file.uri, name: file.fileName || file.name || 'document.jpg', type: file.mimeType || 'image/jpeg' });
-    const res = await fetch(`${API_BASE_URL}/riders/me/documents`, {
-      timeoutMs: 60000,
-      method: 'POST',
-      headers: { Authorization: `Bearer ${authToken}` },
-      body: form,
+    return uploadForm('/riders/me/documents', form, {
+      fallback: 'Could not upload the document',
+      tooLarge: 'This file is too large. Please upload a smaller photo.',
     });
-    if (res.status === 413) throw new Error('This file is too large. Please upload a smaller photo.');
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(formatError(err, 'Could not upload the document'));
-    }
-    return res.json();
   },
   // Image source for a private file (sent with the rider's login, never cached publicly).
   authedImage: (path) => ({ uri: `${API_BASE_URL}${path}`, headers: { Authorization: `Bearer ${authToken}` } }),
@@ -401,18 +412,10 @@ export const mobileApi = {
   uploadCustomerCampaignBanner: async (id, file) => {
     const form = new FormData();
     form.append('image', { uri: file.uri, name: file.fileName || 'banner.jpg', type: file.mimeType || 'image/jpeg' });
-    const res = await fetch(`${API_BASE_URL}/customer/campaigns/${id}/image`, {
-      timeoutMs: 60000,
-      method: 'POST',
-      headers: { Authorization: `Bearer ${authToken}` },
-      body: form,
+    return uploadForm(`/customer/campaigns/${id}/image`, form, {
+      fallback: 'Could not upload the banner',
+      tooLarge: 'This image is too large. Please choose a smaller one.',
     });
-    if (res.status === 413) throw new Error('This image is too large. Please choose a smaller one.');
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(formatError(err, 'Could not upload the banner'));
-    }
-    return res.json();
   },
   getCustomerNotifications: () => authedGet('/customer/notifications'),
   markCustomerNotificationRead: (id) => authedRequest('PUT', `/customer/notifications/${id}/read`, {}),
