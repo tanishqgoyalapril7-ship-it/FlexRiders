@@ -22,10 +22,10 @@ export default function Home() {
       <main id="main">
         <Hero />
         <Snapshot />
-        <HowItWorks />
-        <RiderApp />
         <ForBrands />
         <Plan />
+        <HowItWorks />
+        <RiderApp />
         <Trust />
         <Proof />
         <FAQ />

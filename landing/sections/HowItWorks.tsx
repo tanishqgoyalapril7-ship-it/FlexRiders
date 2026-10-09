@@ -25,7 +25,7 @@ const riderSteps = [
 ];
 
 export default function HowItWorks() {
-  const [tab, setTab] = useState<"business" | "riders">("riders");
+  const [tab, setTab] = useState<"business" | "riders">("business");
   const steps = tab === "business" ? businessSteps : riderSteps;
   const openContact = useContact();
   const gridRef = useRef<HTMLDivElement>(null);
@@ -57,17 +57,6 @@ export default function HowItWorks() {
             <button
               type="button"
               role="tab"
-              aria-selected={tab === "riders"}
-              className={`${s.toggleBtn} ${tab === "riders" ? s.toggleBtnActive : ""}`}
-              onClick={() => setTab("riders")}
-            >
-              <IconBike size={16} />
-              <span>For Riders</span>
-              {tab === "riders" && <motion.div layoutId="howItWorksToggle" className={s.toggleIndicator} transition={{ duration: 0.3, ease }} />}
-            </button>
-            <button
-              type="button"
-              role="tab"
               aria-selected={tab === "business"}
               className={`${s.toggleBtn} ${tab === "business" ? s.toggleBtnActive : ""}`}
               onClick={() => setTab("business")}
@@ -75,6 +64,17 @@ export default function HowItWorks() {
               <IconBrand size={16} />
               <span>For Brands</span>
               {tab === "business" && <motion.div layoutId="howItWorksToggle" className={s.toggleIndicator} transition={{ duration: 0.3, ease }} />}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === "riders"}
+              className={`${s.toggleBtn} ${tab === "riders" ? s.toggleBtnActive : ""}`}
+              onClick={() => setTab("riders")}
+            >
+              <IconBike size={16} />
+              <span>For Riders</span>
+              {tab === "riders" && <motion.div layoutId="howItWorksToggle" className={s.toggleIndicator} transition={{ duration: 0.3, ease }} />}
             </button>
           </div>
         </div>

@@ -1,0 +1,105 @@
+.wrap {
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  background: #e9eef3;
+}
+.map {
+  height: clamp(300px, 34vw, 420px);
+  /* Leaflet sits below the page's fixed header and dialogs. */
+  z-index: 0;
+  isolation: isolate;
+  background: #e9eef3;
+}
+/* Softer base map so the coverage zones stand out. */
+.map :global(.leaflet-tile-pane) {
+  filter: saturate(0.55) brightness(1.04);
+}
+.map :global(.leaflet-control-attribution) {
+  font-size: 10px;
+}
+.map :global(.leaflet-control-zoom a) {
+  color: var(--ink);
+}
+
+.zone {
+  animation: zoneIn 0.5s var(--ease-out) both;
+}
+@keyframes zoneIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.pinIcon span {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #0b0c10;
+  border: 4px solid #fff;
+  box-shadow: 0 0 0 2px #0b0c10, 0 4px 12px rgba(0, 0, 0, 0.35);
+}
+
+.area,
+.more {
+  position: absolute;
+  z-index: 500;
+  top: 10px;
+  max-width: calc(100% - 120px);
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--ink);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+}
+.area {
+  left: 54px;
+}
+.more {
+  right: 10px;
+  color: var(--accent);
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--muted-strong);
+  background: #fff;
+}
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.legend i {
+  display: inline-block;
+  flex: none;
+}
+.lStart {
+  width: 16px;
+  height: 0;
+  border-top: 2px solid #0068d8;
+}
+.lMax {
+  width: 16px;
+  height: 0;
+  border-top: 2px dashed #0b2a52;
+}
+.lZone {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  opacity: 0.6;
+}

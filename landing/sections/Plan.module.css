@@ -375,3 +375,75 @@
 .panel[data-kind="auto"] .stepper button:hover:not(:disabled) {
   background: rgba(224, 138, 0, 0.12);
 }
+
+.mapLoading {
+  height: clamp(300px, 34vw, 420px);
+  border-radius: 20px;
+  background: linear-gradient(90deg, #e9eef3 0%, #f3f6f9 50%, #e9eef3 100%) 0 0 / 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+@keyframes shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* Campaign radius controls */
+.radius {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.radiusField {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 6px 6px 12px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+}
+.radiusField > span {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--muted-strong);
+}
+.miniStepper {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.miniStepper button {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  font-size: 19px;
+  color: var(--accent);
+  transition: background-color 0.2s;
+}
+.miniStepper button:hover:not(:disabled) {
+  background: var(--accent-soft);
+}
+.miniStepper button:disabled {
+  color: #c7c7cc;
+  cursor: default;
+}
+.miniStepper output {
+  min-width: 56px;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 700;
+}
+.radiusNote {
+  grid-column: 1 / -1;
+  margin: 0 4px;
+  font-size: 12.5px;
+  color: var(--muted-strong);
+}
+@media (max-width: 560px) {
+  .radius {
+    grid-template-columns: 1fr;
+  }
+}

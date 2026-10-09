@@ -42,11 +42,11 @@ export default function Hero() {
           </motion.p>
 
           <motion.div {...enter(0.4, 14)} className={s.ctas}>
-            <MagneticButton onClick={() => openContact("start", "rider")} arrow>
-              Join as Rider
-            </MagneticButton>
-            <MagneticButton href="#enquiry" variant="ghost">
+            <MagneticButton href="#plan" arrow>
               Promote Your Brand
+            </MagneticButton>
+            <MagneticButton variant="ghost" onClick={() => openContact("start", "rider")}>
+              Join as Rider
             </MagneticButton>
           </motion.div>
 

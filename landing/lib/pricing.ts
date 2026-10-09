@@ -50,9 +50,15 @@ export const ILLUSTRATIVE = {
 
 /** "Start My Campaign" sends the chosen plan to the enquiry form with this window event. */
 export const PLAN_EVENT = "flexriders:plan";
-export type PlanDetail = { kind: VehicleKind; count: number; cost: number };
+export type PlanDetail = { kind: VehicleKind; count: number; cost: number; area?: string; radius?: { initialKm: number; maxKm: number } };
 
-export const planSummary = ({ kind, count, cost }: PlanDetail) => {
+export const planSummary = ({ kind, count, cost, area, radius }: PlanDetail) => {
   const what = kind === "bike" ? (count === 1 ? "bike rider" : "bike riders") : count === 1 ? "auto" : "autos";
-  return `Campaign plan: ${count} ${what}, estimated cost ${inr(cost)}.`;
+  const where = area
+    ? ` around ${area}${radius ? ` (${radius.initialKm} km radius, expanding up to ${radius.maxKm} km)` : ""}`
+    : "";
+  return `Campaign plan: ${count} ${what}${where}, estimated cost ${inr(cost)}.`;
 };
+
+/* Campaign radius limits, matching the backend's validate_geo_config: initial > 0, max ≥ initial, max ≤ 100 km. */
+export const RADIUS = { minKm: 0.5, startStepKm: 0.5, maxStepKm: 1, limitKm: 100 };

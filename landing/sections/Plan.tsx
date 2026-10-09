@@ -2,7 +2,9 @@
 
 import { animate } from "framer-motion";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import AreaSearch from "@/components/AreaSearch";
 import CoverageMap from "@/components/CoverageMap";
+import RealCoverageMap, { type ReachRadius, type Target } from "@/components/RealCoverageMap";
 import { IconAuto, IconBike, IconCheck } from "@/components/Icons";
 import MagneticButton from "@/components/MagneticButton";
 import { Reveal, RevealHeading } from "@/components/Reveal";
@@ -18,6 +20,7 @@ import {
   inr,
   minCampaign,
   PLAN_EVENT,
+  RADIUS,
   type PlanDetail,
   type VehicleKind,
 } from "@/lib/pricing";
@@ -47,6 +50,9 @@ function Money({ value }: { value: number }) {
   return <span className="num">{inr(shown)}</span>;
 }
 
+// Shown until the brand searches its own area: Flex Riders' home city, clearly labelled as an example.
+const EXAMPLE_AREA: Target = { label: "Gurugram", lat: 28.4595, lng: 77.0266 };
+
 const KINDS: { kind: VehicleKind; Icon: typeof IconBike; title: string; coverage: string }[] = [
   { kind: "bike", Icon: IconBike, title: "Bike riders", coverage: "Street-level coverage through neighbourhoods" },
   { kind: "auto", Icon: IconAuto, title: "Autos", coverage: "High-visibility coverage on main roads" },
@@ -62,8 +68,39 @@ export default function Plan() {
   const setCount = (n: number) => setCounts((c) => ({ ...c, [kind]: clampCount(kind, n) }));
   const perDay = count * ILLUSTRATIVE.homeVisitsPerRiderPerDay;
 
+  // Real map: the brand's searched area and the backend's campaign reach radius.
+  const [target, setTarget] = useState<Target | null>(null);
+  const [radius, setRadius] = useState<ReachRadius | null>(null);
+  const [radiusTouched, setRadiusTouched] = useState(false);
+  // Brands set their own radius, within the backend's rules (start > 0, max ≥ start, max ≤ 100 km).
+  const setStart = (km: number) => {
+    if (!radius) return;
+    const initialKm = Math.min(RADIUS.limitKm, Math.max(RADIUS.minKm, Math.round(km * 2) / 2));
+    setRadius({ initialKm, maxKm: Math.max(radius.maxKm, initialKm) });
+    setRadiusTouched(true);
+  };
+  const setMax = (km: number) => {
+    if (!radius) return;
+    setRadius({ ...radius, maxKm: Math.min(RADIUS.limitKm, Math.max(radius.initialKm, Math.round(km * 2) / 2)) });
+    setRadiusTouched(true);
+  };
+  const [mapFailed, setMapFailed] = useState(false);
+  useEffect(() => {
+    fetch("/api/v1/geo/defaults")
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d) => {
+        if (d?.initial_radius_km > 0 && d?.max_radius_km > 0) setRadius({ initialKm: d.initial_radius_km, maxKm: d.max_radius_km });
+        else setMapFailed(true);
+      })
+      .catch(() => setMapFailed(true));
+  }, []);
+
   const start = () => {
-    window.dispatchEvent(new CustomEvent<PlanDetail>(PLAN_EVENT, { detail: { kind, count, cost } }));
+    window.dispatchEvent(
+      new CustomEvent<PlanDetail>(PLAN_EVENT, {
+        detail: { kind, count, cost, area: target?.label, radius: target && radius ? radius : undefined },
+      }),
+    );
     scrollToHash("#enquiry");
   };
 
@@ -121,7 +158,57 @@ export default function Plan() {
         <div className={s.grid}>
           {/* 2. Estimated coverage */}
           <div className={s.coverage}>
-            <CoverageMap kind={kind} count={count} />
+            {mapFailed ? (
+              <CoverageMap kind={kind} count={count} />
+            ) : (
+              <>
+                <AreaSearch onPick={setTarget} />
+                {radius && (
+                  <div className={s.radius} role="group" aria-label="Campaign radius">
+                    <div className={s.radiusField}>
+                      <span>Starting radius</span>
+                      <div className={s.miniStepper}>
+                        <button type="button" aria-label="Smaller starting radius" disabled={radius.initialKm <= RADIUS.minKm} onClick={() => setStart(radius.initialKm - RADIUS.startStepKm)}>
+                          −
+                        </button>
+                        <output className="num" aria-live="polite">{radius.initialKm} km</output>
+                        <button type="button" aria-label="Larger starting radius" disabled={radius.initialKm >= RADIUS.limitKm} onClick={() => setStart(radius.initialKm + RADIUS.startStepKm)}>
+                          +
+                        </button>
+                      </div>
+                    </div>
+                    <div className={s.radiusField}>
+                      <span>Can expand to</span>
+                      <div className={s.miniStepper}>
+                        <button type="button" aria-label="Smaller maximum radius" disabled={radius.maxKm <= radius.initialKm} onClick={() => setMax(radius.maxKm - RADIUS.maxStepKm)}>
+                          −
+                        </button>
+                        <output className="num" aria-live="polite">{radius.maxKm} km</output>
+                        <button type="button" aria-label="Larger maximum radius" disabled={radius.maxKm >= RADIUS.limitKm} onClick={() => setMax(radius.maxKm + RADIUS.maxStepKm)}>
+                          +
+                        </button>
+                      </div>
+                    </div>
+                    <p className={s.radiusNote}>
+                      {radiusTouched ? "Your radius" : "Our default"}: riders nearest your area are offered the campaign
+                      first, and the radius grows towards the maximum while slots stay open.
+                    </p>
+                  </div>
+                )}
+                {radius ? (
+                  <RealCoverageMap
+                    kind={kind}
+                    count={count}
+                    target={target ?? EXAMPLE_AREA}
+                    radius={radius}
+                    isExample={!target}
+                    onFail={() => setMapFailed(true)}
+                  />
+                ) : (
+                  <div className={s.mapLoading} aria-hidden="true" />
+                )}
+              </>
+            )}
             <div className={s.tier}>
               <p className={s.kicker}>Estimated coverage</p>
               <h3>{tier.label}</h3>
@@ -213,7 +300,7 @@ export default function Plan() {
         </div>
 
         <p className={s.disclaimer}>
-          Coverage maps and visit figures are illustrative, not measurements. Actual visibility varies with routes,
+          Map data © OpenStreetMap contributors. Coverage zones and visit figures are illustrative, not measurements. Actual visibility varies with routes,
           traffic and campaign duration. Flex Riders does not guarantee impressions, reach, sales or ROI.
         </p>
       </div>

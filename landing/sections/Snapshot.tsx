@@ -7,9 +7,9 @@ import s from "./Snapshot.module.css";
 const ease = [0.22, 1, 0.36, 1] as const;
 
 const cards = [
-  { Icon: IconMegaphone, kicker: "Rider campaigns", text: "Discover open campaigns near you and in your working areas." },
   { Icon: IconBrand, kicker: "Brand campaigns", text: "Reach customers in a chosen area through local riders and autos." },
   { Icon: IconCamera, kicker: "Real activity", text: "Morning, evening and night photos, reviewed every campaign day." },
+  { Icon: IconMegaphone, kicker: "Rider campaigns", text: "Discover open campaigns near you and in your working areas." },
   { Icon: IconWallet, kicker: "Earnings", text: "Approved days add up to earnings, with payouts to the rider's UPI." },
 ];
 
