@@ -16,7 +16,6 @@ npm run build && npm start   # production
 | --- | --- |
 | `NEXT_PUBLIC_SITE_URL` | Public URL, used for canonical and Open Graph links. Defaults to `http://localhost:3000`. |
 | `NEXT_PUBLIC_BRAND_URL` | Where **Brand Login** (nav, For Brands, footer) goes: the brand web portal, which has its own login. Defaults to `/brand` in production and `http://localhost:5180/brand` locally. |
-| `NEXT_PUBLIC_ADMIN_URL` | Where the footer's **Admin Login** button goes: the Flex Riders admin dashboard, which opens on its login screen. Defaults to `/admin` in production and `http://localhost:5180` (the dashboard's dev server) locally. |
 
 ## Structure
 

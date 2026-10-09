@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { footerProduct, site } from "@/lib/site";
-import { IconArrowRight, IconLock } from "./Icons";
 import { useContact } from "./Contact";
 import Logo from "./Logo";
 import s from "./Footer.module.css";
@@ -59,11 +58,6 @@ export default function Footer() {
       <div className={`container ${s.bottom}`}>
         <p>© 2026 Flex Riders. All rights reserved.</p>
         <p>Product visuals show demonstration data.</p>
-        <a className={`btn btn-ghost btn-sm ${s.admin}`} href={site.adminUrl}>
-          <IconLock size={15} aria-hidden="true" />
-          Admin Login
-          <IconArrowRight size={14} className="btn-arrow" aria-hidden="true" />
-        </a>
       </div>
     </footer>
   );

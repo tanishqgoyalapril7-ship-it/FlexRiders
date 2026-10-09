@@ -52,13 +52,3 @@
   color: var(--muted);
   align-items: center;
 }
-.admin {
-  gap: 8px;
-  margin-left: auto;
-}
-@media (max-width: 640px) {
-  .admin {
-    margin-left: 0;
-    margin-top: 8px;
-  }
-}
