@@ -62,3 +62,24 @@ export const demoPayments: {
 
 export const inr = (n: number) =>
   "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
+
+/** Campaign cards for the rider-app mockups (Near You / Opening Soon / My Areas mirror the app's real filters). */
+export type DemoCampaign = {
+  name: string;
+  brand: string;
+  k: string;
+  distance: string;
+  rate: number;
+  slots: number;
+  vehicles: string;
+  filter: "near" | "soon" | "areas";
+  opensIn?: string;
+};
+
+export const demoCampaigns: DemoCampaign[] = [
+  { name: "Café Launch Week", brand: "Brand A", k: "A", distance: "1.2 km", rate: 450, slots: 6, vehicles: "Bike · Cycle", filter: "near" },
+  { name: "Store Opening Drive", brand: "Brand B", k: "B", distance: "3.8 km", rate: 600, slots: 3, vehicles: "Auto · Three Wheeler", filter: "soon", opensIn: "18h" },
+  { name: "Neighbourhood Promo", brand: "Brand C", k: "C", distance: "Working area", rate: 400, slots: 9, vehicles: "All vehicles", filter: "areas" },
+];
+
+export const demoStreak = { current: 6, longest: 11, rate: 450 };

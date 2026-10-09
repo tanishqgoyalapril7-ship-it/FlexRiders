@@ -1,0 +1,62 @@
+.proof {
+  padding-block: clamp(36px, 5vw, 56px);
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+.stats div {
+  display: flex;
+  flex-direction: column-reverse;
+  padding: 18px;
+  border-radius: 18px;
+  background: var(--paper);
+}
+.stats dt {
+  margin-top: 4px;
+  font-size: 14px;
+  color: var(--fg-2);
+}
+.stats dd {
+  margin: 0;
+  font-size: clamp(28px, 3vw, 38px);
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.quotes {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: none;
+}
+.quotes::-webkit-scrollbar {
+  display: none;
+}
+.quotes li {
+  flex: 0 0 min(420px, 84%);
+  scroll-snap-align: start;
+  padding: 22px;
+  border-radius: 18px;
+  background: var(--paper);
+}
+.quotes blockquote {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+}
+.quotes p {
+  margin-top: 14px;
+  font-size: 14px;
+  color: var(--fg-2);
+}
+.quotes b {
+  color: var(--fg);
+  font-weight: 600;
+}

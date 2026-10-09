@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
-import { navLinks } from "@/lib/site";
+import { navLinks, site } from "@/lib/site";
 import { getLenis, scrollToHash } from "@/lib/scroll";
 import { useContact } from "./Contact";
 import Logo from "./Logo";
@@ -146,6 +146,9 @@ export default function Navbar() {
         </ul>
 
         <div className={styles.right}>
+          <a href={site.brandUrl} className={`${styles.link} ${styles.login}`}>
+            Brand Login
+          </a>
           <MagneticButton size="sm" className={styles.cta} onClick={() => openContact("start")}>
             Get Started
           </MagneticButton>
@@ -200,6 +203,9 @@ export default function Navbar() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.35, duration: 0.5, ease }}
             >
+              <a href={site.brandUrl} className={styles.sheetLogin}>
+                Brand Login
+              </a>
               <MagneticButton
                 onClick={() => {
                   setOpen(false);

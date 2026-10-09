@@ -14,7 +14,7 @@ export default function Footer() {
       <div className={`container ${s.top}`}>
         <div className={s.brand}>
           <Logo height={22} />
-          <p>Rider management and payment tracking, in one connected platform.</p>
+          <p>Local brand campaigns, run by verified riders and tracked every day.</p>
         </div>
 
         <nav className={s.cols} aria-label="Footer">
@@ -39,6 +39,9 @@ export default function Footer() {
               </li>
               <li>
                 <button onClick={() => openContact("support")}>Support</button>
+              </li>
+              <li>
+                <a href={site.brandUrl}>Brand Login</a>
               </li>
               <li>
                 <Link href="/privacy">Privacy</Link>

@@ -1,79 +1,97 @@
 .cta {
   position: relative;
-  display: grid;
-  place-items: center;
-  min-height: 100svh;
   padding-block: var(--section-y);
   overflow: hidden;
-  text-align: center;
-}
-.mark {
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: min(1100px, 120vw);
-  translate: -50% -50%;
-  pointer-events: none;
-  will-change: transform, opacity;
-}
-.mark img {
-  width: 100%;
-  height: auto;
 }
 .glow {
   position: absolute;
   inset: auto 0 -30% 0;
   height: 70%;
-  background: radial-gradient(50% 60% at 50% 100%, rgba(0, 104, 216, 0.35), transparent 70%);
+  background: radial-gradient(50% 60% at 30% 100%, rgba(0, 104, 216, 0.32), transparent 70%);
   pointer-events: none;
 }
 .inner {
   position: relative;
   z-index: 1;
-}
-.inner .title {
-  font-size: clamp(44px, 7vw, 104px);
-  text-wrap: balance;
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  gap: clamp(28px, 5vw, 64px);
+  align-items: center;
 }
 .title > span {
   padding-bottom: 0.05em;
 }
 .lead {
-  margin: 28px auto 0;
-  max-width: 560px;
-}
-.ctas {
-  display: flex;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 14px;
-  margin-top: 44px;
+  margin-top: 16px;
+  max-width: 480px;
 }
 
-@media (max-width: 767px) {
-  .cta {
-    min-height: 88svh;
-  }
-  .inner .title {
-    font-size: clamp(36px, 11vw, 56px);
-  }
-  .ctas {
-    flex-direction: column;
-    align-items: stretch;
-    width: min(100%, 320px);
-    margin-inline: auto;
-  }
+
+.rider {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 14px;
+  align-items: center;
+  margin-top: 28px;
+  padding: 18px;
+  border-radius: 20px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--hair);
+}
+.riderIcon {
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  color: var(--accent-fg);
+  background: var(--accent-soft);
+}
+.rider h3 {
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+}
+.rider p {
+  font-size: 14px;
+  color: var(--fg-2);
+}
+.rider > :last-child {
+  grid-column: 2;
+  justify-self: start;
+  margin-top: 8px;
 }
 
 .form {
-  margin: 40px auto 0;
-  max-width: 760px;
-  padding: clamp(22px, 4vw, 36px);
+  padding: clamp(20px, 3vw, 32px);
   border-radius: 24px;
   background: #fff;
-  text-align: left;
+  color: var(--ink);
   box-shadow: 0 40px 100px -30px rgba(0, 0, 0, 0.6);
   --fg: var(--ink);
   --fg-2: var(--muted-strong);
   --accent-fg: var(--accent);
 }
+.formTitle {
+  margin-bottom: 16px;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+@media (max-width: 899px) {
+  .inner {
+    grid-template-columns: 1fr;
+  }
+  .copy {
+    text-align: center;
+  }
+  .lead {
+    margin-inline: auto;
+  }
+  .rider {
+    text-align: left;
+  }
+}
+

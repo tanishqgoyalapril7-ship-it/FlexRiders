@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { LEGAL } from "@/lib/legal";
+import { PLAN_EVENT, PRICING, planSummary, type PlanDetail } from "@/lib/pricing";
 import MagneticButton from "./MagneticButton";
 import styles from "./Contact.module.css";
 
@@ -14,6 +16,12 @@ export const VEHICLE_OPTIONS: [string, string][] = [
 ];
 
 const THANKS = "Thank you! Your enquiry has been submitted. Our team will contact you soon.";
+
+const NETWORK_ERROR = `We couldn't reach Flex Riders. Check your internet connection and try again, or email us at ${LEGAL.email}.`;
+const SERVER_ERROR = `Our server didn't respond properly. Please try again in a minute, or email us at ${LEGAL.email}.`;
+const CHECK_DETAILS = "Some details don't look right. Please check your phone number and email, then try again.";
+
+class EnquiryError extends Error {}
 
 /** Sends a website enquiry to the FlexRiders backend, where it appears in the admin dashboard (Enquiries).
  *  Nothing submitted here is ever readable publicly. */
@@ -32,6 +40,26 @@ export default function EnquiryForm({
   const [error, setError] = useState("");
   const [sentMessage, setSentMessage] = useState("");
   const business = role === "business";
+  const formRef = useRef<HTMLFormElement>(null);
+  const prefilled = useRef("");
+
+  // A plan from the campaign planner pre-selects the vehicle and fills the message (both stay editable).
+  useEffect(() => {
+    if (!business) return;
+    const onPlan = (e: Event) => {
+      const plan = (e as CustomEvent<PlanDetail>).detail;
+      const form = formRef.current;
+      if (!form || !plan) return;
+      const vehicle = form.elements.namedItem("vehicle_interest") as HTMLSelectElement | null;
+      if (vehicle) vehicle.value = PRICING[plan.kind].enquiry;
+      const message = form.elements.namedItem("message") as HTMLTextAreaElement | null;
+      if (message && (!message.value.trim() || message.value === prefilled.current)) {
+        message.value = prefilled.current = planSummary(plan);
+      }
+    };
+    window.addEventListener(PLAN_EVENT, onPlan);
+    return () => window.removeEventListener(PLAN_EVENT, onPlan);
+  }, [business]);
 
   async function onSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -40,14 +68,20 @@ export default function EnquiryForm({
     setStatus("sending");
     setError("");
     try {
-      const res = await fetch("/api/v1/public/enquiries", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...data, kind: role, intent }),
-      });
+      let res: Response;
+      try {
+        res = await fetch("/api/v1/public/enquiries", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...data, kind: role, intent }),
+        });
+      } catch {
+        throw new EnquiryError(NETWORK_ERROR);
+      }
       const json = (await res.json().catch(() => ({}))) as { detail?: unknown; message?: string };
       if (!res.ok) {
-        throw new Error(typeof json.detail === "string" ? json.detail : "Please check your details and try again.");
+        if (typeof json.detail === "string") throw new EnquiryError(json.detail);
+        throw new EnquiryError(res.status >= 500 ? SERVER_ERROR : CHECK_DETAILS);
       }
       const message = json.message || THANKS;
       form.reset();
@@ -59,7 +93,7 @@ export default function EnquiryForm({
       setStatus((s) => (onDone ? "idle" : s));
     } catch (err) {
       setStatus("error");
-      setError(err instanceof Error ? err.message : "Something went wrong. Please try again.");
+      setError(err instanceof EnquiryError ? err.message : SERVER_ERROR);
     }
   }
 
@@ -72,7 +106,7 @@ export default function EnquiryForm({
   }
 
   return (
-    <form onSubmit={onSubmit}>
+    <form ref={formRef} onSubmit={onSubmit}>
       {/* Honeypot: hidden from people; bots that fill it are ignored by the server. */}
       <input type="text" name="website" tabIndex={-1} autoComplete="off" className={styles.honeypot} aria-hidden="true" />
       <div className={styles.fields}>
@@ -139,7 +173,7 @@ export default function EnquiryForm({
           {status === "error" ? error : ""}
         </p>
         <MagneticButton type="submit" arrow={status !== "sending"}>
-          {status === "sending" ? "Submitting…" : submitLabel}
+          {status === "sending" ? "Sending…" : submitLabel}
         </MagneticButton>
       </div>
     </form>

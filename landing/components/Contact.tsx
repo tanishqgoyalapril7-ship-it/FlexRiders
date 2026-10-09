@@ -25,20 +25,20 @@ export const useContact = () => useContext(ContactCtx);
 
 const copy: Record<Intent, { title: string; sub: string }> = {
   start: {
-    title: "Want to promote your brand?",
-    sub: "Tell us about your campaign and our team will get in touch with you.",
+    title: "Put your brand on the road",
+    sub: "Tell us what you want to promote and where. Our team will get back to you to plan the campaign with you.",
   },
   talk: {
     title: "Talk to us",
-    sub: "Questions about running riders on Flex Riders? We'd love to hear from you.",
+    sub: "Questions about campaigns, riders or payouts? Send us a message and our team will reply.",
   },
   advertise: {
-    title: "Promote your brand with riders & autos",
-    sub: "Tell us about your campaign and our team will get in touch with you.",
+    title: "Put your brand on the road",
+    sub: "Tell us what you want to promote and where. Our team will get back to you to plan the campaign with you.",
   },
   support: {
     title: "Get support",
-    sub: "Describe what you need help with and we'll get back to you.",
+    sub: "Tell us what you need help with and our team will get back to you.",
   },
 };
 
@@ -164,7 +164,7 @@ export function ContactProvider({ children }: { children: ReactNode }) {
                     key={role}
                     role={role}
                     intent={intent}
-                    submitLabel={role === "business" ? "Submit Enquiry" : "Send"}
+                    submitLabel={role === "business" ? "Send Enquiry" : "Request a Call"}
                     onDone={(name, message) => {
                       setFirstName(name);
                       setDoneMessage(message);

@@ -1,100 +1,126 @@
-import { IconCheck } from "@/components/Icons";
+"use client";
+
+import { useRef, useState, type CSSProperties } from "react";
+import { motion, AnimatePresence, useInView } from "framer-motion";
+import { IconBike, IconBrand } from "@/components/Icons";
+import { useContact } from "@/components/Contact";
 import MagneticButton from "@/components/MagneticButton";
 import { Reveal, RevealHeading } from "@/components/Reveal";
 import s from "./HowItWorks.module.css";
 
-const business = [
-  ["Submit an enquiry", "Tell us about your brand using the enquiry form."],
-  ["Share brand & promotion requirements", "What you want to promote, your target area and timing."],
-  ["Plan the campaign", "Agree the duration, campaign area and budget with our team."],
-  ["Select riders / vehicles", "Choose the vehicle types and number of riders for the campaign."],
-  ["Launch the campaign", "The campaign goes live and approved, eligible riders take part."],
-  ["Track campaign activity", "Campaign photos and activity are tracked through FlexRiders."],
+const ease = [0.22, 1, 0.36, 1] as const;
+
+const businessSteps = [
+  { n: "01", title: "Request a campaign", text: "Send an enquiry here, or create a campaign request in the Flex Riders app." },
+  { n: "02", title: "Define area & requirements", text: "Target area, riders needed, vehicle types, dates, daily hours and payout per day." },
+  { n: "03", title: "Admin review & approval", text: "Our team approves the request, or asks for changes, before it is published." },
+  { n: "04", title: "Track campaign activity", text: "Riders join and submit daily photos; follow progress in the app or brand portal." },
 ];
 
-// Mirrors the rider app's actual sign-up: there is no OTP step (riders register with mobile number and password).
-const riders = [
-  ["Register", "Download the app and start with your mobile number and a password."],
-  ["Profile details", "Add your work, vehicle, area and payout details."],
-  ["Accept Terms & Privacy", "Read and accept the FlexRiders Terms & Conditions and Privacy Policy."],
-  ["Driver selfie", "Take a selfie with the front camera to complete your registration."],
-  ["Admin approval", "The FlexRiders team reviews your profile; features unlock once approved."],
-  ["Discover eligible campaigns", "Approved riders see the campaigns that match their vehicle."],
-  ["Join a campaign", "Join an eligible campaign while joining is open."],
-  ["Complete campaign activities", "Do the required activities and submit the Morning, Evening and Night photos."],
-  ["Track earnings", "Eligible completed campaign days show in your earnings, as per the campaign rules."],
+const riderSteps = [
+  { n: "01", title: "Register", text: "Sign up in the app with your vehicle, documents and working areas." },
+  { n: "02", title: "Get approved", text: "The operations team verifies your profile before you can join campaigns." },
+  { n: "03", title: "Join a campaign", text: "Request an open slot in a campaign near you that fits your vehicle." },
+  { n: "04", title: "Complete days & earn", text: "Submit Morning, Evening and Night photos; approved days earn the daily rate." },
 ];
 
-const riderDuties = [
-  "Take part in approved campaigns",
-  "Follow campaign instructions",
-  "Cover the assigned or eligible areas",
-  "Complete the required daily activities",
-  "Submit the required campaign photos",
-  "Follow campaign timings and guidelines",
-  "Stay within campaign rules",
-];
-
-function Steps({ items, label }: { items: string[][]; label: string }) {
-  return (
-    <ol className={s.steps} aria-label={label}>
-      {items.map(([title, text], i) => (
-        <li key={title} className={s.step}>
-          <span className={s.n}>{i + 1}</span>
-          <div>
-            <h4 className={s.stepTitle}>{title}</h4>
-            <p className={s.stepText}>{text}</p>
-          </div>
-        </li>
-      ))}
-    </ol>
-  );
-}
-
-/** How FlexRiders works, for businesses and for riders. */
 export default function HowItWorks() {
+  const [tab, setTab] = useState<"business" | "riders">("riders");
+  const steps = tab === "business" ? businessSteps : riderSteps;
+  const openContact = useContact();
+  const gridRef = useRef<HTMLDivElement>(null);
+  const inView = useInView(gridRef, { once: true, amount: 0.5 });
+
   return (
     <section id="how-it-works" className="section theme-light theme-paper" aria-labelledby="how-title">
       <div className="container">
+        {/* Section Header */}
         <div className="section-head center">
           <Reveal>
             <p className="eyebrow">How it works</p>
           </Reveal>
-          <RevealHeading id="how-title" className="display" lines={["Brands and riders,", <span key="b" className="blue-text">one campaign.</span>]} />
-        </div>
-
-        <div className={s.tracks}>
-          <Reveal className={s.track}>
-            <p className={s.kicker}>For businesses</p>
-            <h3 className={s.trackTitle}>How it works for businesses</h3>
-            <Steps items={business} label="Steps for businesses" />
-            <MagneticButton href="#enquiry" arrow className={s.cta}>
-              Submit an Enquiry
-            </MagneticButton>
-          </Reveal>
-
-          <Reveal delay={0.1} className={s.track}>
-            <p className={s.kicker}>For riders</p>
-            <h3 className={s.trackTitle}>How riders become part of FlexRiders</h3>
-            <Steps items={riders} label="Steps for riders" />
-            <p className={s.quote}>
-              “Your profile is currently under review. Further FlexRiders features will become available once your profile is approved.”
-              <span>What new riders see while the team reviews their profile.</span>
+          <RevealHeading
+            id="how-title"
+            className="display"
+            lines={["From sign-up", <span key="b" className="blue-text">to your first campaign day.</span>]}
+          />
+          <Reveal delay={0.1}>
+            <p className="lead">
+              Every campaign is approved by our team, and every rider is verified before joining one.
             </p>
           </Reveal>
         </div>
 
-        <Reveal delay={0.1} className={s.duties}>
-          <h3 className={s.trackTitle}>What riders do</h3>
-          <ul className={s.dutyList}>
-            {riderDuties.map((d) => (
-              <li key={d}>
-                <IconCheck size={16} />
-                {d}
-              </li>
-            ))}
-          </ul>
-        </Reveal>
+        {/* Toggle Switcher */}
+        <div className={s.toggleWrap}>
+          <div className={s.toggle} role="tablist" aria-label="Workflow audience">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === "riders"}
+              className={`${s.toggleBtn} ${tab === "riders" ? s.toggleBtnActive : ""}`}
+              onClick={() => setTab("riders")}
+            >
+              <IconBike size={16} />
+              <span>For Riders</span>
+              {tab === "riders" && <motion.div layoutId="howItWorksToggle" className={s.toggleIndicator} transition={{ duration: 0.3, ease }} />}
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === "business"}
+              className={`${s.toggleBtn} ${tab === "business" ? s.toggleBtnActive : ""}`}
+              onClick={() => setTab("business")}
+            >
+              <IconBrand size={16} />
+              <span>For Brands</span>
+              {tab === "business" && <motion.div layoutId="howItWorksToggle" className={s.toggleIndicator} transition={{ duration: 0.3, ease }} />}
+            </button>
+          </div>
+        </div>
+
+        {/* Horizontal Desktop Stepper Grid */}
+        <div ref={gridRef} className={s.stepperWrap} data-inview={inView || undefined}>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={tab}
+              className={s.stepsGrid}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.35, ease }}
+            >
+              {steps.map((st, i) => (
+                <div key={st.n} className={s.stepCard} style={{ "--i": i } as CSSProperties}>
+                  <div className={s.stepCardHead}>
+                    <span className={s.stepNum}>{st.n}</span>
+                    {i < steps.length - 1 && <span className={s.stepArrow}>→</span>}
+                  </div>
+                  <h4 className={s.stepTitle}>{st.title}</h4>
+                  <p className={s.stepText}>{st.text}</p>
+                </div>
+              ))}
+            </motion.div>
+          </AnimatePresence>
+        </div>
+
+        <div className={s.next}>
+          {tab === "riders" ? (
+            <>
+              <p>Register in the Flex Riders app. Our team reviews every rider before their first campaign.</p>
+              <MagneticButton onClick={() => openContact("start", "rider")} arrow>
+                Join as Rider
+              </MagneticButton>
+            </>
+          ) : (
+            <>
+              <p>Tell us your area and goals. We&apos;ll help you plan the campaign before it goes live.</p>
+              <MagneticButton href="#enquiry" arrow>
+                Start a Campaign
+              </MagneticButton>
+            </>
+          )}
+        </div>
       </div>
     </section>
   );

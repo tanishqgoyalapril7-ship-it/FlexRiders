@@ -1,0 +1,101 @@
+.map {
+  --zone: 46, 155, 250;
+  --dot: #2e9bfa;
+  position: relative;
+  overflow: hidden;
+  border-radius: 20px;
+  color: #0b2a52;
+  background: #e9eef3;
+}
+.map[data-kind="auto"] {
+  --zone: 255, 181, 71;
+  --dot: #e08a00;
+}
+.map svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.ground {
+  fill: #e9eef3;
+}
+.street {
+  stroke: #fff;
+  stroke-width: 5;
+  stroke-linecap: round;
+}
+.road {
+  stroke: #fff;
+  stroke-width: 11;
+  stroke-linecap: round;
+}
+.map[data-kind="auto"] .road {
+  stroke: #fff6e6;
+}
+
+/* Zones and vehicles grow in from their centre; removing vehicles shrinks them back. */
+.zone,
+.vehicle {
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+  transform: scale(0.2);
+  transition: opacity 0.45s var(--ease-out), transform 0.55s var(--ease-out);
+  transition-delay: var(--d, 0ms);
+}
+.zone {
+  fill: rgba(var(--zone), 0.2);
+}
+.vehicle {
+  fill: var(--dot);
+  stroke: #fff;
+  stroke-width: 2;
+}
+.zone[data-on],
+.vehicle[data-on] {
+  opacity: 1;
+  transform: none;
+}
+
+.targetDot {
+  fill: #0b0c10;
+  stroke: #fff;
+  stroke-width: 3;
+}
+.targetPulse {
+  fill: none;
+  stroke: #0b0c10;
+  stroke-width: 2;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pulse 2.4s ease-out infinite;
+}
+@keyframes pulse {
+  0% { opacity: 0.55; transform: scale(0.6); }
+  80%, 100% { opacity: 0; transform: scale(2.2); }
+}
+
+.targetLabel,
+.more {
+  position: absolute;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 650;
+  background: rgba(255, 255, 255, 0.94);
+  color: #0b0c10;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+.targetLabel {
+  left: 50%;
+  top: 56.5%;
+  translate: -50% 0;
+  margin-top: 14px;
+  white-space: nowrap;
+}
+.more {
+  right: 10px;
+  top: 10px;
+  color: var(--accent);
+}

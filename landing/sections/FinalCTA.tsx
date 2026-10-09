@@ -1,42 +1,50 @@
 "use client";
 
-import Image from "next/image";
-import { motion, useTransform } from "framer-motion";
-import { useRef } from "react";
-import { useScrollProgress } from "@/lib/useScrollProgress";
-import markLight from "@/public/images/fr-mark-light.png";
 import EnquiryForm from "@/components/EnquiryForm";
+import { useContact } from "@/components/Contact";
+import { IconBike } from "@/components/Icons";
+import MagneticButton from "@/components/MagneticButton";
 import { Reveal, RevealHeading } from "@/components/Reveal";
-import { useReduced } from "@/lib/useReduced";
 import s from "./FinalCTA.module.css";
 
 export default function FinalCTA() {
-  const ref = useRef<HTMLElement>(null);
-  const reduce = useReduced();
-  const { scrollYProgress } = useScrollProgress({ target: ref, offset: ["start end", "end end"] });
-  const scale = useTransform(scrollYProgress, [0, 1], [reduce ? 1 : 1.25, 1]);
-  const opacity = useTransform(scrollYProgress, [0, 0.8], [0, 0.09]);
+  const openContact = useContact();
 
   return (
-    <section ref={ref} id="enquiry" className={`theme-dark ${s.cta}`} aria-labelledby="cta-title">
-      <motion.div className={s.mark} style={{ scale, opacity }} aria-hidden="true">
-        <Image src={markLight} alt="" sizes="(max-width: 767px) 120vw, 1100px" />
-      </motion.div>
+    <section id="enquiry" className={`theme-dark ${s.cta}`} aria-labelledby="cta-title">
       <div className={s.glow} aria-hidden="true" />
 
       <div className={`container ${s.inner}`}>
-        <RevealHeading
-          id="cta-title"
-          className={`display-xl ${s.title}`}
-          lines={["Want to promote", <span key="o" className="blue-text">your brand?</span>]}
-        />
-        <Reveal delay={0.15}>
-          <p className={`lead ${s.lead}`}>
-            Tell us about your brand, target area and promotion requirements. Our team will help you plan a FlexRiders campaign.
-          </p>
-        </Reveal>
-        <Reveal delay={0.25} className={s.form}>
-          <EnquiryForm role="business" intent="advertise" submitLabel="Submit an Enquiry" />
+        <div className={s.copy}>
+          <RevealHeading
+            id="cta-title"
+            className={`display ${s.title}`}
+            lines={["Ready to put your brand", <span key="o" className="blue-text">on the road?</span>]}
+          />
+          <Reveal delay={0.1}>
+            <p className={`lead ${s.lead}`}>
+              Share your brand, target area and goals. Our team reviews every enquiry and helps you
+              plan the campaign before it goes live.
+            </p>
+          </Reveal>
+
+          <Reveal delay={0.18} className={s.rider}>
+            <span className={s.riderIcon}>
+              <IconBike size={20} />
+            </span>
+            <div>
+              <h3>Want to earn with Flex Riders?</h3>
+              <p>Riders, auto drivers and cyclists can join campaigns near them.</p>
+            </div>
+            <MagneticButton variant="ghost" size="sm" onClick={() => openContact("start", "rider")}>
+              Join as Rider
+            </MagneticButton>
+          </Reveal>
+        </div>
+
+        <Reveal delay={0.12} className={s.form}>
+          <h3 className={s.formTitle}>Tell us about your campaign</h3>
+          <EnquiryForm role="business" intent="advertise" submitLabel="Send Enquiry" />
         </Reveal>
       </div>
     </section>

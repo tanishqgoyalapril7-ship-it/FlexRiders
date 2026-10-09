@@ -1,231 +1,114 @@
 "use client";
 
-import Image from "next/image";
-import {
-  motion,
-  useMotionTemplate,
-  useMotionValue,
-
-  useSpring,
-  useTransform,
-  type MotionValue,
-} from "framer-motion";
-import { useReduced } from "@/lib/useReduced";
-import { useRef, type ReactNode } from "react";
-import { useScrollProgress } from "@/lib/useScrollProgress";
-import avatar from "@/public/images/rider-avatar.webp";
-import { Phone, StatusPill } from "@/components/Devices";
-import { IconCheck, IconPin } from "@/components/Icons";
+import { motion } from "framer-motion";
+import { Phone } from "@/components/Devices";
+import { DiscoverScreen } from "@/components/AppScreens";
+import { useContact } from "@/components/Contact";
+import { IconCamera, IconCheck, IconClock } from "@/components/Icons";
 import Logo from "@/components/Logo";
 import MagneticButton from "@/components/MagneticButton";
-import { HomeScreen } from "@/components/RiderScreens";
-import { demoEarnings, demoRider, inr } from "@/lib/demo";
 import s from "./Hero.module.css";
 
 const ease = [0.22, 1, 0.36, 1] as const;
-const enter = (delay: number, y = 24, blur = 10) => ({
-  initial: { opacity: 0, y, filter: `blur(${blur}px)` },
-  animate: { opacity: 1, y: 0, filter: "blur(0px)" },
-  transition: { duration: 1.1, ease, delay },
+const enter = (delay: number, y = 20) => ({
+  initial: { opacity: 0, y },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.9, ease, delay },
 });
 
+const trust = ["Campaigns approved by our team", "Verified riders", "Photo-checked every day"];
+
 export default function Hero() {
-  const ref = useRef<HTMLElement>(null);
-  const reduce = useReduced();
-
-  // Cursor: normalized -1..1, smoothed. Drives spotlight + depth parallax.
-  const mx = useMotionValue(0);
-  const my = useMotionValue(0);
-  const sx = useSpring(mx, { stiffness: 60, damping: 18 });
-  const sy = useSpring(my, { stiffness: 60, damping: 18 });
-  const px = useMotionValue(-1000);
-  const py = useMotionValue(-1000);
-  const spotlight = useMotionTemplate`radial-gradient(520px circle at ${px}px ${py}px, rgba(46,155,250,0.10), transparent 70%)`;
-
-  const onMove = (e: React.PointerEvent) => {
-    if (reduce || e.pointerType !== "mouse" || !ref.current) return;
-    const r = ref.current.getBoundingClientRect();
-    px.set(e.clientX - r.left);
-    py.set(e.clientY - r.top);
-    mx.set(((e.clientX - r.left) / r.width) * 2 - 1);
-    my.set(((e.clientY - r.top) / r.height) * 2 - 1);
-  };
-
-  // Scroll: the ecosystem disperses and the phone drifts as the hero leaves.
-  const { scrollYProgress } = useScrollProgress({ target: ref, offset: ["start start", "end start"] });
-  const spread = useTransform(scrollYProgress, [0, 0.7], [0, 1]);
-  const phoneY = useTransform(scrollYProgress, [0, 1], [0, reduce ? 0 : 120]);
-  const copyY = useTransform(scrollYProgress, [0, 1], [0, reduce ? 0 : -60]);
-  const copyOpacity = useTransform(scrollYProgress, [0, 0.6], [1, reduce ? 1 : 0]);
-  const rotY = useTransform(sx, [-1, 1], [-18, -6]);
-  const rotX = useTransform(sy, [-1, 1], [8, 2]);
+  const openContact = useContact();
 
   return (
-    <section
-      ref={ref}
-      id="top"
-      className={`${s.hero} theme-dark`}
-      aria-labelledby="hero-title"
-      onPointerMove={onMove}
-    >
-      <motion.div className={s.spotlight} style={{ background: spotlight }} aria-hidden="true" />
+    <section id="top" className={`${s.hero} theme-dark`} aria-labelledby="hero-title">
       <div className={s.glow} aria-hidden="true" />
 
       <div className={`container ${s.grid}`}>
-        <motion.div className={s.copy} style={{ y: copyY, opacity: copyOpacity }}>
-          <motion.div {...enter(0.05, 12, 6)} className={s.mark}>
-            <Logo height={30} wordmark={false} priority />
+        <div className={s.copy}>
+          <motion.div {...enter(0.05, 10)} className={s.mark}>
+            <Logo height={22} wordmark={false} priority />
             <span>Flex Riders</span>
           </motion.div>
 
-          <h1 id="hero-title" className={`display-xl ${s.title}`}>
-            <motion.span {...enter(0.2, 40, 14)} className={s.line}>
-              Promote your brand
-            </motion.span>
-            <motion.span {...enter(0.34, 40, 14)} className={`${s.line} blue-text`}>
-              with riders
-            </motion.span>
-            <motion.span {...enter(0.46, 40, 14)} className={`${s.line} blue-text`}>
-              &amp; autos.
-            </motion.span>
-          </h1>
+          <motion.h1 {...enter(0.15, 28)} id="hero-title" className={s.title}>
+            Turn everyday rides into <span className="blue-text">brand visibility.</span>
+          </motion.h1>
 
-          <motion.p {...enter(0.55)} className={`lead ${s.lead}`}>
-            Reach customers on the road with Flex Riders: a platform connecting brands with riders
-            and vehicle owners for promotional campaigns. Create a campaign, get your brand on the
-            road, and track campaign activity from one place.
+          <motion.p {...enter(0.28)} className={`lead ${s.lead}`}>
+            Brands get seen street by street in the areas they choose. Riders on cycles, bikes, autos
+            and three-wheelers earn a daily rate for every campaign day they complete.
           </motion.p>
 
-          <motion.div {...enter(0.7, 16, 6)} className={s.ctas}>
-            <MagneticButton href="#enquiry" arrow>
-              Promote Your Brand
+          <motion.div {...enter(0.4, 14)} className={s.ctas}>
+            <MagneticButton onClick={() => openContact("start", "rider")} arrow>
+              Join as Rider
             </MagneticButton>
-            <MagneticButton href="#how-it-works" variant="ghost">
-              How It Works
+            <MagneticButton href="#enquiry" variant="ghost">
+              Promote Your Brand
             </MagneticButton>
           </motion.div>
 
-          <motion.ul {...enter(0.85, 10, 4)} className={s.audiences} aria-label="Built for">
-            <li>Riders &amp; bikes</li>
-            <li>Autos &amp; three-wheelers</li>
-            <li>Campaign tracking</li>
+          <motion.ul {...enter(0.52, 10)} className={s.trust} aria-label="Why Flex Riders">
+            {trust.map((t) => (
+              <li key={t}>
+                <IconCheck size={13} />
+                {t}
+              </li>
+            ))}
           </motion.ul>
-        </motion.div>
+        </div>
 
         <motion.div
           className={s.visual}
-          initial={{ opacity: 0, y: 60, scale: 0.94, filter: "blur(16px)" }}
-          animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
-          transition={{ duration: 1.5, ease, delay: 0.45 }}
+          initial={{ opacity: 0, y: 40, scale: 0.96 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 1.2, ease, delay: 0.3 }}
         >
-          <div className={s.orbits} aria-hidden="true">
-            <span />
+          <div className={s.rings} aria-hidden="true">
             <span />
             <span />
           </div>
+          <Phone
+            className={s.phone}
+            label="Flex Riders rider app Campaigns screen: a map with a campaign's reach radius, Near You, Opening Soon and My Areas filters, and nearby campaign cards with daily payout and open slots (demonstration data)"
+          >
+            <DiscoverScreen animated />
+          </Phone>
 
-          <motion.div className={s.stage} style={{ y: phoneY }}>
-            <motion.div
-              className={s.phoneWrap}
-              style={reduce ? undefined : { rotateY: rotY, rotateX: rotX }}
-            >
-              <Phone
-                className={s.phone}
-                label="Flex Riders rider app home screen showing account status Active, today's earnings, assigned brand and latest payment (demonstration data)"
-              >
-                <HomeScreen />
-              </Phone>
-            </motion.div>
+          <motion.div
+            className={`${s.chip} ${s.chipA}`}
+            aria-hidden="true"
+            initial={{ opacity: 0, x: -16 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.7, ease, delay: 2.0 }}
+          >
+            <span className={s.chipIconWarn}>
+              <IconClock size={15} />
+            </span>
+            <span>
+              <b>Opening Soon</b>
+              <em>Starts in 18h · 3 slots</em>
+            </span>
           </motion.div>
-
-          <Chip at="profile" delay={1.0} spread={spread} sx={sx} sy={sy} depth={1.2} dir={[-1, -1]}>
-            <span className="avatar" style={{ width: 34, height: 34 }}>
-              <Image src={avatar} alt="" width={34} height={34} sizes="68px" />
+          <motion.div
+            className={`${s.chip} ${s.chipB}`}
+            aria-hidden="true"
+            initial={{ opacity: 0, x: 16 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.7, ease, delay: 2.8 }}
+          >
+            <span className={s.chipIconOk}>
+              <IconCamera size={15} />
             </span>
             <span>
-              <b>{demoRider.name}</b>
-              <em>{demoRider.id}</em>
+              <b>Morning photo approved</b>
+              <em>Day 7 · streak on track</em>
             </span>
-          </Chip>
-
-          <Chip at="approved" delay={1.12} spread={spread} sx={sx} sy={sy} depth={0.7} dir={[-1, 0.2]}>
-            <span className={s.okIcon}>
-              <IconCheck size={14} />
-            </span>
-            <span>
-              <b>Application approved</b>
-              <em>Reviewed by operations</em>
-            </span>
-          </Chip>
-
-          <Chip at="brand" delay={1.24} spread={spread} sx={sx} sy={sy} depth={1} dir={[1, -1]}>
-            <span className="brand-mono" style={{ width: 34, height: 34, fontSize: 15 }}>
-              A
-            </span>
-            <span>
-              <b>Assigned to {demoRider.brand}</b>
-              <em>Since {demoRider.since}</em>
-            </span>
-          </Chip>
-
-          <Chip at="location" delay={1.36} spread={spread} sx={sx} sy={sy} depth={0.6} dir={[1, 0.1]}>
-            <span className={s.pinIcon}>
-              <IconPin size={16} />
-            </span>
-            <span>
-              <b>{demoRider.city}</b>
-              <em>{demoRider.zone} · Working location</em>
-            </span>
-          </Chip>
-
-          <Chip at="payment" delay={1.48} spread={spread} sx={sx} sy={sy} depth={1.3} dir={[-1, 1]}>
-            <span>
-              <em>Payment · 23 Sep</em>
-              <b className="num">{inr(920)}</b>
-            </span>
-            <StatusPill status="PAID" style={{ fontSize: 12 }} />
-          </Chip>
-
-          <Chip at="earnings" delay={1.6} spread={spread} sx={sx} sy={sy} depth={0.9} dir={[1, 1]}>
-            <span>
-              <em>This month</em>
-              <b className={`num ${s.bigNum}`}>{inr(demoEarnings.month)}</b>
-            </span>
-          </Chip>
+          </motion.div>
         </motion.div>
       </div>
     </section>
-  );
-}
-
-type ChipProps = {
-  at: "profile" | "approved" | "brand" | "location" | "payment" | "earnings";
-  delay: number;
-  spread: MotionValue<number>;
-  sx: MotionValue<number>;
-  sy: MotionValue<number>;
-  depth: number;
-  dir: [number, number];
-  children: ReactNode;
-};
-
-function Chip({ at, delay, spread, sx, sy, depth, dir, children }: ChipProps) {
-  const reduce = useReduced();
-  const x = useTransform(() => (reduce ? 0 : sx.get() * 14 * depth + spread.get() * dir[0] * 90));
-  const y = useTransform(() => (reduce ? 0 : sy.get() * 10 * depth + spread.get() * dir[1] * 70));
-  const opacity = useTransform(spread, [0, 0.8], [1, 0]);
-  return (
-    <motion.div className={`${s.chip} ${s[at]}`} style={{ x, y, opacity }} aria-hidden="true">
-      <motion.div
-        className={s.chipInner}
-        initial={{ opacity: 0, scale: 0.9, y: 16, filter: "blur(8px)" }}
-        animate={{ opacity: 1, scale: 1, y: 0, filter: "blur(0px)" }}
-        transition={{ type: "spring", stiffness: 120, damping: 20, delay }}
-      >
-        <div className={s.float} style={{ animationDelay: `${-delay * 2.3}s` }}>
-          {children}
-        </div>
-      </motion.div>
-    </motion.div>
   );
 }

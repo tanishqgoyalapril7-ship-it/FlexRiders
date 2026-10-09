@@ -1,22 +1,16 @@
 import Footer from "@/components/Footer";
+import MobileActionBar from "@/components/MobileActionBar";
 import Navbar from "@/components/Navbar";
-import Advertising from "@/sections/Advertising";
-import BeyondScreen from "@/sections/BeyondScreen";
-import Reach from "@/sections/Reach";
-import Approvals from "@/sections/Approvals";
-import Brands from "@/sections/Brands";
-import Ecosystem from "@/sections/Ecosystem";
-import FinalCTA from "@/sections/FinalCTA";
 import Hero from "@/sections/Hero";
+import Plan from "@/sections/Plan";
+import Snapshot from "@/sections/Snapshot";
 import HowItWorks from "@/sections/HowItWorks";
-import Interlude from "@/sections/Interlude";
-import Operations from "@/sections/Operations";
-import Payments from "@/sections/Payments";
-import Problem from "@/sections/Problem";
-import Profile from "@/sections/Profile";
-import Riders from "@/sections/Riders";
-import Scale from "@/sections/Scale";
-import Security from "@/sections/Security";
+import RiderApp from "@/sections/RiderApp";
+import ForBrands from "@/sections/ForBrands";
+import Trust from "@/sections/Trust";
+import Proof from "@/sections/Proof";
+import FAQ from "@/sections/FAQ";
+import FinalCTA from "@/sections/FinalCTA";
 
 export default function Home() {
   return (
@@ -27,24 +21,18 @@ export default function Home() {
       <Navbar />
       <main id="main">
         <Hero />
-        <Reach />
-        <BeyondScreen />
+        <Snapshot />
         <HowItWorks />
-        <Problem />
-        <Ecosystem />
-        <Riders />
-        <Interlude />
-        <Operations />
-        <Approvals />
-        <Brands />
-        <Advertising />
-        <Payments />
-        <Profile />
-        <Scale />
-        <Security />
+        <RiderApp />
+        <ForBrands />
+        <Plan />
+        <Trust />
+        <Proof />
+        <FAQ />
         <FinalCTA />
       </main>
       <Footer />
+      <MobileActionBar />
     </>
   );
 }

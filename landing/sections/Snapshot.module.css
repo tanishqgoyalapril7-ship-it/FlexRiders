@@ -1,0 +1,81 @@
+.snapshot {
+  padding-bottom: clamp(40px, 5vw, 64px);
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+.cards li {
+  padding: 18px;
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--hair);
+}
+.icon {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  color: var(--accent-fg);
+  background: var(--accent-soft);
+  margin-bottom: 14px;
+}
+.cards h2 {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.cards p {
+  margin-top: 6px;
+  font-size: 14.5px;
+  line-height: 1.45;
+  color: var(--fg-2);
+}
+
+@media (max-width: 899px) {
+  .cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Phones: one swipeable row instead of a tall stack. */
+@media (max-width: 560px) {
+  .cards {
+    display: flex;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    margin-inline: calc(var(--gutter) * -1);
+    padding-inline: var(--gutter);
+    scroll-padding-inline: var(--gutter);
+    scrollbar-width: none;
+  }
+  .cards::-webkit-scrollbar {
+    display: none;
+  }
+  .cards li {
+    flex: 0 0 72%;
+    scroll-snap-align: start;
+    padding: 16px;
+  }
+}
+
+.cards li {
+  transition: translate 0.35s var(--ease-out), box-shadow 0.35s var(--ease-out);
+}
+.icon {
+  transition: transform 0.35s var(--ease-out), background-color 0.35s;
+}
+@media (hover: hover) {
+  .cards li:hover {
+    translate: 0 -3px;
+    box-shadow: inset 0 0 0 1px rgba(46, 155, 250, 0.35), 0 18px 40px -24px rgba(0, 104, 216, 0.6);
+  }
+  .cards li:hover .icon {
+    transform: scale(1.08) rotate(-4deg);
+    background: rgba(46, 155, 250, 0.24);
+  }
+}

@@ -144,6 +144,42 @@ export const IconHome = ({ size = 24, ...p }: P) => (
     <path d="M4 10.5L12 4l8 6.5V20h-5v-6H9v6H4z" />
   </svg>
 );
+export const IconMegaphone = ({ size = 24, ...p }: P) => (
+  <svg {...base(size)} {...p}>
+    <path d="M3.5 10v4a1 1 0 0 0 1 1H7l7 4V5L7 9H4.5a1 1 0 0 0-1 1zM7 15l1.2 4.5h2.6L10 16.6M17.5 9.5a3.5 3.5 0 0 1 0 5" />
+  </svg>
+);
+export const IconCamera = ({ size = 24, ...p }: P) => (
+  <svg {...base(size)} {...p}>
+    <path d="M3.5 8.5a2 2 0 0 1 2-2h2l1.5-2.5h6L16.5 6.5h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z" />
+    <circle cx="12" cy="13" r="3.5" />
+  </svg>
+);
+export const IconClock = ({ size = 24, ...p }: P) => (
+  <svg {...base(size)} {...p}>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="M12 7.5V12l3 2" />
+  </svg>
+);
+export const IconFlame = ({ size = 24, ...p }: P) => (
+  <svg {...base(size)} {...p}>
+    <path d="M12 21c-3.9 0-6.5-2.6-6.5-6.2 0-3.4 2.6-5.6 3.7-8.8.6 1.6 1.5 2.6 2.6 3.2C12.3 6.6 13.6 4.4 15 3c.3 3.4 3.5 6 3.5 11.2 0 3.9-2.6 6.8-6.5 6.8z" />
+  </svg>
+);
+export const IconAuto = ({ size = 24, ...p }: P) => (
+  <svg {...base(size)} {...p}>
+    <path d="M4 16V9.5A4.5 4.5 0 0 1 8.5 5H14l4.5 5.5H20a1 1 0 0 1 1 1V16M4 16h1.5M9.5 16h6M19.5 16H21M14 5v5.5h4.5M9 5v5.5h5" />
+    <circle cx="7.5" cy="16.5" r="2" />
+    <circle cx="17.5" cy="16.5" r="2" />
+  </svg>
+);
+export const IconRadius =({ size = 24, ...p }: P) => (
+  <svg {...base(size)} {...p}>
+    <circle cx="12" cy="12" r="2" />
+    <circle cx="12" cy="12" r="5.5" />
+    <circle cx="12" cy="12" r="9" strokeDasharray="2.5 2.5" />
+  </svg>
+);
 
 /** iOS-style status bar glyphs, drawn at 10px tall. */
 export const StatusGlyphs = () => (

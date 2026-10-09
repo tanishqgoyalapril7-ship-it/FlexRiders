@@ -33,7 +33,7 @@
   --gutter: clamp(20px, 5vw, 64px);
   --max: 1240px;
   --nav-h: 52px;
-  --section-y: clamp(104px, 14vw, 184px);
+  --section-y: clamp(48px, 6vw, 76px);
 
   /* Motion */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
@@ -222,7 +222,7 @@ ol {
 }
 
 .display {
-  font-size: clamp(38px, 5.4vw, 72px);
+  font-size: clamp(32px, 4.2vw, 56px);
   font-weight: 700;
   line-height: 1.04;
   letter-spacing: -0.038em;
@@ -281,7 +281,7 @@ ol {
   text-align: center;
 }
 .section-head .lead {
-  margin-top: 22px;
+  margin-top: 14px;
   max-width: 640px;
 }
 .section-head.center .lead {
@@ -595,8 +595,10 @@ ol {
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
+    animation-delay: 0s !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
     scroll-behavior: auto !important;
   }
 }
