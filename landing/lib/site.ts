@@ -26,3 +26,9 @@ export const footerProduct: NavLink[] = [
   { label: "Trust & Operations", href: "#operations" },
   { label: "FAQ", href: "#faq" },
 ];
+
+/** The people behind Flex Riders (shown in the footer and in the site's structured data). */
+export const founders = [
+  { name: "Adarsh Chandel", role: "Founder" },
+  { name: "Tanishq Goyal", role: "Co-founder" },
+];

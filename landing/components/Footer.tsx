@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { footerProduct, site } from "@/lib/site";
+import { footerProduct, founders, site } from "@/lib/site";
 import { useContact } from "./Contact";
 import Logo from "./Logo";
 import s from "./Footer.module.css";
@@ -14,6 +14,25 @@ export default function Footer() {
         <div className={s.brand}>
           <Logo height={22} />
           <p>Local brand campaigns, run by verified riders and tracked every day.</p>
+          <div id="founders" className={s.founders} aria-labelledby="founders-title">
+            <h2 id="founders-title">Founded by</h2>
+            <ul>
+              {founders.map((f) => (
+                <li key={f.name}>
+                  <span className={s.initials} aria-hidden="true">
+                    {f.name
+                      .split(" ")
+                      .map((w) => w[0])
+                      .join("")}
+                  </span>
+                  <span>
+                    <b>{f.name}</b>
+                    <em>{f.role}</em>
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
 
         <nav className={s.cols} aria-label="Footer">

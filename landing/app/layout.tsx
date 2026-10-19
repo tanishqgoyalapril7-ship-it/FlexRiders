@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import type { ReactNode } from "react";
 import Providers from "@/components/Providers";
-import { site } from "@/lib/site";
+import { founders, site } from "@/lib/site";
 import "./globals.css";
 
 const inter = Inter({
@@ -47,6 +47,20 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en" className={inter.variable}>
       <body>
         <Providers>{children}</Providers>
+        {/* Organization details for search engines (who runs Flex Riders). */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "Organization",
+              name: site.name,
+              url: site.url,
+              logo: `${site.url}/icon.png`,
+              founder: founders.map((f) => ({ "@type": "Person", name: f.name, jobTitle: f.role })),
+            }),
+          }}
+        />
       </body>
     </html>
   );
