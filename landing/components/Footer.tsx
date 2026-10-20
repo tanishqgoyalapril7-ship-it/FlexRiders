@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { LEGAL } from "@/lib/legal";
+import { SERVICES } from "@/lib/services";
 import { footerProduct, founders, site } from "@/lib/site";
 import { useContact } from "./Contact";
 import Logo from "./Logo";
 import s from "./Footer.module.css";
 
-export default function Footer() {
+/** linkBase "/" on other pages, so the homepage section links (#plan, …) point back to the homepage. */
+export default function Footer({ linkBase = "" }: { linkBase?: string }) {
   const openContact = useContact();
   return (
     <footer className={`theme-dark ${s.footer}`}>
@@ -42,7 +44,17 @@ export default function Footer() {
             <ul>
               {footerProduct.map((l) => (
                 <li key={l.href}>
-                  <a href={l.href}>{l.label}</a>
+                  <a href={`${linkBase}${l.href}`}>{l.label}</a>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <h2>Services</h2>
+            <ul>
+              {SERVICES.map((sv) => (
+                <li key={sv.slug}>
+                  <Link href={`/${sv.slug}`}>{sv.h1}</Link>
                 </li>
               ))}
             </ul>
@@ -51,7 +63,7 @@ export default function Footer() {
             <h2>Company</h2>
             <ul>
               <li>
-                <a href="#product">About</a>
+                <a href={`${linkBase}#product`}>About</a>
               </li>
               <li>
                 <button onClick={() => openContact("talk")}>Contact</button>
