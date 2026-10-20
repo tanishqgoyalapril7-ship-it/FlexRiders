@@ -8,7 +8,7 @@ const faqs = [
   },
   {
     q: "How can a brand start a campaign?",
-    a: "Send an enquiry from this page, or create a campaign request with a brand account in the Flex Riders app. You set the target area, riders needed, vehicle types, dates, daily hours and payout per day. Our team reviews every request before it's published to riders.",
+    a: "Send an enquiry from this page, or create a campaign request with a brand account in the Flex Riders app. You set the target area, riders needed, vehicle types, dates and daily hours. Our team sets the rider payout and reviews every request before it's published to riders.",
   },
   {
     q: "How much does a campaign cost?",
@@ -50,6 +50,17 @@ export default function FAQ() {
             Questions, answered.
           </h2>
         </div>
+        {/* The same questions and answers as structured data, for search engines. */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              "@context": "https://schema.org",
+              "@type": "FAQPage",
+              mainEntity: faqs.map(({ q, a }) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })),
+            }),
+          }}
+        />
         <div className={s.list}>
           {faqs.map(({ q, a }) => (
             <details key={q} className={s.item}>

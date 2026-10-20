@@ -15,8 +15,11 @@ const cards = [
 
 export default function Snapshot() {
   return (
-    <section id="product" className={`theme-dark ${s.snapshot}`} aria-label="What Flex Riders does">
+    <section id="product" className={`theme-dark ${s.snapshot}`} aria-labelledby="product-title">
       <div className="container">
+        <h2 id="product-title" className="sr-only">
+          What Flex Riders does
+        </h2>
         <ul className={s.cards}>
           {cards.map(({ Icon, kicker, text }, i) => (
             <motion.li
@@ -29,7 +32,7 @@ export default function Snapshot() {
               <span className={s.icon}>
                 <Icon size={18} />
               </span>
-              <h2>{kicker}</h2>
+              <h3>{kicker}</h3>
               <p>{text}</p>
             </motion.li>
           ))}

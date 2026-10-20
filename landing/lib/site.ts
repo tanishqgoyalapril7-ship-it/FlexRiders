@@ -1,8 +1,8 @@
 export const site = {
   name: "Flex Riders",
-  title: "Flex Riders — Promote Your Brand with Riders & Autos",
+  title: "Bike & Auto Rickshaw Advertising in Gurugram | Flex Riders",
   description:
-    "Flex Riders connects brands with riders, cycles, autos and three-wheelers for local campaigns. Riders discover campaigns near them, submit daily photos and track earnings; brands target an area and follow campaign activity.",
+    "Bike and auto rickshaw advertising for local brands in Gurugram. Choose your area, see estimated reach and cost, and track photo-verified campaigns. Riders earn a daily rate.",
   // Set NEXT_PUBLIC_SITE_URL in production so Open Graph URLs resolve absolutely.
   url: process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000",
   // Brand web portal (its own login): flexriders.in/brand in production, the dashboard's dev server locally.

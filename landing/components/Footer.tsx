@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { LEGAL } from "@/lib/legal";
 import { footerProduct, founders, site } from "@/lib/site";
 import { useContact } from "./Contact";
 import Logo from "./Logo";
@@ -13,7 +14,7 @@ export default function Footer() {
       <div className={`container ${s.top}`}>
         <div className={s.brand}>
           <Logo height={22} />
-          <p>Local brand campaigns, run by verified riders and tracked every day.</p>
+          <p>Bike and auto rickshaw advertising for local brands, run by verified riders and tracked every day.</p>
           <div id="founders" className={s.founders} aria-labelledby="founders-title">
             <h2 id="founders-title">Founded by</h2>
             <ul>
@@ -75,7 +76,7 @@ export default function Footer() {
         </nav>
       </div>
       <div className={`container ${s.bottom}`}>
-        <p>© 2026 Flex Riders. All rights reserved.</p>
+        <p>© 2026 Flex Riders · Based in {LEGAL.address}</p>
         <p>Product visuals show demonstration data.</p>
       </div>
     </footer>

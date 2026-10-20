@@ -96,7 +96,7 @@ export default function HowItWorks() {
                     <span className={s.stepNum}>{st.n}</span>
                     {i < steps.length - 1 && <span className={s.stepArrow}>→</span>}
                   </div>
-                  <h4 className={s.stepTitle}>{st.title}</h4>
+                  <h3 className={s.stepTitle}>{st.title}</h3>
                   <p className={s.stepText}>{st.text}</p>
                 </div>
               ))}

@@ -52,7 +52,8 @@ export default function ForBrands() {
           />
           <Reveal delay={0.1}>
             <p className={`lead ${s.lead}`}>
-              Choose where and how your campaign runs. Our team reviews it, verified riders join, and
+              Mobile advertising on bikes and auto rickshaws. Choose where and how your campaign runs. Our
+              team reviews it, verified riders join, and
               every campaign day is backed by photos.
             </p>
           </Reveal>

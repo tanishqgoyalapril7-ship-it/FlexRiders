@@ -37,8 +37,9 @@ export default function Hero() {
           </motion.h1>
 
           <motion.p {...enter(0.28)} className={`lead ${s.lead}`}>
-            Brands get seen street by street in the areas they choose. Riders on cycles, bikes, autos
-            and three-wheelers earn a daily rate for every campaign day they complete.
+            Bike and auto advertising for local brands: get seen street by street in the areas you choose.
+            Riders on cycles, bikes, autos and three-wheelers earn a daily rate for every campaign day they
+            complete.
           </motion.p>
 
           <motion.div {...enter(0.4, 14)} className={s.ctas}>
