@@ -33,6 +33,9 @@
   --gutter: clamp(20px, 5vw, 64px);
   --max: 1240px;
   --nav-h: 52px;
+  /* The "live on Google Play" strip above the top bar, and both together */
+  --strip-h: 34px;
+  --top-h: calc(var(--nav-h) + var(--strip-h));
   --section-y: clamp(48px, 6vw, 76px);
 
   /* Motion */
@@ -49,7 +52,7 @@
 html {
   -webkit-text-size-adjust: 100%;
   text-size-adjust: 100%;
-  scroll-padding-top: var(--nav-h);
+  scroll-padding-top: var(--top-h);
 }
 
 html.lenis,

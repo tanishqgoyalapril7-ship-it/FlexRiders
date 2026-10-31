@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import Footer from "./Footer";
+import LiveStrip from "./LiveStrip";
 import Logo from "./Logo";
 import { IconArrowRight, IconCheck } from "./Icons";
 import { PRICING, inr, minCampaign } from "@/lib/pricing";
@@ -48,6 +49,7 @@ export default function ServicePage({ service }: { service: Service }) {
   return (
     <>
       <header className={s.top}>
+        <LiveStrip />
         <div className={`container ${s.topInner}`}>
           <Link href="/" aria-label="Flex Riders home">
             <Logo height={22} />

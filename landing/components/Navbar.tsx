@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { navLinks, site } from "@/lib/site";
 import { getLenis, scrollToHash } from "@/lib/scroll";
 import { useContact } from "./Contact";
+import LiveStrip from "./LiveStrip";
 import Logo from "./Logo";
 import MagneticButton from "./MagneticButton";
 import styles from "./Navbar.module.css";
@@ -19,6 +20,7 @@ export default function Navbar() {
   const openContact = useContact();
   const toggleRef = useRef<HTMLButtonElement>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
 
   // Glass on scroll, and match the tone of whichever section sits under the bar.
   useEffect(() => {
@@ -26,7 +28,8 @@ export default function Navbar() {
     const update = () => {
       raf = 0;
       setScrolled(window.scrollY > 12);
-      const probe = 26;
+      // Middle of the nav row, below the live strip.
+      const probe = (headerRef.current?.offsetHeight ?? 52) - 26;
       const sections = document.querySelectorAll<HTMLElement>("main > section, footer");
       for (const el of sections) {
         const r = el.getBoundingClientRect();
@@ -113,11 +116,13 @@ export default function Navbar() {
 
   return (
     <header
+      ref={headerRef}
       className={styles.header}
       data-scrolled={scrolled || open}
       data-open={open}
       data-tone={open ? "dark" : tone}
     >
+      <LiveStrip />
       <nav className={styles.nav} aria-label="Primary">
         <a
           href="#top"

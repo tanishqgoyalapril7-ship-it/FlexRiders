@@ -6,7 +6,7 @@
 }
 .head {
   position: sticky;
-  top: calc(var(--nav-h) + 24px);
+  top: calc(var(--top-h) + 24px);
 }
 
 .list {

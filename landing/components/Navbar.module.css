@@ -126,7 +126,7 @@
 
 .sheet {
   position: fixed;
-  inset: var(--nav-h) 0 0 0;
+  inset: var(--top-h) 0 0 0;
   display: flex;
   flex-direction: column;
   padding: 24px var(--gutter) calc(32px + env(safe-area-inset-bottom));

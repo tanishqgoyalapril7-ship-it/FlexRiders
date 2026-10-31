@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { LEGAL } from "@/lib/legal";
 import { SERVICES } from "@/lib/services";
-import { footerProduct, founders, site } from "@/lib/site";
+import { footerProduct, site, team } from "@/lib/site";
 import { useContact } from "./Contact";
 import GooglePlayBadge from "./GooglePlayBadge";
 import Logo from "./Logo";
@@ -20,9 +20,9 @@ export default function Footer({ linkBase = "" }: { linkBase?: string }) {
           <p>Bike and auto rickshaw advertising for local brands, run by verified riders and tracked every day.</p>
           <GooglePlayBadge className={s.play} />
           <div id="founders" className={s.founders} aria-labelledby="founders-title">
-            <h2 id="founders-title">Founded by</h2>
+            <h2 id="founders-title">Our team</h2>
             <ul>
-              {founders.map((f) => (
+              {team.map((f) => (
                 <li key={f.name}>
                   <span className={s.initials} aria-hidden="true">
                     {f.name

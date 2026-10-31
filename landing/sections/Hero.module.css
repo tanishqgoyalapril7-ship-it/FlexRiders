@@ -1,7 +1,7 @@
 .hero {
   position: relative;
   overflow: hidden;
-  padding-top: calc(var(--nav-h) + clamp(28px, 5vw, 64px));
+  padding-top: calc(var(--top-h) + clamp(28px, 5vw, 64px));
   padding-bottom: clamp(28px, 4vw, 48px);
 }
 

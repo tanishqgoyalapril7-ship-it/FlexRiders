@@ -8,20 +8,22 @@ export const setLenis = (instance: Lenis | null) => {
 
 export const getLenis = () => lenis;
 
-const NAV_OFFSET = -52;
+/** The fixed top bar's height (live strip + nav), from the page's scroll-padding-top. */
+const navOffset = () => -(parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 52);
 
 /** Smoothly scroll to an in-page anchor, falling back to native scrolling. */
 export function scrollToHash(hash: string, opts: { offset?: number } = {}) {
   const id = hash.replace(/^#/, "");
   const el = id === "top" ? document.body : document.getElementById(id);
   if (!el) return;
-  const offset = opts.offset ?? (id === "top" ? 0 : NAV_OFFSET);
+  const nav = navOffset();
+  const offset = opts.offset ?? (id === "top" ? 0 : nav);
 
   if (lenis && id === "top") {
     lenis.scrollTo(0, { duration: 1.2 });
   } else if (lenis) {
     // Lenis already honours the CSS scroll-padding-top (nav height) for elements.
-    lenis.scrollTo(el, { offset: offset - NAV_OFFSET, duration: 1.2 });
+    lenis.scrollTo(el, { offset: offset - nav, duration: 1.2 });
   } else {
     const y = el.getBoundingClientRect().top + window.scrollY + offset;
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;

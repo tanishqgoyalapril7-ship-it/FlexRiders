@@ -34,3 +34,6 @@ export const founders = [
   { name: "Adarsh Chandel", role: "Founder" },
   { name: "Tanishq Goyal", role: "Co-founder" },
 ];
+
+/** Everyone shown under "Our team" in the footer: the founders, then the rest of the leadership. */
+export const team = [...founders, { name: "Altaf", role: "COO" }];

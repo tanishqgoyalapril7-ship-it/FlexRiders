@@ -3,7 +3,7 @@ import { Inter } from "next/font/google";
 import type { ReactNode } from "react";
 import Providers from "@/components/Providers";
 import { LEGAL } from "@/lib/legal";
-import { founders, site } from "@/lib/site";
+import { founders, site, team } from "@/lib/site";
 import "./globals.css";
 
 const inter = Inter({
@@ -80,6 +80,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                   address: { "@type": "PostalAddress", addressLocality: "Gurugram", addressRegion: "Haryana", addressCountry: "IN" },
                   areaServed: { "@type": "City", name: "Gurugram" },
                   founder: founders.map((f) => ({ "@type": "Person", name: f.name, jobTitle: f.role })),
+                  employee: team
+                    .filter((m) => !founders.includes(m))
+                    .map((m) => ({ "@type": "Person", name: m.name, jobTitle: m.role })),
                 },
                 {
                   "@type": "WebSite",
