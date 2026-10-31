@@ -31,8 +31,8 @@ export const footerProduct: NavLink[] = [
 
 /** The people behind Flex Riders (shown in the footer and in the site's structured data). */
 export const founders = [
-  { name: "Adarsh Chandel", role: "Founder" },
-  { name: "Tanishq Goyal", role: "Co-founder" },
+  { name: "Adarsh Chandel", role: "Founder & CEO" },
+  { name: "Tanishq Goyal", role: "Co-founder & CTO" },
 ];
 
 /** Everyone shown under "Our team" in the footer: the founders, then the rest of the leadership. */
