@@ -62,6 +62,12 @@
   justify-self: start;
   margin-top: 8px;
 }
+.riderActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
 
 .form {
   padding: clamp(20px, 3vw, 32px);

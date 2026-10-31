@@ -9,6 +9,8 @@ export const site = {
   brandUrl:
     process.env.NEXT_PUBLIC_BRAND_URL ??
     (process.env.NODE_ENV === "production" ? "/brand" : "http://localhost:5180/brand"),
+  // The Flex Riders app (riders and brands) on Google Play.
+  playStoreUrl: "https://play.google.com/store/apps/details?id=com.flexriders.app",
 };
 
 export type NavLink = { label: string; href: `#${string}` };

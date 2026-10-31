@@ -97,3 +97,7 @@
   color: #fff;
   background: linear-gradient(140deg, #2e9bfa 0%, #0068d8 100%);
 }
+
+.play {
+  margin-top: 18px;
+}

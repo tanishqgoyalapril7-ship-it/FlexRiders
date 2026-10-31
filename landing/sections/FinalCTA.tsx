@@ -3,6 +3,7 @@
 import EnquiryForm from "@/components/EnquiryForm";
 import { useContact } from "@/components/Contact";
 import { IconBike } from "@/components/Icons";
+import GooglePlayBadge from "@/components/GooglePlayBadge";
 import MagneticButton from "@/components/MagneticButton";
 import { Reveal, RevealHeading } from "@/components/Reveal";
 import s from "./FinalCTA.module.css";
@@ -36,9 +37,12 @@ export default function FinalCTA() {
               <h3>Want to earn with Flex Riders?</h3>
               <p>Riders, auto drivers and cyclists can join campaigns near them.</p>
             </div>
-            <MagneticButton variant="ghost" size="sm" onClick={() => openContact("start", "rider")}>
-              Join as Rider
-            </MagneticButton>
+            <div className={s.riderActions}>
+              <GooglePlayBadge />
+              <MagneticButton variant="ghost" size="sm" onClick={() => openContact("start", "rider")}>
+                Join as Rider
+              </MagneticButton>
+            </div>
           </Reveal>
         </div>
 

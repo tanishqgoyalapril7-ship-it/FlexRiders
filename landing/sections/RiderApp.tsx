@@ -5,6 +5,7 @@ import { useRef, useState, type ReactNode } from "react";
 import { DiscoverScreen, EarningsScreen, PhotosScreen } from "@/components/AppScreens";
 import { useContact } from "@/components/Contact";
 import { Phone } from "@/components/Devices";
+import GooglePlayBadge from "@/components/GooglePlayBadge";
 import { IconCamera, IconCheck, IconMegaphone, IconWallet } from "@/components/Icons";
 import MagneticButton from "@/components/MagneticButton";
 import { Reveal, RevealHeading } from "@/components/Reveal";
@@ -147,10 +148,11 @@ export default function RiderApp() {
           </div>
 
           <div className={s.cta}>
-            <MagneticButton onClick={() => openContact("start", "rider")} arrow>
-              Join Flex Riders
+            <GooglePlayBadge />
+            <MagneticButton variant="ghost" onClick={() => openContact("start", "rider")}>
+              Leave your details
             </MagneticButton>
-            <p>Register in the Flex Riders app, or leave your details and our team will call you.</p>
+            <p>Download the Flex Riders app and register, or leave your details and our team will call you.</p>
           </div>
         </div>
 

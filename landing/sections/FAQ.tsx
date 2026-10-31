@@ -28,7 +28,7 @@ const faqs = [
   },
   {
     q: "How can I become a rider?",
-    a: "Register in the Flex Riders app with your mobile number, vehicle details, documents, a selfie and the areas you work in. Our team reviews your profile, and once you're approved you can join campaigns. You can also leave your details on this page and we'll call you.",
+    a: "Download the Flex Riders app from Google Play and register with your mobile number, vehicle details, documents, a selfie and the areas you work in. Our team reviews your profile, and once you're approved you can join campaigns. You can also leave your details on this page and we'll call you.",
   },
   {
     q: "How do riders get campaigns?",

@@ -73,6 +73,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                   name: site.name,
                   alternateName: ["FlexRiders", "Flex Riders India"],
                   url: site.url,
+                  sameAs: [site.playStoreUrl],
                   logo: `${site.url}/icon.png`,
                   email: LEGAL.email,
                   description: site.description,

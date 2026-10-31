@@ -5,6 +5,7 @@ import { LEGAL } from "@/lib/legal";
 import { SERVICES } from "@/lib/services";
 import { footerProduct, founders, site } from "@/lib/site";
 import { useContact } from "./Contact";
+import GooglePlayBadge from "./GooglePlayBadge";
 import Logo from "./Logo";
 import s from "./Footer.module.css";
 
@@ -17,6 +18,7 @@ export default function Footer({ linkBase = "" }: { linkBase?: string }) {
         <div className={s.brand}>
           <Logo height={22} />
           <p>Bike and auto rickshaw advertising for local brands, run by verified riders and tracked every day.</p>
+          <GooglePlayBadge className={s.play} />
           <div id="founders" className={s.founders} aria-labelledby="founders-title">
             <h2 id="founders-title">Founded by</h2>
             <ul>
