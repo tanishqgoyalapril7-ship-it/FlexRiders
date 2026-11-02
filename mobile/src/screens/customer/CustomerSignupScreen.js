@@ -116,7 +116,7 @@ export default function CustomerSignupScreen({ onBack, onSignedUp, onOpenLogin }
   if (step === 'verify') {
     const wait = Math.max(0, 45 - Math.floor((now - sentAt) / 1000));
     return (
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <Screen footer={<Button label="Verify & Create Account" disabled={code.length !== codeLen} loading={loading} onPress={verifyAndCreate} />}>
           <Header onBack={() => setStep('form')} circle={false} />
           <View style={{ height: 40 }} />
@@ -135,7 +135,7 @@ export default function CustomerSignupScreen({ onBack, onSignedUp, onOpenLogin }
   }
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+    <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
       <Screen footer={<Button label={smsOn ? 'Continue' : 'Create Brand Account'} onPress={submit} loading={loading} />}>
         <Header onBack={onBack} circle={false} />
         <View style={{ height: 12 }} />

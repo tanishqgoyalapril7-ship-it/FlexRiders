@@ -10,6 +10,8 @@ import { useStyles, useTheme } from '../../theme';
 import { useT } from '../../i18n';
 import { Badge, Button, Card, Chip, Empty, Header, Screen } from '../../components/ds';
 import { ID_TYPES, pickDocument } from './RiderSignup';
+import { vehicleProofDocType } from '../../components/formFields';
+import { MAX_WORKING_AREAS } from '../../components/WorkingAreasEditor';
 import SimpleMap from '../../components/SimpleMap';
 
 // The phone's recent GPS fix (if any), so nearby places rank first in area search.
@@ -67,7 +69,7 @@ export function VerificationStatus({ riderStatus, vehicleCategory, onBack, onCon
   const [label, tone, text] = PROFILE_TEXT[riderStatus] || PROFILE_TEXT.PENDING;
   const idDoc = (docs || []).find((d) => d.group === 'IDENTITY');
   const vehicleDoc = (docs || []).find((d) => d.group === 'VEHICLE');
-  const vehicleType = vehicleCategory === 'CYCLE' ? 'VEHICLE_PROOF' : 'VEHICLE_RC';
+  const vehicleType = vehicleProofDocType(vehicleCategory);
   const rows = [
     ['ID Verification Proof', idDoc, chooseIdType],
     ['Vehicle Proof', vehicleDoc, () => upload(vehicleDoc ? vehicleDoc.doc_type : vehicleType)],
@@ -83,7 +85,7 @@ export function VerificationStatus({ riderStatus, vehicleCategory, onBack, onCon
           {[
             ['Vehicle type', vehicle.category],
             ['Model', vehicle.model],
-            [vehicleCategory === 'CYCLE' ? 'Frame / serial number' : 'Registration number', vehicle.number],
+            ['Number plate', vehicle.number],
           ].map(([k, v]) => (
             <View key={k} style={[s.rowBetween, { paddingVertical: 6 }]}>
               <Text style={s.docSub}>{k}</Text>
@@ -143,7 +145,7 @@ export function VerificationStatus({ riderStatus, vehicleCategory, onBack, onCon
 
 // --------------------------------------------------------------------------------------------- Areas
 
-const MAX = 3;
+const MAX = MAX_WORKING_AREAS;
 
 export function WorkingAreasScreen({ onBack, onSaved, saveLabel }) {
   const s = useStyles(makeStyles);
@@ -208,7 +210,7 @@ export function WorkingAreasScreen({ onBack, onSaved, saveLabel }) {
   return (
     <Screen footer={<Button label={saveLabel || t('Save & Proceed')} onPress={save} loading={saving} disabled={!areas} />}>
       <Header onBack={onBack} title={t('Select Working Areas')} />
-      <Text style={s.body}>Choose up to 3 areas where you ride most. We'll prioritize showing campaigns active in these zones.</Text>
+      <Text style={s.body}>Add every area where you ride. We'll prioritize showing campaigns active in these areas.</Text>
       <Text style={[s.label, { marginTop: 18 }]}>Search Area / Locality</Text>
       <View style={[s.search, areas && areas.length >= MAX && { opacity: 0.5 }]}>
         <Ionicons name="search-outline" size={20} color={colors.textMuted} />
@@ -218,7 +220,7 @@ export function WorkingAreasScreen({ onBack, onSaved, saveLabel }) {
           value={q}
           onChangeText={setQ}
           editable={Boolean(areas) && areas.length < MAX}
-          placeholder={areas && areas.length >= MAX ? '3 areas selected' : 'Enter neighborhood or pin code'}
+          placeholder={areas && areas.length >= MAX ? `${MAX} areas selected (the maximum)` : 'Enter neighborhood or pin code'}
           placeholderTextColor={colors.textSubtle}
           autoCorrect={false}
         />
@@ -239,11 +241,11 @@ export function WorkingAreasScreen({ onBack, onSaved, saveLabel }) {
         {(areas || []).map((a) => (
           <Chip key={a.label} label={a.label.split(',')[0]} active onRemove={() => setAreas(areas.filter((x) => x.label !== a.label))} />
         ))}
-        {areas && areas.length < MAX ? <Chip label="+ Add Zone" onPress={() => input.current && input.current.focus()} /> : null}
+        {areas && areas.length < MAX ? <Chip label={`+ ${t('Add Another Location')}`} onPress={() => input.current && input.current.focus()} /> : null}
       </View>
       <View style={[s.rowBetween, { marginTop: 20, marginBottom: 10 }]}>
         <Text style={s.label}>Zone Map Coverage</Text>
-        <Text style={s.count}>{areas ? areas.length : 0} of {MAX} selected</Text>
+        <Text style={s.count}>{areas ? areas.length : 0} selected</Text>
       </View>
       {areas == null ? (
         <ActivityIndicator color={colors.primary} />

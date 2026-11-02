@@ -1,0 +1,83 @@
+  :root {
+    --bg: #F4F6FA; --surface: #FFFFFF; --surfaceAlt: #F1F5F9; --border: #E2E8F0;
+    --text: #0F172A; --muted: #64748B; --subtle: #94A3B8;
+    --primary: #3563E9; --primarySoft: #EEF3FE; --hero: #0F1C4D;
+    --success: #16A34A; --successSoft: #DCFCE7; --warning: #D97706; --warningSoft: #FEF3C7;
+    --danger: #DC2626; --dangerSoft: #FEE2E2;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 540px; height: 960px; overflow: hidden; background: #0B1120; }
+  body { font-family: Inter, system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  ion-icon { display: inline-block; flex-shrink: 0; }
+
+  /* ---------- Marketing frame ---------- */
+  .slide { display: none; position: relative; width: 540px; height: 960px; overflow: hidden;
+    background: radial-gradient(120% 70% at 85% 100%, #1E3A8A 0%, rgba(30,58,138,0) 60%),
+                radial-gradient(90% 55% at 0% 0%, #13235c 0%, rgba(19,35,92,0) 70%),
+                linear-gradient(180deg, #0B1120 0%, #0A1330 100%); }
+  .slide.on { display: block; }
+  .speed { position: absolute; inset: 0; pointer-events: none; opacity: .5;
+    background: repeating-linear-gradient(-62deg, transparent 0 46px, rgba(59,130,246,.06) 46px 48px); }
+  .glow { position: absolute; width: 420px; height: 420px; border-radius: 50%; filter: blur(70px); background: rgba(59,130,246,.35); left: 60px; top: 360px; }
+  .copy { position: absolute; left: 40px; right: 40px; top: 52px; text-align: center; color: #fff; }
+  .eyebrow { display: inline-flex; align-items: center; gap: 7px; padding: 7px 14px; border-radius: 999px;
+    background: rgba(59,130,246,.16); border: 1px solid rgba(96,165,250,.35); color: #93C5FD;
+    font-size: 12.5px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase; }
+  .eyebrow ion-icon { font-size: 15px; }
+  h1 { font-size: 41px; line-height: 1.08; font-weight: 900; letter-spacing: -1.2px; margin-top: 16px; }
+  h1 em { font-style: normal; background: linear-gradient(90deg, #60A5FA, #3B82F6 60%, #2563EB); -webkit-background-clip: text; color: transparent; }
+  .sub { margin: 12px auto 0; max-width: 430px; font-size: 17px; line-height: 1.4; color: #B6C3E0; font-weight: 500; }
+
+  .phone { position: absolute; left: 102px; top: 252px; width: 336px; height: 690px; border-radius: 50px; padding: 10px;
+    background: linear-gradient(145deg, #2a3142, #0b0e15 45%, #1d2230);
+    box-shadow: 0 0 0 1.5px #3b4459 inset, 0 40px 80px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.06); }
+  .phone::after { content: ''; position: absolute; top: 20px; left: 50%; width: 11px; height: 11px; margin-left: -5.5px; border-radius: 50%; background: #05070b; box-shadow: 0 0 0 2px #151a24; z-index: 50; }
+  .screen { position: relative; width: 316px; height: 670px; border-radius: 41px; overflow: hidden; background: var(--bg); }
+  .ui { width: 375px; height: 795px; zoom: 0.8427; position: relative; display: flex; flex-direction: column; color: var(--text); }
+
+  /* ---------- App chrome ---------- */
+  .status { height: 44px; flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 6px 26px 0; font-size: 15px; font-weight: 700; color: var(--text); position: relative; z-index: 5; }
+  .status .ic { display: flex; gap: 5px; font-size: 16px; }
+  .status.light { color: #fff; }
+  .content { flex: 1; overflow: hidden; position: relative; }
+  .pad { padding: 0 20px; }
+  .tabbar { flex-shrink: 0; height: 70px; background: var(--surface); border-top: 1px solid var(--border); display: flex; padding-top: 9px; }
+  .tab { flex: 1; display: flex; flex-direction: column; align-items: center; color: var(--subtle); font-size: 11px; font-weight: 600; gap: 3px; }
+  .tab ion-icon { font-size: 23px; }
+  .tab.on { color: var(--primary); font-weight: 700; }
+  .home-ind { position: absolute; bottom: 7px; left: 50%; width: 120px; height: 4.5px; margin-left: -60px; border-radius: 3px; background: #0F172A; opacity: .85; z-index: 9; }
+
+  .hdr { display: flex; align-items: center; gap: 12px; padding: 8px 20px 14px; }
+  .hdr .back { width: 38px; height: 38px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; color: var(--text); }
+  .hdr h2 { flex: 1; font-size: 21px; font-weight: 800; }
+  .link { color: var(--primary); font-weight: 800; font-size: 13px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 14px; }
+  .row { display: flex; align-items: center; }
+  .between { display: flex; align-items: center; justify-content: space-between; }
+  .muted { color: var(--muted); font-size: 12.5px; }
+  .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 999px; font-size: 10.5px; font-weight: 800; letter-spacing: .3px; }
+  .b-success { background: var(--successSoft); color: var(--success); }
+  .b-warning { background: var(--warningSoft); color: var(--warning); }
+  .b-primary { background: var(--primarySoft); color: var(--primary); }
+  .b-danger { background: var(--dangerSoft); color: var(--danger); }
+  .btn { height: 52px; border-radius: 15px; background: var(--primary); color: #fff; font-weight: 800; font-size: 15.5px; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 8px 18px rgba(53,99,233,.3); }
+  .btn ion-icon { font-size: 19px; }
+  .section { font-size: 17px; font-weight: 800; margin: 22px 0 11px; }
+  .caption { font-size: 11px; font-weight: 800; color: var(--muted); letter-spacing: .6px; }
+  .seg { display: flex; background: var(--surfaceAlt); border-radius: 13px; padding: 4px; }
+  .seg div { flex: 1; text-align: center; padding: 9px 0; border-radius: 10px; font-size: 13.5px; font-weight: 700; color: var(--muted); }
+  .seg .on { background: var(--surface); color: var(--text); box-shadow: 0 1px 4px rgba(15,23,42,.1); }
+  .chips { display: flex; gap: 8px; margin: 12px 0 14px; }
+  .chip { display: inline-flex; align-items: center; gap: 5px; padding: 8px 13px; border-radius: 999px; font-size: 12.5px; font-weight: 700; background: var(--surface); border: 1px solid var(--border); color: var(--text); }
+  .chip.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+  /* Map bubbles (CampaignMapView) */
+  .pin { position: absolute; transform: translate(-50%, -100%); display: flex; flex-direction: column; align-items: center; z-index: 3; }
+  .bubble { padding: 6px 11px 7px; border-radius: 13px; border: 2px solid rgba(255,255,255,.9); color: #fff; text-align: center; box-shadow: 0 6px 14px rgba(0,0,0,.45); white-space: nowrap; }
+  .bubble b { display: block; font-size: 12.5px; font-weight: 800; }
+  .bubble span { font-size: 11px; font-weight: 800; opacity: .95; }
+  .bubble.soon { border: 3px solid #F59E0B; }
+  .bubble.sel { background: #fff !important; border-color: var(--primary); color: var(--text); transform: scale(1.08); }
+  .tail { width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-top: 8px solid; margin-top: -1px; }
+  .me { position: absolute; width: 20px; height: 20px; border-radius: 50%; background: #3B82F6; border: 3px solid #fff; box-shadow: 0 0 0 10px rgba(59,130,246,.25), 0 2px 6px rgba(0,0,0,.5); transform: translate(-50%,-50%); z-index: 2; }
+  .tile { width: 42px; height: 42px; border-radius: 11px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 800; font-size: 17px; flex-shrink: 0; }

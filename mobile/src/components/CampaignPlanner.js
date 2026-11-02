@@ -15,50 +15,61 @@ import { computeDurationDays, computeEndDate, formatDateRange, formatINR } from 
 const BUDGET_PRESETS = [10000, 25000, 50000, 100000];
 const DURATION_PRESETS = [7, 14, 21, 30];
 
+/** Whole-number field that can be typed into; commits when editing ends, so clearing it to retype works. */
+function NumberInput({ value, min = 1, onCommit, style }) {
+  const [text, setText] = useState(String(value));
+  const [focused, setFocused] = useState(false);
+  useEffect(() => {
+    if (!focused) setText(String(value));
+  }, [value, focused]);
+  const commit = () => {
+    setFocused(false);
+    const n = parseInt(text, 10);
+    if (Number.isFinite(n) && n >= min) onCommit(n);
+    else setText(String(value));
+  };
+  return (
+    <TextInput
+      style={style}
+      keyboardType="number-pad"
+      value={text}
+      onFocus={() => setFocused(true)}
+      onChangeText={(t) => setText(t.replace(/\D/g, ''))}
+      onEndEditing={commit}
+      onSubmitEditing={commit}
+      selectTextOnFocus
+    />
+  );
+}
+
 /**
- * CampaignPlanner:
- * Interactive campaign planner connecting Budget <-> Riders <-> Duration
- * Based on the mathematical model:
- * Budget = Riders * Duration * Applicable Rate
- * Riders = floor(Budget / (Duration * Rate))
- * Duration = floor(Budget / (Riders * Rate))
+ * CampaignPlanner: the brand enters Budget, Riders and Duration independently; nothing is auto-calculated.
+ * The rider payout per day is not the brand's to set: FlexRiders' team sets it when approving the campaign.
  */
 export default function CampaignPlanner({
   budget = 10000,
-  riders = 2,
-  duration = 10,
+  riders = 1,
+  duration = 1,
   startDate,
   endDate,
   onBudgetChange,
   onRidersChange,
   onDurationChange,
-  onSync,
 }) {
   const styles = useStyles(makeStyles);
   const { colors } = useTheme();
 
-  // Centralized backend configuration
+  // Minimum budget from the backend's planner config.
   const [minBudget, setMinBudget] = useState(10000);
-  const [planningRate, setPlanningRate] = useState(500); // Configurable baseline planning rate (₹/rider-day)
 
-  // Track which field was modified last to avoid circular recalculations
-  // 'duration' | 'riders'
-  const [lastChangedField, setLastChangedField] = useState('duration');
-
-  // Load centralized configuration from backend
   useEffect(() => {
     let mounted = true;
     mobileApi
       .getCustomerPlannerConfig()
       .then((cfg) => {
-        if (mounted && cfg) {
-          if (cfg.minimum_budget) setMinBudget(Number(cfg.minimum_budget));
-          if (cfg.default_planning_rate) setPlanningRate(Number(cfg.default_planning_rate));
-        }
+        if (mounted && cfg?.minimum_budget) setMinBudget(Number(cfg.minimum_budget));
       })
-      .catch(() => {
-        // Fallback uses centralized defaults
-      });
+      .catch(() => {});
     return () => {
       mounted = false;
     };
@@ -71,116 +82,19 @@ export default function CampaignPlanner({
 
   const isBudgetValid = curBudget >= minBudget;
   const riderDays = curRiders * curDuration;
-  const estimatedCampaignValue = riderDays * planningRate;
 
-  // Handlers for Budget, Riders, Duration
   const handleBudgetInput = (text) => {
     const rawVal = text.replace(/\D/g, '');
-    const newBudget = rawVal ? parseInt(rawVal, 10) : 0;
-    onBudgetChange(newBudget);
-
-    if (newBudget > 0) {
-      if (lastChangedField === 'duration') {
-        // Duration was user chosen -> recalculate riders
-        const calcRiders = Math.max(1, Math.floor(newBudget / (curDuration * planningRate)));
-        onRidersChange(calcRiders);
-        if (onSync) {
-          onSync({
-            budget: newBudget,
-            riders: calcRiders,
-            duration: curDuration,
-            endDate: computeEndDate(startDate, curDuration),
-            isValid: newBudget >= minBudget,
-          });
-        }
-      } else {
-        // Riders was user chosen -> recalculate duration
-        const calcDuration = Math.max(1, Math.floor(newBudget / (curRiders * planningRate)));
-        const newEnd = computeEndDate(startDate, calcDuration);
-        onDurationChange(calcDuration, newEnd);
-        if (onSync) {
-          onSync({
-            budget: newBudget,
-            riders: curRiders,
-            duration: calcDuration,
-            endDate: newEnd,
-            isValid: newBudget >= minBudget,
-          });
-        }
-      }
-    }
-  };
-
-  const handleSelectBudgetPreset = (preset) => {
-    onBudgetChange(preset);
-    if (lastChangedField === 'duration') {
-      const calcRiders = Math.max(1, Math.floor(preset / (curDuration * planningRate)));
-      onRidersChange(calcRiders);
-      if (onSync) {
-        onSync({
-          budget: preset,
-          riders: calcRiders,
-          duration: curDuration,
-          endDate: computeEndDate(startDate, curDuration),
-          isValid: preset >= minBudget,
-        });
-      }
-    } else {
-      const calcDuration = Math.max(1, Math.floor(preset / (curRiders * planningRate)));
-      const newEnd = computeEndDate(startDate, calcDuration);
-      onDurationChange(calcDuration, newEnd);
-      if (onSync) {
-        onSync({
-          budget: preset,
-          riders: curRiders,
-          duration: calcDuration,
-          endDate: newEnd,
-          isValid: preset >= minBudget,
-        });
-      }
-    }
+    onBudgetChange(rawVal ? parseInt(rawVal, 10) : 0);
   };
 
   const handleDurationChange = (newDur) => {
     const validDur = Math.max(1, Math.round(newDur));
-    setLastChangedField('duration');
-    const newEnd = computeEndDate(startDate, validDur);
-    onDurationChange(validDur, newEnd);
-
-    // Budget fixed -> recalculate riders
-    const calcRiders = Math.max(1, Math.floor(curBudget / (validDur * planningRate)));
-    onRidersChange(calcRiders);
-
-    if (onSync) {
-      onSync({
-        budget: curBudget,
-        riders: calcRiders,
-        duration: validDur,
-        endDate: newEnd,
-        isValid: isBudgetValid,
-      });
-    }
+    onDurationChange(validDur, computeEndDate(startDate, validDur));
   };
 
   const handleRidersChange = (newRiders) => {
-    const validRiders = Math.max(1, Math.round(newRiders));
-    setLastChangedField('riders');
-    onRidersChange(validRiders);
-
-    // Budget fixed -> recalculate duration
-    const calcDuration = Math.max(1, Math.floor(curBudget / (validRiders * planningRate)));
-    const newEnd = computeEndDate(startDate, calcDuration);
-    onDurationChange(calcDuration, newEnd);
-
-    if (onSync) {
-      onSync({
-        budget: curBudget,
-        riders: validRiders,
-        duration: calcDuration,
-        endDate: newEnd,
-        isValid: isBudgetValid,
-      });
-    }
+    onRidersChange(Math.max(1, Math.round(newRiders)));
   };
 
   return (
@@ -193,7 +107,7 @@ export default function CampaignPlanner({
         </View>
         <Text style={styles.title}>Plan Budget & Fleet</Text>
         <Text style={styles.subtitle}>
-          Set your campaign budget and choose how you want to distribute riders over time.
+          Enter your budget, the number of riders and how many days the campaign runs.
         </Text>
       </View>
 
@@ -236,7 +150,7 @@ export default function CampaignPlanner({
               <TouchableOpacity
                 key={amt}
                 style={[styles.presetChip, selected && styles.presetChipActive]}
-                onPress={() => handleSelectBudgetPreset(amt)}
+                onPress={() => onBudgetChange(amt)}
                 activeOpacity={0.7}
               >
                 <Text style={[styles.presetChipText, selected && styles.presetChipTextActive]}>
@@ -248,36 +162,12 @@ export default function CampaignPlanner({
         </View>
       </Card>
 
-      {/* Triad Flow Indicator Down */}
-      <View style={styles.flowArrowContainer}>
-        <View style={styles.flowLine} />
-        <View style={styles.flowIconWrap}>
-          <Ionicons name="arrow-down" size={16} color={colors.primary} />
-        </View>
-        <View style={styles.flowLine} />
-      </View>
-
       {/* 2. RIDERS CARD */}
       <Card style={styles.card}>
         <View style={styles.cardHeader}>
           <View style={styles.fieldTitleRow}>
             <Ionicons name="people" size={18} color={colors.primary} />
             <Text style={styles.cardLabel}>RIDERS</Text>
-          </View>
-          <View
-            style={[
-              styles.modeBadge,
-              lastChangedField === 'riders' ? styles.modeBadgeUser : styles.modeBadgeAuto,
-            ]}
-          >
-            <Text
-              style={[
-                styles.modeBadgeText,
-                lastChangedField === 'riders' ? styles.modeBadgeTextUser : styles.modeBadgeTextAuto,
-              ]}
-            >
-              {lastChangedField === 'riders' ? 'User set' : 'Auto calculated'}
-            </Text>
           </View>
         </View>
 
@@ -296,8 +186,8 @@ export default function CampaignPlanner({
           </TouchableOpacity>
 
           <View style={styles.valueDisplay}>
-            <Text style={styles.valueNumber}>{curRiders}</Text>
-            <Text style={styles.valueUnit}>Whole Riders</Text>
+            <NumberInput style={styles.valueNumber} value={curRiders} onCommit={handleRidersChange} />
+            <Text style={styles.valueUnit}>Riders</Text>
           </View>
 
           <TouchableOpacity
@@ -310,18 +200,9 @@ export default function CampaignPlanner({
         </View>
 
         <Text style={styles.cardHint}>
-          Whole-number riders deployed daily across selected locations.
+          Riders working each day, split across your selected locations.
         </Text>
       </Card>
-
-      {/* Bidirectional Triad Flow Indicator */}
-      <View style={styles.flowArrowContainer}>
-        <View style={styles.flowLine} />
-        <View style={styles.flowIconWrap}>
-          <Ionicons name="swap-vertical" size={16} color={colors.primary} />
-        </View>
-        <View style={styles.flowLine} />
-      </View>
 
       {/* 3. CAMPAIGN DURATION CARD */}
       <Card style={styles.card}>
@@ -329,21 +210,6 @@ export default function CampaignPlanner({
           <View style={styles.fieldTitleRow}>
             <Ionicons name="calendar" size={18} color={colors.primary} />
             <Text style={styles.cardLabel}>CAMPAIGN DURATION</Text>
-          </View>
-          <View
-            style={[
-              styles.modeBadge,
-              lastChangedField === 'duration' ? styles.modeBadgeUser : styles.modeBadgeAuto,
-            ]}
-          >
-            <Text
-              style={[
-                styles.modeBadgeText,
-                lastChangedField === 'duration' ? styles.modeBadgeTextUser : styles.modeBadgeTextAuto,
-              ]}
-            >
-              {lastChangedField === 'duration' ? 'User set' : 'Auto calculated'}
-            </Text>
           </View>
         </View>
 
@@ -362,7 +228,7 @@ export default function CampaignPlanner({
           </TouchableOpacity>
 
           <View style={styles.valueDisplay}>
-            <Text style={styles.valueNumber}>{curDuration}</Text>
+            <NumberInput style={styles.valueNumber} value={curDuration} onCommit={handleDurationChange} />
             <Text style={styles.valueUnit}>Days Active</Text>
           </View>
 
@@ -398,7 +264,7 @@ export default function CampaignPlanner({
           <View style={styles.dateSyncRow}>
             <Ionicons name="time-outline" size={14} color={colors.textMuted} />
             <Text style={styles.dateSyncText}>
-              Dates synced: {formatDateRange(startDate, endDate)}
+              Campaign dates: {formatDateRange(startDate, endDate)}
             </Text>
           </View>
         )}
@@ -412,13 +278,6 @@ export default function CampaignPlanner({
         </View>
 
         <View style={styles.summaryDivider} />
-
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryKey}>Campaign Budget</Text>
-          <Text style={[styles.summaryVal, styles.summaryValPrimary]}>
-            {formatINR(curBudget)}
-          </Text>
-        </View>
 
         <View style={styles.summaryRow}>
           <Text style={styles.summaryKey}>Riders</Text>
@@ -436,20 +295,16 @@ export default function CampaignPlanner({
         </View>
 
         <View style={[styles.summaryRow, styles.summaryRowTotal]}>
-          <Text style={styles.summaryKeyBold}>Estimated Value</Text>
-          <Text style={styles.summaryValBold}>{formatINR(estimatedCampaignValue)}</Text>
+          <Text style={styles.summaryKeyBold}>Campaign Budget</Text>
+          <Text style={styles.summaryValBold}>{formatINR(curBudget)}</Text>
         </View>
       </Card>
 
-      {/* 5. Planning Rate Note */}
       <View style={styles.rateNotice}>
         <Ionicons name="information-circle-outline" size={16} color={colors.textMuted} />
         <View style={{ flex: 1 }}>
-          <Text style={styles.rateNoticeText}>
-            Planning rate: {formatINR(planningRate)} / rider-day (FlexRiders standard estimate).
-          </Text>
           <Text style={styles.rateNoticeSub}>
-            Customer's planner is an estimation tool. FlexRiders admin remains the authority for official daily rate, brand contract value, and commercial terms confirmed upon approval.
+            The rider payout per day is set by FlexRiders when we approve your campaign. Our team confirms the final terms with you.
           </Text>
         </View>
       </View>
@@ -550,27 +405,6 @@ const makeStyles = (colors) =>
       fontWeight: '600',
       color: colors.textMuted,
     },
-    modeBadge: {
-      paddingHorizontal: 8,
-      paddingVertical: 3,
-      borderRadius: 8,
-    },
-    modeBadgeUser: {
-      backgroundColor: colors.primarySoft,
-    },
-    modeBadgeAuto: {
-      backgroundColor: colors.surfaceAlt,
-    },
-    modeBadgeText: {
-      fontSize: 11,
-      fontWeight: '700',
-    },
-    modeBadgeTextUser: {
-      color: colors.primary,
-    },
-    modeBadgeTextAuto: {
-      color: colors.textMuted,
-    },
     budgetInputRow: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -646,6 +480,11 @@ const makeStyles = (colors) =>
       fontSize: 30,
       fontWeight: '800',
       color: colors.text,
+      textAlign: 'center',
+      minWidth: 72,
+      paddingVertical: 0,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
     },
     valueUnit: {
       fontSize: 12,
@@ -658,28 +497,6 @@ const makeStyles = (colors) =>
       color: colors.textSubtle,
       marginTop: 8,
       textAlign: 'center',
-    },
-    flowArrowContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingVertical: 2,
-    },
-    flowLine: {
-      flex: 1,
-      height: 1,
-      backgroundColor: colors.border,
-    },
-    flowIconWrap: {
-      width: 28,
-      height: 28,
-      borderRadius: 14,
-      backgroundColor: colors.surface,
-      borderWidth: 1,
-      borderColor: colors.border,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginHorizontal: 8,
     },
     dateSyncRow: {
       flexDirection: 'row',

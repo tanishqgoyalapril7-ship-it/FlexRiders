@@ -51,7 +51,7 @@ export default function ConfirmSheet({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={busy ? undefined : onClose}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <Pressable style={styles.backdrop} onPress={busy ? undefined : onClose} />
         <View style={styles.sheet} accessibilityViewIsModal>
           <View style={styles.header}>

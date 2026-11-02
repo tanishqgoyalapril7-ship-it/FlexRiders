@@ -114,6 +114,7 @@ export const VEHICLE_MODELS_BY_CATEGORY = {
     'Hero Sprint', 'Hero Ranger', 'Hercules Roadeo', 'Hercules Top Gear', 'Atlas Goldline', 'Avon Cycle',
     'BSA Champ', 'Firefox Road Runner', 'Btwin (Decathlon)', 'Rockrider (Decathlon)', 'Montra', 'Electric Cycle',
   ],
+  E_BIKE: ['Yulu Miracle', 'Yulu Dex', 'Yulu Wynn', 'Hero Electric Flash', 'Okinawa R30', 'Ampere Reo', 'Komaki XGT', 'EMotorad', 'Electric Cycle'],
   TWO_WHEELER: VEHICLE_MODELS.filter((m) => !['Bicycle', 'Electric Cycle'].includes(m)),
   AUTO: ['Bajaj RE', 'Bajaj Maxima', 'Piaggio Ape City', 'TVS King', 'Mahindra Treo', 'Mahindra Alfa', 'Atul Gem', 'Kinetic Safar', 'E-Rickshaw'],
   THREE_WHEELER: ['Piaggio Ape Xtra', 'Bajaj Maxima Cargo', 'Mahindra Alfa Load', 'Mahindra Treo Zor', 'TVS King Kargo', 'Atul Gemini Cargo', 'Euler HiLoad', 'E-Loader'],

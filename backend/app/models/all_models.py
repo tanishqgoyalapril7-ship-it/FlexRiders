@@ -132,7 +132,7 @@ class Rider(Base):
 
 
 class RiderWorkingArea(Base):
-    """One of up to three areas a rider usually works in. A prioritisation signal for campaign matching,
+    """One of the areas a rider usually works in (up to geo_service.MAX_WORKING_AREAS). A prioritisation signal for campaign matching,
     never a hard restriction and never treated as the rider's current location."""
 
     __tablename__ = "rider_working_areas"

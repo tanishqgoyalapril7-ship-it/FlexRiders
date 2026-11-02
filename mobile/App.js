@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, AppState, BackHandler, Linking, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { registerRootComponent } from 'expo';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { getAuthRole, getAuthToken, loadStoredToken, mobileApi, setAuthToken } from './src/services/api';
 import { ThemeProvider, useStyles, useTheme } from './src/theme';
@@ -26,6 +27,7 @@ import ProfileScreen from './src/screens/ProfileScreen';
 import ReferScreen from './src/screens/ReferScreen';
 // Registers the background route task at startup (it must exist before location updates arrive).
 import { stopRoute } from './src/services/routeTracker';
+import { clearPhotoReminders, onReminderTap, syncPhotoReminders } from './src/services/photoReminders';
 import SupportScreen from './src/screens/SupportScreen';
 import CampaignsScreen from './src/screens/CampaignsScreen';
 import CampaignDetailScreen from './src/screens/CampaignDetailScreen';
@@ -65,6 +67,11 @@ const EMPTY_RIDER = {
 };
 
 // Notifications open from the Home bell (and Profile → Settings), not from the tab bar.
+// Set once the rider has seen the location explanation (Allow or Not now), so it never repeats.
+const LOCATION_EXPLAINED_KEY = 'flexriders.locationExplained';
+// Set once anyone has logged in or signed up on this phone. Until then (a fresh install) the app opens on Sign Up.
+const KNOWN_DEVICE_KEY = 'flexriders.knownDevice';
+
 const TABS = [
   { key: 'home', label: 'Home', icon: 'home' },
   { key: 'campaigns', label: 'Campaigns', icon: 'megaphone' },
@@ -161,6 +168,21 @@ function RiderApp() {
   const [screen, setScreen] = useState('loading');
   const { t: translate, chosen: languageChosen } = useT();
   const [introStep, setIntroStep] = useState('walk');
+  const [knownDevice, setKnownDevice] = useState(false);
+  const [registerFrom, setRegisterFrom] = useState('login'); // Where Back leaves the sign-up screen
+  useEffect(() => {
+    AsyncStorage.getItem(KNOWN_DEVICE_KEY).then((v) => v && setKnownDevice(true)).catch(() => {});
+  }, []);
+  const markKnownDevice = () => {
+    setKnownDevice(true);
+    AsyncStorage.setItem(KNOWN_DEVICE_KEY, '1').catch(() => {});
+  };
+  const openSignup = (from) => {
+    setRegisterFrom(from);
+    setScreen('register');
+  };
+  // After the walkthrough: a fresh install starts on Sign Up, anyone else on the Rider / Brand start screen.
+  const finishIntro = () => (knownDevice ? setScreen('splash') : openSignup('splash'));
   // loading | intro | splash | login | forgot | change-password | terms | register | main
   // Signed out: the walkthrough shows on every launch; the language step only until a language is chosen.
   const [consent, setConsent] = useState(null); // Terms & Privacy status when a newer version needs accepting
@@ -184,6 +206,8 @@ function RiderApp() {
   // A campaign link (superriders://campaign/ID, from the public campaign page) opens that campaign after login.
   const [referralCode, setReferralCode] = useState('');
   const [linkedCampaign, setLinkedCampaign] = useState(null);
+  // Tapping a photo reminder opens its campaign (also when the tap launched the app).
+  useEffect(() => onReminderTap((id) => setLinkedCampaign(id)), []);
   useEffect(() => {
     const handle = (url) => {
       const campaignMatch = /campaign\/(\d+)/.exec(url || '');
@@ -191,6 +215,7 @@ function RiderApp() {
       const match = /[?&]ref=([A-Za-z0-9]+)/.exec(url || '');
       if (match && !getAuthToken()) {
         setReferralCode(match[1].toUpperCase());
+        setRegisterFrom('splash');
         setScreen('register');
       }
     };
@@ -208,6 +233,7 @@ function RiderApp() {
   const logout = useCallback(async () => {
     // Stop location sharing and upload the last points while still signed in.
     await stopRoute().catch(() => {});
+    await clearPhotoReminders();
     setAuthToken('', '');
     consentChecked.current = false;
     setConsent(null);
@@ -256,7 +282,10 @@ function RiderApp() {
     if (earningsData) setEarnings(toEarnings(earningsData));
     if (paymentData) setPayments((paymentData.payments || []).map(toPayment));
     if (Array.isArray(notificationData)) setNotifications(notificationData.map(toNotification));
-    if (campaignData) setCampaigns(campaignData);
+    if (campaignData) {
+      setCampaigns(campaignData);
+      syncPhotoReminders(campaignData.active); // phone reminders for today's and the next days' photo windows
+    }
     return true;
   }, [logout]);
 
@@ -338,16 +367,17 @@ function RiderApp() {
     [refreshData, sendLocation, applyFix]
   );
 
-  // Signed-in riders: read location on the main screen (the OS prompt shows once, automatically), and
-  // re-check whenever the app comes back to the foreground, e.g. after turning Location on in Settings.
+  // Signed-in riders: read location on the main screen, and re-check whenever the app comes back to the
+  // foreground, e.g. after turning Location on in Settings. The "why we need location" screen shows only
+  // once per install: Android reports "undetermined" again after "Only this time" or a dismissed prompt,
+  // which used to bring the screen back on every launch. Riders can still turn location on from Home.
   const locationPrompted = useRef(false);
   useEffect(() => {
     if (screen !== 'main') return undefined;
     if (!locationPrompted.current) {
       locationPrompted.current = true;
-      getLocationStatus().then((st) =>
-        // Never asked yet: explain why first (the OS prompt shows when the rider taps Allow).
-        st.permission === 'undetermined' && st.canAskAgain ? setScreen('post-location') : refreshLocation(false)
+      Promise.all([getLocationStatus(), AsyncStorage.getItem(LOCATION_EXPLAINED_KEY).catch(() => null)]).then(([st, explained]) =>
+        st.permission === 'undetermined' && st.canAskAgain && !explained ? setScreen('post-location') : refreshLocation(false)
       );
     } else {
       refreshLocation(false);
@@ -390,6 +420,7 @@ function RiderApp() {
       // A fix from a previous session isn't current: location is read fresh on the main screen.
       const token = await loadStoredToken();
       const role = getAuthRole();
+      if (token) markKnownDevice(); // Users updating the app while logged in never see the first-install flow
       if (token && role === 'CUSTOMER') {
         await minSplash;
         setScreen('customer-main');
@@ -416,6 +447,7 @@ function RiderApp() {
   }, [screen, poll]);
 
   const handleLoggedIn = async (login) => {
+    markKnownDevice();
     if (login && login.role === 'CUSTOMER') {
       setScreen('customer-main');
       return;
@@ -428,7 +460,7 @@ function RiderApp() {
     if (result === 'CHANGE_PASSWORD' || result === 'TERMS') return;
     if (result === false) {
       Alert.alert('Complete your registration', 'This number is not registered as a rider yet. Please complete the registration form.');
-      setScreen('register');
+      openSignup('login');
       return;
     }
     setTab('home');
@@ -436,11 +468,13 @@ function RiderApp() {
   };
 
   const handleCustomerLoggedIn = () => {
+    markKnownDevice();
     setScreen('customer-main');
   };
 
   // After sign-up: document status → working areas → location pre-prompt → Home.
   const handleRegistered = async () => {
+    markKnownDevice();
     await refreshData();
     setTab('home');
     setScreen('post-verify');
@@ -504,7 +538,7 @@ function RiderApp() {
         return true;
       }
       if (screen === 'register') {
-        setScreen('login');
+        setScreen(registerFrom);
         return true;
       }
       if (screen === 'forgot') {
@@ -679,7 +713,7 @@ function RiderApp() {
 
       {screen === 'loading' && <BootSplash />}
 
-      {screen === 'intro' && (introStep === 'walk' ? <Walkthrough onDone={() => (languageChosen ? setScreen('splash') : setIntroStep('lang'))} /> : <LanguageScreen onDone={() => setScreen('splash')} onBack={() => setIntroStep('walk')} />)}
+      {screen === 'intro' && (introStep === 'walk' ? <Walkthrough onDone={() => (languageChosen ? finishIntro() : setIntroStep('lang'))} /> : <LanguageScreen onDone={finishIntro} onBack={() => setIntroStep('walk')} />)}
 
       {isSplash && (
         <RoleScreen
@@ -687,10 +721,11 @@ function RiderApp() {
             setIntroStep('lang');
             setScreen('intro');
           }}
-          onRider={() => {
+          onRiderLogin={() => {
             setLoginWithOtp(false);
             setScreen('login');
           }}
+          onRiderSignup={() => openSignup('splash')}
           onBrand={() => setScreen('customer-login')}
         />
       )}
@@ -700,7 +735,7 @@ function RiderApp() {
           initialOtpMode={loginWithOtp}
           onBack={() => setScreen('splash')}
           onLoggedIn={handleLoggedIn}
-          onRegister={() => setScreen('register')}
+          onRegister={() => openSignup('login')}
           onCustomerLogin={() => setScreen('customer-login')}
           onForgot={(phone) => {
             setForgotFor(phone || '');
@@ -778,7 +813,13 @@ function RiderApp() {
       )}
 
       {screen === 'register' && (
-        <RiderSignup onBack={() => setScreen('login')} onLogin={() => setScreen('login')} onRegistered={handleRegistered} initialReferralCode={referralCode} />
+        <RiderSignup
+          onBack={() => setScreen(registerFrom)}
+          onLogin={() => setScreen('login')}
+          onBrandLogin={() => setScreen('customer-login')}
+          onRegistered={handleRegistered}
+          initialReferralCode={referralCode}
+        />
       )}
 
       {screen === 'post-verify' && (
@@ -796,10 +837,12 @@ function RiderApp() {
         <LocationPrompt
           onBack={() => setScreen('post-areas')}
           onAllow={() => {
+            AsyncStorage.setItem(LOCATION_EXPLAINED_KEY, '1').catch(() => {});
             setScreen('main');
             refreshLocation(true);
           }}
           onSkip={() => {
+            AsyncStorage.setItem(LOCATION_EXPLAINED_KEY, '1').catch(() => {});
             setScreen('main');
             setLocationState('DENIED');
           }}

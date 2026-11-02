@@ -13,7 +13,10 @@ import { formatDate, formatINR } from '../../utils';
 import { getRouteState, hasBackgroundPermission, istDate, pauseRoute, startRoute, stopRoute, unpauseRoute } from '../../services/routeTracker';
 
 
-const SLOT_ICONS = { MORNING: 'sunny-outline', EVENING: 'partly-sunny-outline', NIGHT: 'moon-outline' };
+const SLOT_ICONS = { MORNING: 'sunny', EVENING: 'partly-sunny', NIGHT: 'moon' };
+// Each photo slot keeps one colour everywhere (tiles and Daily Activity), like the store screenshots.
+const SLOT_COLORS = { MORNING: '#F59E0B', EVENING: '#EA580C', NIGHT: '#6366F1' };
+const STREAK_ORANGE = '#F97316';
 const to12h = (t) => {
   if (!t) return '';
   const [h, m] = t.split(':').map(Number);
@@ -61,7 +64,7 @@ function SlotTiles({ campaign }) {
       {['MORNING', 'EVENING', 'NIGHT'].map((k) =>
         w[k] ? (
           <View key={k} style={s.tile}>
-            <Ionicons name={SLOT_ICONS[k]} size={22} color={colors.primary} />
+            <Ionicons name={SLOT_ICONS[k]} size={22} color={SLOT_COLORS[k]} />
             <Text style={s.tileTitle}>{k.charAt(0) + k.slice(1).toLowerCase()}</Text>
             <Text style={s.tileSub}>{to12h(w[k][0]).replace(':00', '')} – {to12h(w[k][1]).replace(':00', '')}</Text>
           </View>
@@ -310,22 +313,22 @@ export function ActiveCampaignView({ campaign, onBack, onDaily, onDetails }) {
           </View>
           <View style={[s.dot, { backgroundColor: tracking ? colors.success : colors.border, width: 12, height: 12, borderRadius: 6 }]} />
         </View>
-        <View style={s.divider} />
         <View style={s.stats}>
-          <View style={{ flex: 1 }}>
+          <View style={s.stat}>
             <Text style={s.muted}>Start Time</Text>
             <Text style={s.statValue}>{clock(startedAt)}</Text>
           </View>
-          <View style={{ flex: 1 }}>
+          <View style={s.statDivider} />
+          <View style={s.stat}>
             <Text style={s.muted}>Elapsed</Text>
             <Text style={s.statValue}>{elapsedMin == null ? '—' : `${Math.floor(elapsedMin / 60)}h ${elapsedMin % 60}m`}</Text>
           </View>
-          <View style={{ flex: 1 }}>
+          <View style={s.statDivider} />
+          <View style={s.stat}>
             <Text style={s.muted}>Distance</Text>
             <Text style={s.statValue}>{route ? `${route.distance_km} km` : '—'}</Text>
           </View>
         </View>
-        <View style={s.divider} />
         {state && state.other ? (
           <Text style={s.muted}>A route is already recording for another campaign.</Text>
         ) : tracking ? (
@@ -397,16 +400,20 @@ export function DailyActivityView({ campaign, busy, onTake, onBack, extras }) {
           const missed = slot.status === 'NOT_STARTED' && nowHM > slot.window.end;
           const canTake = p.can_submit_today && (slot.status === 'NOT_STARTED' || slot.status === 'REJECTED') && !upcoming && !missed;
           return (
-            <Card key={slot.slot} style={[s.gap, upcoming && { backgroundColor: colors.surfaceAlt }]}>
+            <Card key={slot.slot} style={[s.gap, canTake && s.slotCardActive]}>
               <View style={s.rowBetween}>
-                <View style={[s.slotIcon, { backgroundColor: upcoming ? colors.border : canTake ? colors.warningSoft : colors.primarySoft }]}>
-                  <Ionicons name={upcoming ? 'time-outline' : 'camera-outline'} size={22} color={upcoming ? colors.textMuted : canTake ? colors.warning : colors.primary} />
+                <View style={[s.slotIcon, { backgroundColor: upcoming || missed ? colors.surfaceAlt : slot.status === 'APPROVED' ? colors.successSoft : colors.primarySoft }]}>
+                  <Ionicons
+                    name={SLOT_ICONS[slot.slot] || 'camera'}
+                    size={22}
+                    color={upcoming || missed ? colors.textSubtle : slot.status === 'APPROVED' ? colors.success : SLOT_COLORS[slot.slot] || colors.primary}
+                  />
                 </View>
                 <View style={{ flex: 1, marginLeft: 12 }}>
                   <Text style={[s.cardTitle, upcoming && { color: colors.textMuted }]}>{slot.label} Session</Text>
                   <Text style={s.muted}>{to12h(slot.window.start)} - {to12h(slot.window.end)}</Text>
                 </View>
-                {label ? <Badge label={label} tone={tone} /> : upcoming ? <Text style={s.upcoming}>UPCOMING</Text> : missed ? <Badge label="MISSED" tone="danger" /> : <Badge label="REQUIRED" tone="warning" />}
+                {label ? <Badge label={label} tone={tone} icon={slot.status === 'APPROVED' ? 'checkmark-circle' : undefined} /> : upcoming ? <Text style={s.upcoming}>UPCOMING</Text> : missed ? <Badge label="MISSED" tone="danger" /> : <Badge label="REQUIRED" tone="warning" />}
               </View>
               {slot.photo_url ? (
                 <View style={[s.rowBetween, { marginTop: 12, justifyContent: 'flex-start', gap: 12 }]}>
@@ -424,7 +431,7 @@ export function DailyActivityView({ campaign, busy, onTake, onBack, extras }) {
       <Card style={s.gap}>
         <View style={s.rowBetween}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <Ionicons name="flame-outline" size={22} color={colors.danger} />
+            <Ionicons name="flame" size={22} color={STREAK_ORANGE} />
             <Text style={s.cardTitle}>{p.current_streak || 0} Day Streak</Text>
           </View>
           <Text style={s.muted}>Longest {p.longest_streak || 0}</Text>
@@ -435,7 +442,7 @@ export function DailyActivityView({ campaign, busy, onTake, onBack, extras }) {
             return (
               <View key={d.date} style={{ alignItems: 'center', gap: 6 }}>
                 <Text style={s.muted}>{new Date(`${d.date}T00:00:00`).toLocaleDateString('en-GB', { weekday: 'short' })}</Text>
-                <View style={[s.weekDot, done && { backgroundColor: colors.primary }]}>
+                <View style={[s.weekDot, done && { backgroundColor: colors.success }]}>
                   {done ? <Ionicons name="checkmark" size={16} color="#FFFFFF" /> : <View style={s.weekInner} />}
                 </View>
               </View>
@@ -497,10 +504,13 @@ const makeStyles = (c) =>
     backCircle: { width: 42, height: 42, borderRadius: 21, backgroundColor: c.surface, alignItems: 'center', justifyContent: 'center' },
     floatingTitle: { flex: 1, fontSize: 20, fontWeight: '800', color: c.text, textShadowColor: 'rgba(255,255,255,0.9)', textShadowRadius: 6 },
     panel: { backgroundColor: c.surface, borderTopLeftRadius: 26, borderTopRightRadius: 26, padding: 20, marginTop: -24 },
-    stats: { flexDirection: 'row' },
+    stats: { flexDirection: 'row', backgroundColor: c.surfaceAlt, borderRadius: 16, paddingVertical: 12, marginVertical: 16 },
+    stat: { flex: 1, alignItems: 'center' },
+    statDivider: { width: 1, alignSelf: 'stretch', backgroundColor: c.border },
     statValue: { fontSize: 19, fontWeight: '800', color: c.text, marginTop: 4 },
     secondary: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12, borderRadius: 14, backgroundColor: c.primarySoft },
     secondaryText: { color: c.primary, fontWeight: '700', fontSize: 14 },
+    slotCardActive: { borderColor: c.primary, shadowColor: c.primary, shadowOpacity: 0.14, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 3 },
     slotIcon: { width: 48, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
     upcoming: { fontSize: 13, fontWeight: '700', color: c.textMuted, letterSpacing: 0.4 },
     proof: { width: 64, height: 48, borderRadius: 8, backgroundColor: c.surfaceAlt },

@@ -37,6 +37,7 @@ export default function EarningsScreen({ rider, earnings, onBack, onViewAll, onE
     <ScrollView style={s.screen} contentContainerStyle={s.content}>
       <Header title={t('Earnings')} onBack={onBack} circle={false} />
       <View style={s.hero}>
+        <View style={s.heroGlow} pointerEvents="none" />
         <Text style={s.heroLabel}>{t('Total Earned')}</Text>
         <Text style={s.heroValue}>{formatINR(earnings.total)}</Text>
         <View style={s.heroDivider} />
@@ -118,7 +119,8 @@ const makeStyles = (c) =>
   StyleSheet.create({
     screen: { flex: 1, backgroundColor: c.background },
     content: { paddingHorizontal: 20, paddingBottom: 32 },
-    hero: { backgroundColor: c.hero, borderRadius: 24, padding: 22 },
+    hero: { backgroundColor: c.hero, borderRadius: 24, padding: 22, overflow: 'hidden' },
+    heroGlow: { position: 'absolute', width: 220, height: 220, borderRadius: 110, backgroundColor: 'rgba(59, 130, 246, 0.28)', top: -90, right: -70 },
     heroLabel: { color: '#C7D2FE', fontSize: 14 },
     heroValue: { color: '#FFFFFF', fontSize: 40, fontWeight: '800', marginTop: 6 },
     heroSmall: { color: '#FFFFFF', fontSize: 20, fontWeight: '800', marginTop: 4 },

@@ -37,7 +37,7 @@ function EditCompany({ profile, onClose, onSaved }) {
   };
   return (
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+      <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={{ padding: 24 }} keyboardShouldPersistTaps="handled">
           <Header title="Company Details" onBack={onClose} />
           <Field label="Contact person" value={form.full_name} onChangeText={set('full_name')} />

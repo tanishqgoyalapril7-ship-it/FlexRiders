@@ -195,6 +195,8 @@ export default function HomeScreen({ rider, campaigns, unreadCount, onNavigate, 
   }
 
   // In a campaign: map on top, then the recommendations, the active campaign and today's photo slots.
+  // With no other campaigns near the rider, the recommendations section is left out entirely.
+  const showRecommended = !campaigns || all.length > 0;
   return (
     <View style={s.screen}>
       <ScrollView contentContainerStyle={{ paddingBottom: 28 }} showsVerticalScrollIndicator={false}>
@@ -205,7 +207,7 @@ export default function HomeScreen({ rider, campaigns, unreadCount, onNavigate, 
         </View>
 
         <View style={s.body}>
-          {recommended}
+          {showRecommended ? recommended : null}
           <View style={s.sectionHead}>
             <View>
               <Text style={s.sectionTitle}>{active ? 'Active Campaign' : 'Join Request'}</Text>

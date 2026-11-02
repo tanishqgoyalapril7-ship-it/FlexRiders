@@ -119,7 +119,7 @@ def test_rider_sees_campaign_only_in_reach_and_after_expansion(client, db_sessio
     assert campaign["id"] in [c["id"] for c in listed(client, far, km_north(TARGET, 3))["available"]]
 
 
-def test_working_areas_max_three_and_prioritise(client, db_session, admin_headers, brand_id):
+def test_working_areas_limit_and_prioritise(client, db_session, admin_headers, brand_id):
     near_area = km_north(TARGET, 0.5)
     first = geo_campaign(client, admin_headers, brand_id)
     # A second campaign whose target is 1 km south: the rider is equally close to both.
@@ -127,8 +127,13 @@ def test_working_areas_max_three_and_prioritise(client, db_session, admin_header
     db_session.get(Campaign, second["id"]).target_lat = TARGET[0] - 2 / 111.2
     db_session.commit()
     _, headers = make_rider(client, db_session, "9300000004")
-    areas = [{"label": f"Area {i}", "lat": near_area[0], "lng": near_area[1] + i * 0.001} for i in range(4)]
+    from app.services.geo_service import MAX_WORKING_AREAS
+
+    areas = [{"label": f"Area {i}", "lat": near_area[0], "lng": near_area[1] + i * 0.001} for i in range(MAX_WORKING_AREAS + 1)]
     assert client.put(f"{API}/riders/me/working-areas", json={"areas": areas}, headers=headers).status_code == 422
+    # More than three areas are fine (the old limit), up to the maximum.
+    res = client.put(f"{API}/riders/me/working-areas", json={"areas": areas[:MAX_WORKING_AREAS]}, headers=headers)
+    assert res.status_code == 200 and len(res.json()["areas"]) == MAX_WORKING_AREAS
     res = client.put(f"{API}/riders/me/working-areas", json={"areas": areas[:1]}, headers=headers)
     assert res.status_code == 200 and res.json()["areas"][0]["label"] == "Area 0"
     # Standing 1 km south of `first` (1 km north of `second`): `first` matches the working area, so it's first.

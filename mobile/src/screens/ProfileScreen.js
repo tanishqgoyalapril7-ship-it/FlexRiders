@@ -75,7 +75,7 @@ function EditProfileModal({ rider, visible, onClose, onSaved }) {
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={[styles.screen, { paddingTop: 12 }]}>
+      <KeyboardAvoidingView behavior="padding" style={[styles.screen, { paddingTop: 12 }]}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
           <ScreenHeader title="Edit Profile" onBack={onClose} />
           <DateOfBirthField label="Date of Birth" value={form.dob} onChange={set('dob')} />

@@ -196,35 +196,40 @@ export function LanguageScreen({ onDone, onBack }) {
   );
 }
 
-export function RoleScreen({ onRider, onBrand, onBack }) {
+/** Start screen: rider login is the main action, sign-up is next to it, and brands get a smaller link. */
+export function RoleScreen({ onRiderLogin, onRiderSignup, onBrand, onBack }) {
   const s = useStyles(makeStyles);
   const { colors } = useTheme();
   const { t } = useT();
-  const [role, setRole] = useState('RIDER');
   return (
-    <Screen scroll={false} footer={<Button label={t('Next Step')} onPress={() => (role === 'RIDER' ? onRider() : onBrand())} />}>
+    <Screen
+      scroll={false}
+      footer={
+        <View style={{ gap: 12 }}>
+          <Button label={t('Login as Rider')} icon="bicycle-outline" onPress={onRiderLogin} />
+          <Button label={t('New rider? Sign Up')} tone="outline" onPress={onRiderSignup} />
+          <TouchableOpacity onPress={onBrand} style={s.brandLink} hitSlop={8} accessibilityRole="button">
+            <Ionicons name="megaphone-outline" size={14} color={colors.textMuted} />
+            <Text style={s.brandText}>
+              {t('Are you a brand?')} <Text style={s.brandStrong}>{t('Login as Brand')}</Text>
+            </Text>
+          </TouchableOpacity>
+        </View>
+      }
+    >
       {onBack ? (
         <TouchableOpacity onPress={onBack} style={{ paddingTop: 16 }} hitSlop={10} accessibilityLabel="Back">
           <Ionicons name="chevron-back" size={26} color={colors.text} />
         </TouchableOpacity>
       ) : null}
-      <View style={{ flex: 1, justifyContent: 'center' }}>
-        <Text style={s.bigTitle}>{t('How would you like to use FlexRiders?')}</Text>
-        <Text style={s.bigSub}>{t('Select your profile type to proceed with registration.')}</Text>
-        <OptionCard
-          selected={role === 'RIDER'}
-          onPress={() => setRole('RIDER')}
-          icon="bicycle-outline"
-          title={t('Continue as Rider')}
-          text={t('Ride daily, carry brand campaigns and earn for every approved day.')}
-        />
-        <OptionCard
-          selected={role === 'BRAND'}
-          onPress={() => setRole('BRAND')}
-          icon="megaphone-outline"
-          title={t('Continue as Brand')}
-          text={t('Launch hyper-local campaigns with verified riders.')}
-        />
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <View style={s.pinHalo}>
+          <View style={s.pin}>
+            <Ionicons name="bicycle" size={48} color="#FFFFFF" />
+          </View>
+        </View>
+        <Text style={[s.bigTitle, { textAlign: 'center', marginTop: 32 }]}>{t('Ride with FlexRiders')}</Text>
+        <Text style={[s.bigSub, { textAlign: 'center' }]}>{t('Ride daily, carry brand campaigns and earn for every approved day.')}</Text>
       </View>
     </Screen>
   );
@@ -294,6 +299,9 @@ const makeStyles = (c) =>
     bigTitle: { fontSize: 28, fontWeight: '800', color: c.text, lineHeight: 34 },
     bigSub: { fontSize: 16, color: c.textMuted, marginTop: 10, marginBottom: 28, lineHeight: 22 },
     notNow: { color: c.textMuted, fontSize: 16, fontWeight: '700' },
+    brandLink: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 6 },
+    brandText: { fontSize: 14, color: c.textMuted },
+    brandStrong: { color: c.primary, fontWeight: '700' },
     pinHalo: { width: 170, height: 170, borderRadius: 85, backgroundColor: c.primarySoft, alignItems: 'center', justifyContent: 'center' },
     pin: { width: 110, height: 110, borderRadius: 55, backgroundColor: c.primary, alignItems: 'center', justifyContent: 'center' },
     note: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 12, padding: 10, marginTop: -10 },

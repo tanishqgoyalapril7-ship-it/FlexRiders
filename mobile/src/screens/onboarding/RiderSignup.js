@@ -10,7 +10,7 @@ import { useStyles, useTheme } from '../../theme';
 import { useT } from '../../i18n';
 import { Badge, Button, Card, Field, Header, LinkText, Screen, Title } from '../../components/ds';
 import SelfieCapture from '../../components/SelfieCapture';
-import { DateOfBirthField, ageOn, vehicleNumberOptional } from '../../components/formFields';
+import { DateOfBirthField, ageOn, usesOwnershipProof, vehicleProofDocType } from '../../components/formFields';
 import { TermsCheckbox, TERMS_URL, PRIVACY_URL } from '../TermsConsentScreen';
 import { VEHICLE_MODELS_BY_CATEGORY, isValidVehicleNumber, normalizeVehicleNumber } from '../../data/suggestions';
 
@@ -33,6 +33,7 @@ export const ID_TYPES = [
 ];
 export const VEHICLES = [
   ['CYCLE', 'Cycle', 'bicycle-outline'],
+  ['E_BIKE', 'E-Bike', 'flash-outline'],
   ['TWO_WHEELER', 'Bike', 'speedometer-outline'],
   ['AUTO', 'Auto', 'car-outline'],
   ['THREE_WHEELER', '3 Wheeler', 'cube-outline'],
@@ -105,7 +106,7 @@ export function VehicleFields({ value, onChange, file, onPickFile, proofRequired
   const s = useStyles(makeStyles);
   const { colors } = useTheme();
   const { t } = useT();
-  const needsPlate = value.vehicle_category && !vehicleNumberOptional(value.vehicle_category);
+  const noRc = usesOwnershipProof(value.vehicle_category);
   return (
     <>
       <Text style={s.label}>{t('Select Vehicle Type')}</Text>
@@ -133,16 +134,24 @@ export function VehicleFields({ value, onChange, file, onPickFile, proofRequired
         </View>
       ) : null}
       <Field
-        label={needsPlate ? 'Registration Number' : 'Vehicle Frame/Serial Number (Optional)'}
+        label={t('Vehicle Number Plate')}
+        right={t('OPTIONAL')}
         value={value.vehicle_number}
         onChangeText={(v) => onChange({ vehicle_number: v })}
         autoCapitalize="characters"
-        placeholder={needsPlate ? 'e.g. HR26DK8337' : 'Enter serial number if available'}
+        placeholder="e.g. HR26DK8337"
+        hint="You can skip this if your vehicle has no number plate."
       />
       {proofRequired ? (
         <>
-          <Text style={s.label}>{value.vehicle_category === 'CYCLE' ? 'Proof of Ownership / Purchase Bill' : 'Vehicle RC'}</Text>
-          <UploadBox file={file} onPick={onPickFile} hint="Upload clear photo of bill, RC or frame serial tag (Max 8 MB)" />
+          <Text style={s.label}>
+            {value.vehicle_category === 'E_BIKE' ? 'Purchase Bill / Rental Proof' : noRc ? 'Proof of Ownership / Purchase Bill' : 'Vehicle RC'}
+          </Text>
+          <UploadBox
+            file={file}
+            onPick={onPickFile}
+            hint={value.vehicle_category === 'E_BIKE' ? 'Bill, or a screenshot of your rental (e.g. Yulu) (Max 8 MB)' : 'Upload clear photo of bill, RC or frame serial tag (Max 8 MB)'}
+          />
         </>
       ) : null}
     </>
@@ -191,7 +200,7 @@ export function CodeBoxes({ value, onChange, length = 6 }) {
   );
 }
 
-export default function RiderSignup({ onBack, onLogin, onRegistered, initialReferralCode = '' }) {
+export default function RiderSignup({ onBack, onLogin, onBrandLogin, onRegistered, initialReferralCode = '' }) {
   const s = useStyles(makeStyles);
   const { colors } = useTheme();
   const { t } = useT();
@@ -299,8 +308,8 @@ export default function RiderSignup({ onBack, onLogin, onRegistered, initialRefe
 
   const submit = async () => {
     if (!f.vehicle_category) return Alert.alert('Vehicle', 'Select your vehicle type.');
-    if (!vehicleNumberOptional(f.vehicle_category) && !isValidVehicleNumber(f.vehicle_number))
-      return Alert.alert('Registration number', 'Enter your vehicle registration number, e.g. HR26DK8337.');
+    if (f.vehicle_number.trim() && !isValidVehicleNumber(f.vehicle_number))
+      return Alert.alert('Number plate', 'Check the number plate, e.g. HR26DK8337, or leave it empty.');
     setBusy(true);
     try {
       const result = await mobileApi.register({
@@ -323,7 +332,7 @@ export default function RiderSignup({ onBack, onLogin, onRegistered, initialRefe
       const failed = [];
       if (idFile) await mobileApi.uploadDocument(idType, idFile).catch(() => failed.push('ID'));
       if (vehicleFile)
-        await mobileApi.uploadDocument(f.vehicle_category === 'CYCLE' ? 'VEHICLE_PROOF' : 'VEHICLE_RC', vehicleFile).catch(() => failed.push('vehicle proof'));
+        await mobileApi.uploadDocument(vehicleProofDocType(f.vehicle_category), vehicleFile).catch(() => failed.push('vehicle proof'));
       if (failed.length) Alert.alert('Upload again', `Your account was created, but the ${failed.join(' and ')} didn't upload. Re-upload it on the next screen.`);
       onRegistered(result);
     } catch (err) {
@@ -334,7 +343,7 @@ export default function RiderSignup({ onBack, onLogin, onRegistered, initialRefe
   };
 
   const wrap = (children, footer) => (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+    <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
       <Screen footer={footer}>{children}</Screen>
     </KeyboardAvoidingView>
   );
@@ -394,6 +403,11 @@ export default function RiderSignup({ onBack, onLogin, onRegistered, initialRefe
         <Text style={[s.prompt, { marginTop: 18 }]}>
           {t('Already have an account?')}  <LinkText onPress={onLogin}>{t('Login')}</LinkText>
         </Text>
+        {onBrandLogin ? (
+          <Text style={[s.small, { marginTop: 12 }]}>
+            {t('Are you a brand?')}  <LinkText onPress={onBrandLogin} style={{ fontSize: 14 }}>{t('Login as Brand')}</LinkText>
+          </Text>
+        ) : null}
       </>,
       <Button label={t('Continue')} onPress={accountNext} loading={busy} />
     );
@@ -503,6 +517,7 @@ const makeStyles = (c) =>
   StyleSheet.create({
     label: { fontSize: 14, fontWeight: '700', color: c.text, marginBottom: 8 },
     prompt: { textAlign: 'center', fontSize: 15, color: c.textMuted },
+    small: { textAlign: 'center', fontSize: 14, color: c.textMuted },
     meter: { flexDirection: 'row', gap: 6 },
     meterBar: { flex: 1, height: 5, borderRadius: 3, backgroundColor: c.border },
     meterText: { fontSize: 13, fontWeight: '700', marginTop: 6 },

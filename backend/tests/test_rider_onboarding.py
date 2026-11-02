@@ -91,9 +91,8 @@ def test_rider_changes_vehicle_in_settings(client, db_session, admin_headers, br
     _, other = make_rider(client, db_session, "9400000078")
     client.put(f"{API}/riders/me/vehicle", json={"vehicle_category": "TWO_WHEELER", "vehicle_number": "HR26DK1111"}, headers=other)
 
-    # A motor vehicle needs a valid, unused registration number.
-    for body, err in (({"vehicle_category": "TWO_WHEELER"}, "registration number is required"),
-                      ({"vehicle_category": "TWO_WHEELER", "vehicle_number": "HR26 DK 1111"}, "already registered"),
+    # A given registration number must be valid and unused (the number itself is optional).
+    for body, err in (({"vehicle_category": "TWO_WHEELER", "vehicle_number": "HR26 DK 1111"}, "already registered"),
                       ({"vehicle_category": "TWO_WHEELER", "vehicle_number": "12345"}, "valid vehicle number"),
                       ({"vehicle_category": "BOAT"}, None)):
         res = client.put(f"{API}/riders/me/vehicle", json=body, headers=h)

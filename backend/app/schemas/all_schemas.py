@@ -4,6 +4,8 @@ from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_validator, mo
 from typing import Optional, List, Dict, Any
 from datetime import date, datetime
 
+from app.services.geo_service import MAX_WORKING_AREAS
+
 
 # ==================== AUTH SCHEMAS ====================
 class Token(BaseModel):
@@ -151,11 +153,12 @@ def normalize_vehicle_number(value: Optional[str]) -> Optional[str]:
 VEHICLE_ALIASES = {
     "BIKE": "TWO_WHEELER", "BIKE_/_TWO_WHEELER": "TWO_WHEELER", "BICYCLE": "CYCLE", "PEDAL": "CYCLE",
     "AUTO_RICKSHAW": "AUTO", "AUTORICKSHAW": "AUTO",
+    "EBIKE": "E_BIKE", "ELECTRIC_BIKE": "E_BIKE", "E_CYCLE": "E_BIKE", "YULU": "E_BIKE",
 }
 
 
 def normalize_vehicle_category(value: Optional[str]) -> Optional[str]:
-    """CYCLE / TWO_WHEELER / AUTO / THREE_WHEELER (the labels, e.g. "Bike / Two Wheeler", work too); "" means clear."""
+    """CYCLE / E_BIKE / TWO_WHEELER / AUTO / THREE_WHEELER (the labels, e.g. "Bike / Two Wheeler", work too); "" means clear."""
     from app.models.campaign_models import VehicleCategory
 
     if value is None:
@@ -170,8 +173,8 @@ def normalize_vehicle_category(value: Optional[str]) -> Optional[str]:
 
 
 def vehicle_number_problem(category: Optional[str], number: Optional[str]) -> Optional[str]:
-    """Why this vehicle type / number combination isn't allowed, or None. Cycle is the only type that
-    may have no registration number. Used on every path that sets either field."""
+    """Why this vehicle type / number combination isn't allowed, or None. Types in
+    VehicleCategory.NUMBER_OPTIONAL may have no registration number. Used on every path that sets either field."""
     from app.models.campaign_models import VehicleCategory
 
     if category and category not in VehicleCategory.NUMBER_OPTIONAL and not number:
@@ -248,7 +251,7 @@ class RiderRegistrationRequest(BaseModel):
     experience_months: Optional[int] = 0
     vehicle_type: Optional[str] = "Bike"
     vehicle_number: Optional[str] = None
-    vehicle_category: str  # Required: CYCLE / TWO_WHEELER / AUTO / THREE_WHEELER (campaign eligibility)
+    vehicle_category: str  # Required: CYCLE / E_BIKE / TWO_WHEELER / AUTO / THREE_WHEELER (campaign eligibility)
     referral_code: Optional[str] = None  # A friend's Refer & Earn code
 
     # Step 3: Location
@@ -256,8 +259,8 @@ class RiderRegistrationRequest(BaseModel):
     primary_area: Optional[str] = None
     additional_locations: Optional[str] = None
     preferred_radius: Optional[str] = "10 km"  # Legacy; the app no longer asks for a travel radius
-    # Up to 3 areas the rider usually works in, each picked from the area search ({label, lat, lng}).
-    working_areas: Optional[List[WorkingAreaInput]] = Field(None, max_length=3)
+    # Areas the rider usually works in (up to geo_service.MAX_WORKING_AREAS), each picked from the area search ({label, lat, lng}).
+    working_areas: Optional[List[WorkingAreaInput]] = Field(None, max_length=MAX_WORKING_AREAS)
 
     # Step 4: Payment
     upi_id: Optional[str] = None
@@ -278,7 +281,7 @@ class RiderRegistrationRequest(BaseModel):
     def _valid_vehicle_category(cls, value):
         category = normalize_vehicle_category(value)
         if not category:
-            raise ValueError("Select your vehicle type: Cycle, Bike / Two Wheeler, Auto or Three Wheeler.")
+            raise ValueError("Select your vehicle type: Cycle, E-Bike, Bike / Two Wheeler, Auto or Three Wheeler.")
         return category
 
     @model_validator(mode="after")

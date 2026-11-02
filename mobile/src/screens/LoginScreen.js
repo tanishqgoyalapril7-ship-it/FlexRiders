@@ -7,7 +7,7 @@ import { Button, Field, Header, LinkText, Screen, Title } from '../components/ds
 
 /** "Welcome Back": email or mobile + password (one login for riders and brands; the account's role decides
  * which app opens). Riders can also log in with a one-time code by SMS when the server has an SMS gateway. */
-export default function LoginScreen({ initialOtpMode, onBack, onLoggedIn, onRegister, onForgot, brand }) {
+export default function LoginScreen({ initialOtpMode, onBack, onLoggedIn, onRegister, onForgot, onCustomerLogin, brand }) {
   const s = useStyles(makeStyles);
   const { t } = useT();
   const [identifier, setIdentifier] = useState('');
@@ -59,7 +59,7 @@ export default function LoginScreen({ initialOtpMode, onBack, onLoggedIn, onRegi
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+    <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
       <Screen>
         <Header onBack={onBack} circle={false} />
         <View style={{ height: 40 }} />
@@ -116,6 +116,11 @@ export default function LoginScreen({ initialOtpMode, onBack, onLoggedIn, onRegi
         <Text style={s.prompt}>
           {t('New here?')}  <LinkText onPress={onRegister}>{t('Sign Up')}</LinkText>
         </Text>
+        {!brand && onCustomerLogin ? (
+          <Text style={[s.prompt, { fontSize: 14, marginTop: 14 }]}>
+            {t('Are you a brand?')}  <LinkText onPress={onCustomerLogin} style={{ fontSize: 14 }}>{t('Login as Brand')}</LinkText>
+          </Text>
+        ) : null}
       </Screen>
     </KeyboardAvoidingView>
   );

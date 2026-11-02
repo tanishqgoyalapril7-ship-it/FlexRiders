@@ -31,7 +31,7 @@ export default function ChangePasswordScreen({ onChanged, onLogout }) {
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.screen}>
+    <KeyboardAvoidingView behavior="padding" style={styles.screen}>
       <ScrollView contentContainerStyle={styles.padded} keyboardShouldPersistTaps="handled">
         <Header onBack={onLogout} circle={false} />
         <Text style={styles.title}>Set a new password</Text>

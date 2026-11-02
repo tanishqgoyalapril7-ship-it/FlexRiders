@@ -3,6 +3,7 @@ import React from 'react';
 // Rider vehicle types (value, label, description). The backend enforces the same list.
 export const VEHICLE_TYPES = [
   ['CYCLE', 'Cycle', 'Bicycle or pedal cycle'],
+  ['E_BIKE', 'E-Bike', 'Electric bike, e.g. Yulu or other rental e-bikes'],
   ['TWO_WHEELER', 'Bike / Two Wheeler', 'Motorbike or scooter'],
   ['AUTO', 'Auto', 'Passenger auto-rickshaw'],
   ['THREE_WHEELER', 'Three Wheeler', 'Cargo / loader or other non-passenger three-wheeler'],

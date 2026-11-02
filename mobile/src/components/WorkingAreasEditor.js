@@ -10,9 +10,10 @@ import { PrimaryButton } from './ui';
 // The phone's recent GPS fix (if any), so nearby places rank first in area search.
 const nearMe = () => getCachedDeviceLocation().then((f) => (f ? { lat: f.latitude, lng: f.longitude } : null)).catch(() => null);
 
-export const MAX_WORKING_AREAS = 3;
+// Same limit as the backend (geo_service.MAX_WORKING_AREAS).
+export const MAX_WORKING_AREAS = 10;
 
-/** Search real places (backend geocoder) and pick up to three working areas.
+/** Search real places (backend geocoder) and pick working areas (up to MAX_WORKING_AREAS).
  * onSave(areas) receives [{label, lat, lng}] and may return a promise (e.g. saving to the profile). */
 export default function WorkingAreasEditor({ visible, initialAreas = [], onClose, onSave, saveLabel = 'Save areas' }) {
   const styles = useStyles(makeStyles);
@@ -86,7 +87,7 @@ export default function WorkingAreasEditor({ visible, initialAreas = [], onClose
           <View style={styles.header}>
             <View style={{ flex: 1 }}>
               <Text style={styles.title}>Select Your Working Areas</Text>
-              <Text style={styles.subtitle}>Select up to {MAX_WORKING_AREAS} major areas where you normally work.</Text>
+              <Text style={styles.subtitle}>Add every area where you normally work.</Text>
             </View>
             <TouchableOpacity onPress={onClose} hitSlop={10} accessibilityLabel="Close">
               <Ionicons name="close" size={24} color={colors.text} />

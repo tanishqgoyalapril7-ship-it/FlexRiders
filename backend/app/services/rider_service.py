@@ -173,9 +173,9 @@ def register_new_rider(db: Session, reg: RiderRegistrationRequest) -> Rider:
 
     if reg.working_areas:
         from app.models.all_models import RiderWorkingArea
-        from app.services.geo_service import valid_coords
+        from app.services.geo_service import MAX_WORKING_AREAS, valid_coords
 
-        for i, area in enumerate(reg.working_areas[:3]):
+        for i, area in enumerate(reg.working_areas[:MAX_WORKING_AREAS]):
             if valid_coords(area.lat, area.lng):
                 db.add(RiderWorkingArea(rider_id=rider.id, label=area.label.strip(), latitude=area.lat, longitude=area.lng, position=i))
         if not rider.primary_area:

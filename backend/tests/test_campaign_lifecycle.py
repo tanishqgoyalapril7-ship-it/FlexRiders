@@ -191,15 +191,12 @@ def test_vehicle_category_registration_and_eligibility(client, db_session, admin
     legacy.vehicle_category = None
     db_session.commit()
     assert "Add your vehicle type" in client.post(f"{API}/riders/me/campaigns/{cid}/join", json={}, headers=unknown_h).json()["detail"]
-    # Bike needs a registration number on file first (riders can't enter it themselves; operations can).
-    assert client.patch(f"{API}/riders/me", json={"vehicle_category": "TWO_WHEELER"}, headers=unknown_h).status_code == 400
-    legacy.vehicle_number = "HR26LG" + str(unknown["id"]).zfill(4)[-4:]
-    db_session.commit()
+    # The registration number is optional, so a legacy rider can set Bike straight away.
     assert client.patch(f"{API}/riders/me", json={"vehicle_category": "TWO_WHEELER"}, headers=unknown_h).status_code == 200
     assert client.post(f"{API}/riders/me/campaigns/{cid}/join", json={}, headers=unknown_h).status_code == 200
 
     # Every type ticked = all vehicles.
-    both = _campaign(client, admin, eligible_vehicle_categories=["CYCLE", "TWO_WHEELER", "AUTO", "THREE_WHEELER"])
+    both = _campaign(client, admin, eligible_vehicle_categories=["CYCLE", "E_BIKE", "TWO_WHEELER", "AUTO", "THREE_WHEELER"])
     assert both["eligible_vehicle_label"] == "All vehicles"
     assert client.post(f"{API}/riders/me/campaigns/{both['id']}/join", json={}, headers=auto_h).status_code == 200
 

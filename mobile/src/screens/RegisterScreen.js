@@ -169,7 +169,7 @@ export default function RegisterScreen({ onBack, onRegistered, initialReferralCo
   ];
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.screen}>
+    <KeyboardAvoidingView behavior="padding" style={styles.screen}>
       <View style={styles.padded}>
         <ScreenHeader title="Rider Registration" onBack={() => (step > 0 ? setStep(step - 1) : onBack())} />
 

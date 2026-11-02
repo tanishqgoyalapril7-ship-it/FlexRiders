@@ -7,7 +7,7 @@ existed), and a rider without a recent location or working areas can't be matche
 
 Matching (see rider_match) uses two separate signals and never treats one as the other:
 - current location: where the rider is now (reported by the app while in use, kept RIDER_LOCATION_MAX_AGE_MIN)
-- working areas: up to three areas the rider usually works in (a prioritisation signal, not a restriction)
+- working areas: the areas the rider usually works in (up to MAX_WORKING_AREAS) (a prioritisation signal, not a restriction)
 """
 import logging
 import math
@@ -26,7 +26,7 @@ log = logging.getLogger("app.geo")
 
 IST = timezone(timedelta(hours=5, minutes=30))
 EARTH_RADIUS_KM = 6371.0088
-MAX_WORKING_AREAS = 3
+MAX_WORKING_AREAS = 10
 
 
 def now_ist() -> datetime:

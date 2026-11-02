@@ -26,18 +26,9 @@ import { computeDurationDays, computeEndDate, formatINR } from '../../utils';
 const VEHICLES = [
   { key: 'TWO_WHEELER', label: 'Bike / Two Wheeler', icon: 'bicycle-outline', sub: 'Highest reach & speed' },
   { key: 'CYCLE', label: 'Cycle', icon: 'bicycle', sub: 'Eco-friendly & hyper-local' },
+  { key: 'E_BIKE', label: 'E-Bike', icon: 'flash-outline', sub: 'Electric bikes like Yulu' },
   { key: 'AUTO', label: 'Auto Rickshaw', icon: 'car-sport-outline', sub: 'Prominent city branding' },
   { key: 'THREE_WHEELER', label: 'Three Wheeler', icon: 'car-outline', sub: 'High visibility transit' },
-];
-const CATEGORIES = [
-  ['STANDARD', 'Standard'],
-  ['BIKE', 'Bike'],
-  ['CYCLE', 'Cycle'],
-  ['AUTO', 'Auto'],
-  ['TV', 'TV'],
-  ['GOOGLE', 'Google'],
-  ['BRAND_PARTNERSHIP', 'Brand Partnership'],
-  ['OTHER', 'Other'],
 ];
 const SLOTS = [
   ['MORNING', 'Morning'],
@@ -60,7 +51,8 @@ export default function CustomerCreateWizardScreen({
 
   // Form State
   const [name, setName] = useState(initialCampaign?.name || '');
-  const [category, setCategory] = useState(initialCampaign?.campaign_category || 'STANDARD');
+  // Category is an optional admin label (empty = Standard); brands don't pick it, an edit keeps the existing one.
+  const category = initialCampaign?.campaign_category || null;
   const [objective, setObjective] = useState(initialCampaign?.campaign_objective || '');
   const [description, setDescription] = useState(initialCampaign?.description || '');
 
@@ -94,10 +86,10 @@ export default function CustomerCreateWizardScreen({
 
   // Budget & Planner Configuration (Centralized single source of truth)
   const [minBudget, setMinBudget] = useState(10000);
-  const [planningRate, setPlanningRate] = useState(500);
   const [budgetType, setBudgetType] = useState(initialCampaign?.budget_type || 'PER_DAY');
-  const [expectedRate, setExpectedRate] = useState(String(initialCampaign?.expected_rider_rate || 500));
-  const [estimatedBudget, setEstimatedBudget] = useState(String(initialCampaign?.estimated_budget || 10000));
+  // The rider payout per day is FlexRiders' decision (admin sets it on approval); an edit keeps any earlier value.
+  const expectedRate = initialCampaign?.expected_rider_rate || null;
+  const [estimatedBudget, setEstimatedBudget] = useState(initialCampaign?.estimated_budget ? String(initialCampaign.estimated_budget) : '');
 
   // Rules / requirements shown to riders (one per line), as in the admin form
   const [instructions, setInstructions] = useState(initialCampaign?.rules || initialCampaign?.instructions || '');
@@ -139,12 +131,6 @@ export default function CustomerCreateWizardScreen({
       .then((cfg) => {
         if (mounted && cfg) {
           if (cfg.minimum_budget) setMinBudget(Number(cfg.minimum_budget));
-          if (cfg.default_planning_rate) {
-            setPlanningRate(Number(cfg.default_planning_rate));
-            if (!initialCampaign?.expected_rider_rate) {
-              setExpectedRate(String(cfg.default_planning_rate));
-            }
-          }
         }
       })
       .catch(() => {});
@@ -272,10 +258,6 @@ export default function CustomerCreateWizardScreen({
       return true;
     }
     if (s === 5) {
-      if (!(Number(expectedRate) > 0)) {
-        Alert.alert('Rider payout', 'Enter the payout per rider per day (₹).');
-        return false;
-      }
       const budgetNum = Number(estimatedBudget) || 0;
       if (budgetNum < minBudget) {
         Alert.alert('Minimum Budget', `Minimum campaign budget is ${formatINR(minBudget)}.`);
@@ -314,7 +296,7 @@ export default function CustomerCreateWizardScreen({
     try {
       const payload = {
         name: name.trim(),
-        campaign_category: category,
+        campaign_category: category || undefined,
         eligible_vehicle_categories: vehicles,
         photo_slot_windows: slots,
         campaign_objective: objective.trim() || undefined,
@@ -379,7 +361,7 @@ export default function CustomerCreateWizardScreen({
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.screen}>
+    <KeyboardAvoidingView behavior="padding" style={styles.screen}>
       <View style={styles.headerWrap}>
         <Header
           title={initialCampaign ? 'Edit Campaign' : 'Create Campaign'}
@@ -397,7 +379,7 @@ export default function CustomerCreateWizardScreen({
         {step === 1 && (
           <View>
             <Text style={styles.stepHeading}>Step 1: Campaign Details</Text>
-            <Text style={styles.stepDesc}>Give your campaign a title, objective, and type.</Text>
+            <Text style={styles.stepDesc}>Give your campaign a title and an objective.</Text>
 
             <Text style={styles.label}>Campaign Name *</Text>
             <TextInput
@@ -408,14 +390,6 @@ export default function CustomerCreateWizardScreen({
               placeholderTextColor={colors.textSubtle}
             />
 
-            <Text style={styles.label}>Campaign Category</Text>
-            <View style={styles.chipsRow}>
-              {CATEGORIES.map(([key, label]) => (
-                <TouchableOpacity key={key} style={[styles.chip, category === key && styles.chipActive]} onPress={() => setCategory(key)}>
-                  <Text style={[styles.chipText, category === key && styles.chipTextActive]}>{label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
 
             <Text style={styles.label}>Campaign Objective</Text>
             <TextInput
@@ -659,36 +633,17 @@ export default function CustomerCreateWizardScreen({
           </View>
         )}
 
-        {/* STEP 5: CAMPAIGN PLANNER */}
-        {step === 5 && (
-          <View style={{ marginBottom: 12 }}>
-            <Text style={styles.label}>Daily Rider Payout (₹) *</Text>
-            <TextInput
-              style={styles.input}
-              keyboardType="number-pad"
-              value={expectedRate}
-              onChangeText={(v) => setExpectedRate(v.replace(/\D/g, ''))}
-              placeholder="e.g. 500"
-              placeholderTextColor={colors.textSubtle}
-            />
-            <Text style={styles.stepDesc}>What each rider earns per approved day. FlexRiders confirms it when approving your campaign.</Text>
-          </View>
-        )}
+        {/* STEP 5: CAMPAIGN PLANNER (the rider payout per day is set by FlexRiders when approving) */}
         {step === 5 && (
           <CampaignPlanner
-            budget={Number(estimatedBudget) || 10000}
-            riders={totalRiders || 2}
+            budget={Number(estimatedBudget) || 0}
+            riders={totalRiders || 1}
             duration={computeDurationDays(startDate, endDate)}
             startDate={startDate}
             endDate={endDate}
             onBudgetChange={(b) => setEstimatedBudget(String(b))}
             onRidersChange={(r) => updateRidersFromPlanner(r)}
             onDurationChange={(d, newEnd) => {
-              if (newEnd) setEndDate(newEnd);
-            }}
-            onSync={({ budget: b, riders: r, duration: d, endDate: newEnd }) => {
-              setEstimatedBudget(String(b));
-              updateRidersFromPlanner(r);
               if (newEnd) setEndDate(newEnd);
             }}
           />
@@ -759,16 +714,12 @@ export default function CustomerCreateWizardScreen({
                 </Text>
               </View>
               <View style={styles.reviewRow}>
-                <Text style={styles.reviewKey}>Category</Text>
-                <Text style={styles.reviewVal}>{(CATEGORIES.find(([k]) => k === category) || [null, 'Standard'])[1]}</Text>
-              </View>
-              <View style={styles.reviewRow}>
                 <Text style={styles.reviewKey}>Eligible Vehicles</Text>
                 <Text style={styles.reviewVal}>{vehicles.length ? VEHICLES.filter((v) => vehicles.includes(v.key)).map((v) => v.label).join(', ') : 'Any vehicle'}</Text>
               </View>
               <View style={styles.reviewRow}>
                 <Text style={styles.reviewKey}>Rider Payout</Text>
-                <Text style={styles.reviewVal}>{formatINR(Number(expectedRate) || 0)} / day</Text>
+                <Text style={styles.reviewVal}>Set by FlexRiders on approval</Text>
               </View>
               <View style={styles.reviewRow}>
                 <Text style={styles.reviewKey}>Photo Slots</Text>
@@ -835,8 +786,8 @@ const makeStyles = (colors) =>
     bannerBox: { ...specStyles.bannerBox, borderColor: colors.primary, backgroundColor: colors.surface },
     screen: { flex: 1, backgroundColor: colors.background },
     headerWrap: { paddingHorizontal: 16, borderBottomWidth: 1, borderColor: colors.border, paddingBottom: 10 },
-    stepBadge: { fontSize: 13, fontWeight: '700', color: colors.primary },
-    progressBarBg: { height: 4, backgroundColor: colors.surfaceAlt, borderRadius: 2, marginTop: 8, overflow: 'hidden' },
+    stepBadge: { fontSize: 12, fontWeight: '800', color: colors.primary, backgroundColor: colors.primarySoft, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, overflow: 'hidden' },
+    progressBarBg: { height: 5, backgroundColor: colors.surfaceAlt, borderRadius: 2, marginTop: 8, overflow: 'hidden' },
     progressBarFill: { height: '100%', backgroundColor: colors.primary, borderRadius: 2 },
     content: { padding: 16, paddingBottom: 40 },
     stepHeading: { fontSize: 20, fontWeight: '800', color: colors.text, marginBottom: 4 },

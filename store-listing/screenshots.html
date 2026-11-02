@@ -1,0 +1,410 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>FlexRiders Play Screenshots</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=block" rel="stylesheet">
+<script type="module" src="https://cdn.jsdelivr.net/npm/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+<!--
+  Google Play phone screenshots for FlexRiders. Each slide is 540x960 CSS px, rendered at 2x = 1080x1920.
+  Render one slide:  open screenshots.html#1 … #6  (see render.sh).
+  The in-phone screens mirror mobile/src/screens (light theme palette from mobile/src/theme.js).
+  Brand names, riders and amounts inside the phones are illustrative examples for the store listing.
+-->
+<link rel="stylesheet" href="store.css">
+</head>
+<body>
+
+<!-- Shared dark map (Google dark style from CampaignMapView) -->
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <g id="city">
+      <rect width="375" height="800" fill="#1d2433"/>
+      <path d="M-20 520 C 60 470, 120 560, 200 520 S 330 430, 400 470 L 400 560 C 330 520, 260 610, 190 600 S 60 560, -20 610 Z" fill="#0f2742"/>
+      <rect x="22" y="140" width="96" height="70" rx="6" fill="#1b3428"/>
+      <rect x="250" y="300" width="88" height="64" rx="6" fill="#1b3428"/>
+      <rect x="40" y="680" width="120" height="70" rx="6" fill="#1b3428"/>
+      <g stroke="#283247" stroke-width="7" fill="none">
+        <path d="M0 95 H375 M0 250 H375 M0 410 H375 M0 660 H375 M0 760 H375"/>
+        <path d="M60 0 V800 M150 0 V800 M235 0 V800 M325 0 V800"/>
+      </g>
+      <g stroke="#232c3f" stroke-width="3" fill="none">
+        <path d="M0 170 H375 M0 330 H375 M0 710 H375 M105 0 V800 M195 0 V800 M285 0 V800"/>
+      </g>
+      <g stroke="#3a4766" stroke-width="12" fill="none" stroke-linecap="round">
+        <path d="M-10 20 L 390 470"/>
+        <path d="M200 -10 C 190 300, 120 520, 90 820"/>
+      </g>
+      <g stroke="#4b5a7d" stroke-width="2" fill="none" stroke-dasharray="6 7">
+        <path d="M-10 20 L 390 470"/>
+      </g>
+      <g font-family="Inter" font-size="10" font-weight="600" fill="#8ea0c0">
+        <text x="30" y="132">Leisure Valley Park</text>
+        <text x="250" y="292">Sector 29</text>
+        <text x="250" y="440">MG Road</text>
+        <text x="22" y="240">Sector 44</text>
+        <text x="270" y="640">Cyber Hub</text>
+        <text x="110" y="560" fill="#5a7aa6">Lake</text>
+      </g>
+    </g>
+  </defs>
+</svg>
+
+<!-- ============ 1. HOME (map) ============ -->
+<section class="slide" data-n="1">
+  <div class="speed"></div><div class="glow"></div>
+  <div class="copy">
+    <div class="eyebrow"><ion-icon name="flash"></ion-icon>Ride · Advertise · Earn</div>
+    <h1>Get paid to ride with <em>brand campaigns</em></h1>
+    <div class="sub">Live campaigns around you, with the pay per day and open slots right on the map.</div>
+  </div>
+  <div class="phone"><div class="screen" style="background:#1d2433"><div class="ui">
+    <div class="content" style="position:absolute;inset:0">
+      <svg width="375" height="800" style="position:absolute;inset:0"><use href="#city"/></svg>
+      <div class="me" style="left:178px;top:290px"></div>
+      <div class="pin" style="left:270px;top:235px"><div class="bubble sel"><b>Brewhouse Coffee</b><span style="color:#EA580C">₹350/day · 8 slots</span></div><div class="tail" style="border-top-color:#fff"></div></div>
+      <div class="pin" style="left:95px;top:328px"><div class="bubble" style="background:#16A34A"><b>FreshCart Delivery</b><span>₹300/day · 12 slots</span></div><div class="tail" style="border-top-color:#16A34A"></div></div>
+      <div class="pin" style="left:255px;top:412px"><div class="bubble soon" style="background:#7C3AED"><b>Nova Mobile</b><span>₹420/day · 20 slots</span></div><div class="tail" style="border-top-color:#F59E0B"></div></div>
+      <!-- header card -->
+      <div style="position:absolute;top:0;left:0;right:0;background:#fff;padding:50px 20px 16px;border-radius:0 0 24px 24px;box-shadow:0 4px 14px rgba(0,0,0,.3);z-index:6">
+        <div class="row" style="gap:10px">
+          <div style="flex:1">
+            <div style="font-size:22px;font-weight:800">Good Morning, Rahul 👋</div>
+            <div class="row" style="gap:4px;margin-top:4px;font-size:14px;font-weight:600;color:var(--muted)">
+              <ion-icon name="location" style="color:var(--primary);font-size:16px"></ion-icon>Sector 29, Gurugram<ion-icon name="chevron-down" style="font-size:14px"></ion-icon>
+              <span style="width:7px;height:7px;border-radius:4px;background:var(--success);margin-left:4px"></span>
+            </div>
+          </div>
+          <div style="width:42px;height:42px;border-radius:21px;background:var(--surfaceAlt);display:flex;align-items:center;justify-content:center;position:relative">
+            <ion-icon name="notifications-outline" style="font-size:21px"></ion-icon>
+            <span style="position:absolute;top:9px;right:10px;width:9px;height:9px;border-radius:5px;background:var(--danger);border:1.5px solid var(--surfaceAlt)"></span>
+          </div>
+        </div>
+      </div>
+      <!-- chips -->
+      <div style="position:absolute;left:0;right:0;bottom:262px;display:flex;justify-content:center;gap:8px;z-index:6">
+        <div class="chip on" style="box-shadow:0 2px 6px rgba(0,0,0,.35)"><ion-icon name="navigate"></ion-icon>Near You</div>
+        <div class="chip" style="border:0;box-shadow:0 2px 6px rgba(0,0,0,.35)"><ion-icon name="time" style="color:var(--primary)"></ion-icon>Opening Soon</div>
+        <div class="chip" style="border:0;box-shadow:0 2px 6px rgba(0,0,0,.35)"><ion-icon name="home" style="color:var(--primary)"></ion-icon>My Areas</div>
+      </div>
+      <!-- floating panel -->
+      <div style="position:absolute;left:0;right:0;bottom:70px;background:var(--bg);border-radius:24px 24px 0 0;padding:16px 0 18px 20px;z-index:6;box-shadow:0 -3px 12px rgba(0,0,0,.25)">
+        <div class="between" style="padding-right:20px;margin-bottom:12px"><div style="font-size:18px;font-weight:800">Recommended for you</div><div class="link">See all</div></div>
+        <div style="display:flex;gap:12px">
+          <div class="card row" style="gap:10px;width:255px;flex-shrink:0;padding:9px 10px;border-radius:16px;background:#FDF0E7;border-color:#F7CDB0">
+            <div class="tile" style="background:#EA580C">B</div>
+            <div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:800;white-space:nowrap">Brewhouse Coffee</div><div class="muted" style="font-size:11.5px;margin-top:2px">1.2 km · 8 slots</div></div>
+            <div style="font-size:14px;font-weight:800;color:#EA580C">₹350<span style="font-size:10.5px;color:var(--muted);font-weight:600">/day</span></div>
+          </div>
+          <div class="card row" style="gap:10px;width:255px;flex-shrink:0;padding:9px 10px;border-radius:16px;background:#E8F6EC;border-color:#B5E2C3">
+            <div class="tile" style="background:#16A34A">F</div>
+            <div style="flex:1;min-width:0"><div style="font-size:13.5px;font-weight:800">FreshCart Delivery</div><div class="muted" style="font-size:11.5px;margin-top:2px">2.4 km · 12 slots</div></div>
+            <div style="font-size:14px;font-weight:800;color:#16A34A">₹300</div>
+          </div>
+        </div>
+      </div>
+      <div class="tabbar" style="position:absolute;left:0;right:0;bottom:0;z-index:7">
+        <div class="tab on"><ion-icon name="home"></ion-icon>Home</div>
+        <div class="tab"><ion-icon name="megaphone-outline"></ion-icon>Campaigns</div>
+        <div class="tab"><ion-icon name="wallet-outline"></ion-icon>Earnings</div>
+        <div class="tab"><ion-icon name="person-outline"></ion-icon>You</div>
+      </div>
+      <div class="status" style="position:absolute;top:0;left:0;right:0;z-index:8"><span>9:41</span><span class="ic"><ion-icon name="cellular"></ion-icon><ion-icon name="wifi"></ion-icon><ion-icon name="battery-full"></ion-icon></span></div>
+    </div>
+    <div class="home-ind"></div>
+  </div></div></div>
+</section>
+
+<!-- ============ 2. CAMPAIGNS LIST ============ -->
+<section class="slide" data-n="2">
+  <div class="speed"></div><div class="glow"></div>
+  <div class="copy">
+    <div class="eyebrow"><ion-icon name="megaphone"></ion-icon>Find campaigns</div>
+    <h1>Pick campaigns that <em>fit your ride</em></h1>
+    <div class="sub">Filter by distance, opening soon or your own working areas.</div>
+  </div>
+  <div class="phone"><div class="screen"><div class="ui">
+    <div class="status"><span>9:41</span><span class="ic"><ion-icon name="cellular"></ion-icon><ion-icon name="wifi"></ion-icon><ion-icon name="battery-full"></ion-icon></span></div>
+    <div class="content">
+      <div class="hdr"><div class="back"><ion-icon name="chevron-back"></ion-icon></div><h2>Campaigns</h2><div class="link">History (2)</div></div>
+      <div class="pad">
+        <div class="seg"><div>Map View</div><div class="on">List View</div></div>
+        <div class="chips"><div class="chip on">Near You</div><div class="chip">Opening Soon</div><div class="chip">My Areas</div></div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <!-- card -->
+          <div class="card row" style="gap:14px;align-items:flex-start">
+            <div style="width:52px;height:52px;border-radius:15px;background:var(--primarySoft);display:flex;align-items:center;justify-content:center"><ion-icon name="ribbon-outline" style="font-size:26px;color:var(--primary)"></ion-icon></div>
+            <div style="flex:1">
+              <div class="between"><span style="font-size:11.5px;font-weight:800;color:var(--primary);letter-spacing:.4px">BREWHOUSE COFFEE</span><span class="badge b-success">Open</span></div>
+              <div style="font-size:16px;font-weight:800;margin-top:3px">Morning Brew Ride</div>
+              <div class="muted" style="margin-top:2px">#FR1024 • Sector 29 • 1.2 km away</div>
+              <div class="between" style="margin-top:8px"><span style="font-size:16px;font-weight:800;color:var(--primary)">₹350/day</span><span class="muted">12/20 slots filled</span></div>
+              <div style="font-size:12px;font-weight:700;color:var(--primary);margin-top:5px">In your working area</div>
+            </div>
+          </div>
+          <div class="card row" style="gap:14px;align-items:flex-start">
+            <div style="width:52px;height:52px;border-radius:15px;background:var(--primarySoft);display:flex;align-items:center;justify-content:center"><ion-icon name="ribbon-outline" style="font-size:26px;color:var(--primary)"></ion-icon></div>
+            <div style="flex:1">
+              <div class="between"><span style="font-size:11.5px;font-weight:800;color:var(--primary);letter-spacing:.4px">FRESHCART</span><span class="badge b-success">Open</span></div>
+              <div style="font-size:16px;font-weight:800;margin-top:3px">FreshCart City Riders</div>
+              <div class="muted" style="margin-top:2px">#FR1031 • DLF Phase 3 • 2.4 km away</div>
+              <div class="between" style="margin-top:8px"><span style="font-size:16px;font-weight:800;color:var(--primary)">₹300/day</span><span class="muted">18/30 slots filled</span></div>
+            </div>
+          </div>
+          <div class="card row" style="gap:14px;align-items:flex-start">
+            <div style="width:52px;height:52px;border-radius:15px;background:var(--warningSoft);display:flex;align-items:center;justify-content:center"><ion-icon name="play-forward-outline" style="font-size:26px;color:var(--warning)"></ion-icon></div>
+            <div style="flex:1">
+              <div class="between"><span style="font-size:11.5px;font-weight:800;color:var(--warning);letter-spacing:.4px">NOVA MOBILE</span><span class="badge b-warning">Opening Soon</span></div>
+              <div style="font-size:16px;font-weight:800;margin-top:3px">Nova 5G Launch</div>
+              <div class="muted" style="margin-top:2px">#FR1040 • Cyber Hub • 3.1 km away</div>
+              <div class="between" style="margin-top:8px"><span style="font-size:16px;font-weight:800">₹420/day</span><span class="muted">0/40 slots filled</span></div>
+              <div style="font-size:12.5px;font-weight:800;color:var(--warning);margin-top:5px">Opens in 05h 42m 10s</div>
+            </div>
+          </div>
+          <div class="card row" style="gap:14px;align-items:flex-start">
+            <div style="width:52px;height:52px;border-radius:15px;background:var(--primarySoft);display:flex;align-items:center;justify-content:center"><ion-icon name="ribbon-outline" style="font-size:26px;color:var(--primary)"></ion-icon></div>
+            <div style="flex:1">
+              <div class="between"><span style="font-size:11.5px;font-weight:800;color:var(--primary);letter-spacing:.4px">URBANFIT GYMS</span><span class="badge b-success">Open</span></div>
+              <div style="font-size:16px;font-weight:800;margin-top:3px">Fit City Ride</div>
+              <div class="muted" style="margin-top:2px">#FR1047 • Sector 44 • 3.8 km away</div>
+              <div class="between" style="margin-top:8px"><span style="font-size:16px;font-weight:800;color:var(--primary)">₹280/day</span><span class="muted">6/15 slots filled</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="tabbar">
+      <div class="tab"><ion-icon name="home-outline"></ion-icon>Home</div>
+      <div class="tab on"><ion-icon name="megaphone"></ion-icon>Campaigns</div>
+      <div class="tab"><ion-icon name="wallet-outline"></ion-icon>Earnings</div>
+      <div class="tab"><ion-icon name="person-outline"></ion-icon>You</div>
+    </div>
+    <div class="home-ind"></div>
+  </div></div></div>
+</section>
+
+<!-- ============ 3. CAMPAIGN DETAIL ============ -->
+<section class="slide" data-n="3">
+  <div class="speed"></div><div class="glow"></div>
+  <div class="copy">
+    <div class="eyebrow"><ion-icon name="document-text"></ion-icon>Clear terms</div>
+    <h1>Know your pay <em>before you join</em></h1>
+    <div class="sub">Daily reward, dates, route zone and photo times — all upfront.</div>
+  </div>
+  <div class="phone"><div class="screen"><div class="ui">
+    <div class="status"><span>9:41</span><span class="ic"><ion-icon name="cellular"></ion-icon><ion-icon name="wifi"></ion-icon><ion-icon name="battery-full"></ion-icon></span></div>
+    <div class="content">
+      <div class="hdr"><div class="back" style="background:var(--surface);border-radius:19px;border:1px solid var(--border)"><ion-icon name="chevron-back"></ion-icon></div><h2 style="font-size:18px">Morning Brew Ride</h2></div>
+      <div class="pad" style="display:flex;flex-direction:column;gap:11px">
+        <div class="card">
+          <div class="between"><span style="font-size:11.5px;font-weight:800;color:var(--primary);letter-spacing:.4px">BREWHOUSE COFFEE</span><span class="badge b-success">Open</span></div>
+          <div style="font-size:21px;font-weight:800;margin-top:4px">Morning Brew Ride</div>
+          <div class="muted" style="margin-top:3px">#FR1024 • Sector 29 • 1.2 km away</div>
+        </div>
+        <div class="card" style="padding:12px">
+          <div style="font-size:15px;font-weight:800;margin-bottom:9px">Target Route Zone</div>
+          <div style="height:96px;border-radius:12px;overflow:hidden;position:relative;background:#e9eef5">
+            <svg width="100%" height="96" viewBox="0 0 320 96" preserveAspectRatio="xMidYMid slice">
+              <rect width="320" height="96" fill="#EEF1F5"/><path d="M0 30 H320 M0 70 H320 M70 0 V96 M170 0 V96 M260 0 V96" stroke="#fff" stroke-width="6"/>
+              <path d="M-10 90 L 330 10" stroke="#FCD38D" stroke-width="8"/><rect x="200" y="40" width="40" height="22" rx="4" fill="#CDE9D3"/>
+              <circle cx="160" cy="48" r="38" fill="rgba(37,99,235,.12)" stroke="#2563EB" stroke-width="2"/><circle cx="160" cy="48" r="5" fill="#2563EB"/>
+            </svg>
+          </div>
+        </div>
+        <div class="row" style="gap:11px">
+          <div class="card" style="flex:1;padding:12px"><div class="caption">START DATE</div><div style="font-size:15px;font-weight:800;margin-top:4px">1 Nov 2026</div></div>
+          <div class="card" style="flex:1;padding:12px"><div class="caption">END DATE</div><div style="font-size:15px;font-weight:800;margin-top:4px">30 Nov 2026</div></div>
+        </div>
+        <div class="card" style="padding:12px">
+          <div style="font-size:15px;font-weight:800;margin-bottom:9px">Required Activity Uploads</div>
+          <div class="row" style="gap:8px">
+            <div style="flex:1;background:var(--surfaceAlt);border-radius:12px;padding:9px 4px;text-align:center"><ion-icon name="sunny" style="color:#F59E0B;font-size:18px"></ion-icon><div style="font-size:12.5px;font-weight:800">Morning</div><div class="muted" style="font-size:11px">7 – 10 AM</div></div>
+            <div style="flex:1;background:var(--surfaceAlt);border-radius:12px;padding:9px 4px;text-align:center"><ion-icon name="partly-sunny" style="color:#EA580C;font-size:18px"></ion-icon><div style="font-size:12.5px;font-weight:800">Evening</div><div class="muted" style="font-size:11px">4 – 7 PM</div></div>
+            <div style="flex:1;background:var(--surfaceAlt);border-radius:12px;padding:9px 4px;text-align:center"><ion-icon name="moon" style="color:#6366F1;font-size:18px"></ion-icon><div style="font-size:12.5px;font-weight:800">Night</div><div class="muted" style="font-size:11px">8 – 11 PM</div></div>
+          </div>
+        </div>
+        <div style="background:var(--primarySoft);border-radius:18px;padding:13px 14px">
+          <div class="caption" style="color:var(--primary)">DAILY REWARD</div>
+          <div style="font-size:26px;font-weight:900;color:var(--primary);margin-top:2px">₹350 / day</div>
+          <div style="font-size:12.5px;color:var(--primary);margin-top:3px;line-height:1.35">Paid for every day your Morning, Evening and Night photos are all approved.</div>
+        </div>
+      </div>
+      <div style="position:absolute;left:0;right:0;bottom:0;padding:14px 20px 26px;background:linear-gradient(180deg,rgba(244,246,250,0),var(--bg) 30%)"><div class="btn">Join Campaign</div></div>
+    </div>
+    <div class="home-ind"></div>
+  </div></div></div>
+</section>
+
+<!-- ============ 4. DAILY PHOTOS ============ -->
+<section class="slide" data-n="4">
+  <div class="speed"></div><div class="glow"></div>
+  <div class="copy">
+    <div class="eyebrow"><ion-icon name="camera"></ion-icon>Daily check-ins</div>
+    <h1>Three quick photos, <em>one full day paid</em></h1>
+    <div class="sub">Morning, Evening and Night photos straight from your camera. Build your streak.</div>
+  </div>
+  <div class="phone"><div class="screen"><div class="ui">
+    <div class="status"><span>9:41</span><span class="ic"><ion-icon name="cellular"></ion-icon><ion-icon name="wifi"></ion-icon><ion-icon name="battery-full"></ion-icon></span></div>
+    <div class="content">
+      <div class="hdr"><div class="back"><ion-icon name="chevron-back"></ion-icon></div><h2>Daily Activity</h2></div>
+      <div class="pad" style="display:flex;flex-direction:column;gap:12px">
+        <div class="between"><div style="font-size:16px;font-weight:800">Today's Submissions</div><div class="link">Tue, 17 Nov</div></div>
+        <div class="card">
+          <div class="row" style="gap:12px">
+            <div style="width:46px;height:46px;border-radius:14px;background:var(--successSoft);display:flex;align-items:center;justify-content:center"><ion-icon name="sunny" style="font-size:22px;color:var(--success)"></ion-icon></div>
+            <div style="flex:1"><div style="font-size:15px;font-weight:800">Morning Session</div><div class="muted">7:00 AM - 10:00 AM</div></div>
+            <span class="badge b-success"><ion-icon name="checkmark-circle"></ion-icon>APPROVED</span>
+          </div>
+          <div class="row" style="gap:8px;margin-top:11px;background:var(--surfaceAlt);border-radius:12px;padding:8px">
+            <div style="width:44px;height:44px;border-radius:9px;background:linear-gradient(135deg,#7c3aed,#3b82f6);display:flex;align-items:center;justify-content:center"><ion-icon name="image" style="color:#fff;font-size:20px"></ion-icon></div>
+            <div class="muted" style="flex:1">Uploaded 8:12 AM · Reviewed by FlexRiders</div>
+          </div>
+        </div>
+        <div class="card" style="border-color:#BFD0FA;box-shadow:0 6px 18px rgba(53,99,233,.12)">
+          <div class="row" style="gap:12px">
+            <div style="width:46px;height:46px;border-radius:14px;background:var(--primarySoft);display:flex;align-items:center;justify-content:center"><ion-icon name="partly-sunny" style="font-size:22px;color:var(--primary)"></ion-icon></div>
+            <div style="flex:1"><div style="font-size:15px;font-weight:800">Evening Session</div><div class="muted">4:00 PM - 7:00 PM</div></div>
+            <span class="badge b-warning">REQUIRED</span>
+          </div>
+          <div class="btn" style="margin-top:12px;height:48px"><ion-icon name="camera"></ion-icon>Upload Photo</div>
+        </div>
+        <div class="card">
+          <div class="row" style="gap:12px">
+            <div style="width:46px;height:46px;border-radius:14px;background:var(--surfaceAlt);display:flex;align-items:center;justify-content:center"><ion-icon name="moon" style="font-size:21px;color:var(--subtle)"></ion-icon></div>
+            <div style="flex:1"><div style="font-size:15px;font-weight:800;color:var(--muted)">Night Session</div><div class="muted">8:00 PM - 11:00 PM</div></div>
+            <span style="font-size:11px;font-weight:800;color:var(--subtle);letter-spacing:.5px">UPCOMING</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="between"><div class="row" style="gap:7px"><ion-icon name="flame" style="color:#F97316;font-size:20px"></ion-icon><div style="font-size:15px;font-weight:800">6 Day Streak</div></div><div class="muted">Longest 9</div></div>
+          <div class="row" style="justify-content:space-between;margin-top:12px">
+            <!-- streak week -->
+            <div style="text-align:center"><div class="muted" style="font-size:11px">Wed</div><div style="width:34px;height:34px;border-radius:17px;background:var(--success);display:flex;align-items:center;justify-content:center;margin-top:4px"><ion-icon name="checkmark" style="color:#fff;font-size:18px"></ion-icon></div></div>
+            <div style="text-align:center"><div class="muted" style="font-size:11px">Thu</div><div style="width:34px;height:34px;border-radius:17px;background:var(--success);display:flex;align-items:center;justify-content:center;margin-top:4px"><ion-icon name="checkmark" style="color:#fff;font-size:18px"></ion-icon></div></div>
+            <div style="text-align:center"><div class="muted" style="font-size:11px">Fri</div><div style="width:34px;height:34px;border-radius:17px;background:var(--success);display:flex;align-items:center;justify-content:center;margin-top:4px"><ion-icon name="checkmark" style="color:#fff;font-size:18px"></ion-icon></div></div>
+            <div style="text-align:center"><div class="muted" style="font-size:11px">Sat</div><div style="width:34px;height:34px;border-radius:17px;background:var(--success);display:flex;align-items:center;justify-content:center;margin-top:4px"><ion-icon name="checkmark" style="color:#fff;font-size:18px"></ion-icon></div></div>
+            <div style="text-align:center"><div class="muted" style="font-size:11px">Sun</div><div style="width:34px;height:34px;border-radius:17px;background:var(--success);display:flex;align-items:center;justify-content:center;margin-top:4px"><ion-icon name="checkmark" style="color:#fff;font-size:18px"></ion-icon></div></div>
+            <div style="text-align:center"><div class="muted" style="font-size:11px">Mon</div><div style="width:34px;height:34px;border-radius:17px;background:var(--success);display:flex;align-items:center;justify-content:center;margin-top:4px"><ion-icon name="checkmark" style="color:#fff;font-size:18px"></ion-icon></div></div>
+            <div style="text-align:center"><div class="muted" style="font-size:11px;color:var(--primary);font-weight:800">Tue</div><div style="width:34px;height:34px;border-radius:17px;border:2px dashed var(--primary);display:flex;align-items:center;justify-content:center;margin-top:4px;color:var(--primary);font-size:12px;font-weight:800">1/3</div></div>
+          </div>
+          <div class="muted" style="margin-top:11px;line-height:1.4">Rule: all 3 photos approved on a day completes 1 streak day and earns ₹350.</div>
+        </div>
+      </div>
+    </div>
+    <div class="tabbar">
+      <div class="tab"><ion-icon name="home-outline"></ion-icon>Home</div>
+      <div class="tab on"><ion-icon name="megaphone"></ion-icon>Campaigns</div>
+      <div class="tab"><ion-icon name="wallet-outline"></ion-icon>Earnings</div>
+      <div class="tab"><ion-icon name="person-outline"></ion-icon>You</div>
+    </div>
+    <div class="home-ind"></div>
+  </div></div></div>
+</section>
+
+<!-- ============ 5. ROUTE TRACKING ============ -->
+<section class="slide" data-n="5">
+  <div class="speed"></div><div class="glow"></div>
+  <div class="copy">
+    <div class="eyebrow"><ion-icon name="navigate"></ion-icon>Route recording</div>
+    <h1>Record your route<br><em>with one tap</em></h1>
+    <div class="sub">Start, pause or stop your campaign route. Location is used only while you record.</div>
+  </div>
+  <div class="phone"><div class="screen" style="background:#1d2433"><div class="ui">
+    <div class="content" style="position:absolute;inset:0">
+      <svg width="375" height="800" style="position:absolute;inset:0">
+        <use href="#city"/>
+        <path d="M60 250 H150 V410 H235 L 300 340 V250" fill="none" stroke="#3B82F6" stroke-width="7" stroke-linecap="round" stroke-linejoin="round" opacity=".35"/>
+        <path d="M60 250 H150 V410 H235 L 300 340 V250" fill="none" stroke="#60A5FA" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="60" cy="250" r="8" fill="#22C55E" stroke="#fff" stroke-width="3"/>
+      </svg>
+      <div class="me" style="left:300px;top:250px"></div>
+      <div class="status light" style="position:absolute;top:0;left:0;right:0"><span>9:41</span><span class="ic"><ion-icon name="cellular"></ion-icon><ion-icon name="wifi"></ion-icon><ion-icon name="battery-full"></ion-icon></span></div>
+      <div style="position:absolute;top:52px;left:16px;width:40px;height:40px;border-radius:20px;background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 10px rgba(0,0,0,.4)"><ion-icon name="chevron-back" style="font-size:22px"></ion-icon></div>
+      <div style="position:absolute;left:12px;right:12px;bottom:84px;background:#fff;border-radius:24px;padding:16px;box-shadow:0 10px 30px rgba(0,0,0,.45)">
+        <div class="between"><div style="font-size:13px;font-weight:800;color:var(--muted)">Active Campaign</div><span class="badge b-success"><span style="width:6px;height:6px;border-radius:3px;background:var(--success)"></span>TRACKING</span></div>
+        <div class="row" style="gap:12px;margin-top:10px">
+          <div class="tile" style="background:#EA580C">B</div>
+          <div><div style="font-size:11.5px;font-weight:800;color:var(--primary);letter-spacing:.4px">BREWHOUSE COFFEE</div><div style="font-size:18px;font-weight:800">Morning Brew Ride</div></div>
+        </div>
+        <div class="row" style="margin-top:14px;background:var(--surfaceAlt);border-radius:14px;padding:11px 6px">
+          <div style="flex:1;text-align:center"><div class="muted">Start Time</div><div style="font-size:16px;font-weight:800;margin-top:2px">8:05 AM</div></div>
+          <div style="width:1px;align-self:stretch;background:var(--border)"></div>
+          <div style="flex:1;text-align:center"><div class="muted">Elapsed</div><div style="font-size:16px;font-weight:800;margin-top:2px">1h 36m</div></div>
+          <div style="width:1px;align-self:stretch;background:var(--border)"></div>
+          <div style="flex:1;text-align:center"><div class="muted">Distance</div><div style="font-size:16px;font-weight:800;margin-top:2px">14.2 km</div></div>
+        </div>
+        <div class="row" style="gap:10px;margin-top:14px">
+          <div class="btn" style="flex:1;background:var(--warning);box-shadow:0 8px 18px rgba(217,119,6,.3)"><ion-icon name="pause"></ion-icon>Pause Ride</div>
+          <div class="btn" style="padding:0 26px;background:var(--danger);box-shadow:0 8px 18px rgba(220,38,38,.3)">Stop</div>
+        </div>
+      </div>
+      <div class="tabbar" style="position:absolute;left:0;right:0;bottom:0">
+        <div class="tab"><ion-icon name="home-outline"></ion-icon>Home</div>
+        <div class="tab on"><ion-icon name="megaphone"></ion-icon>Campaigns</div>
+        <div class="tab"><ion-icon name="wallet-outline"></ion-icon>Earnings</div>
+        <div class="tab"><ion-icon name="person-outline"></ion-icon>You</div>
+      </div>
+    </div>
+    <div class="home-ind"></div>
+  </div></div></div>
+</section>
+
+<!-- ============ 6. EARNINGS ============ -->
+<section class="slide" data-n="6">
+  <div class="speed"></div><div class="glow"></div>
+  <div class="copy">
+    <div class="eyebrow"><ion-icon name="wallet"></ion-icon>Earnings &amp; payouts</div>
+    <h1>Track every rupee, <em>withdraw to UPI</em></h1>
+    <div class="sub">See what each campaign paid and request your payout in one tap.</div>
+  </div>
+  <div class="phone"><div class="screen"><div class="ui">
+    <div class="status"><span>9:41</span><span class="ic"><ion-icon name="cellular"></ion-icon><ion-icon name="wifi"></ion-icon><ion-icon name="battery-full"></ion-icon></span></div>
+    <div class="content">
+      <div class="hdr"><div class="back"><ion-icon name="chevron-back"></ion-icon></div><h2>Earnings</h2></div>
+      <div class="pad">
+        <div style="background:var(--hero);border-radius:24px;padding:17px 22px;position:relative;overflow:hidden">
+          <div style="position:absolute;width:180px;height:180px;border-radius:90px;background:rgba(59,130,246,.35);filter:blur(30px);right:-60px;top:-70px"></div>
+          <div style="color:#C7D2FE;font-size:14px">Total Earned</div>
+          <div style="color:#fff;font-size:36px;font-weight:800;margin-top:2px">₹8,750</div>
+          <div style="height:1px;background:rgba(255,255,255,.15);margin:13px 0"></div>
+          <div class="row"><div style="flex:1"><div style="color:#C7D2FE;font-size:13px">Pending Payout</div><div style="color:#fff;font-size:19px;font-weight:800;margin-top:3px">₹2,100</div></div>
+          <div style="flex:1;text-align:right"><div style="color:#C7D2FE;font-size:13px">Completed (Paid)</div><div style="color:#fff;font-size:19px;font-weight:800;margin-top:3px">₹6,650</div></div></div>
+        </div>
+        <div class="section" style="margin:17px 0 10px">Campaign Earnings</div>
+        <div class="card row" style="gap:12px;margin-bottom:10px">
+          <div style="flex:1"><div style="font-size:15px;font-weight:800">Morning Brew Ride</div><div class="muted" style="margin-top:3px">6 approved days × ₹350</div></div>
+          <div style="text-align:right"><div style="font-size:16px;font-weight:800">₹2,100</div><span class="badge b-warning" style="margin-top:5px">Pending</span></div>
+        </div>
+        <div class="card row" style="gap:12px;margin-bottom:10px">
+          <div style="flex:1"><div style="font-size:15px;font-weight:800">FreshCart City Riders</div><div class="muted" style="margin-top:3px">20 approved days × ₹300</div></div>
+          <div style="text-align:right"><div style="font-size:16px;font-weight:800">₹6,000</div><span class="badge b-success" style="margin-top:5px">Paid</span></div>
+        </div>
+        <div class="card row" style="gap:12px;margin-bottom:10px">
+          <div style="width:44px;height:44px;border-radius:13px;background:var(--primarySoft);display:flex;align-items:center;justify-content:center"><ion-icon name="gift-outline" style="font-size:21px;color:var(--primary)"></ion-icon></div>
+          <div style="flex:1"><div style="font-size:15px;font-weight:800">Referral Rewards</div><div class="muted" style="margin-top:3px">3 successful referrals</div></div>
+          <div style="font-size:16px;font-weight:800;color:var(--success)">+₹650</div>
+        </div>
+        <div class="card row" style="gap:12px">
+          <div style="width:44px;height:44px;border-radius:13px;background:var(--primarySoft);display:flex;align-items:center;justify-content:center"><ion-icon name="card-outline" style="font-size:21px;color:var(--primary)"></ion-icon></div>
+          <div style="flex:1"><div style="font-size:15px;font-weight:800">UPI ID</div><div class="muted" style="margin-top:3px">rahul@upi</div></div>
+          <ion-icon name="create-outline" style="font-size:20px;color:var(--primary)"></ion-icon>
+        </div>
+        <div class="btn" style="margin-top:12px;height:48px">Withdraw Earnings</div>
+      </div>
+    </div>
+    <div class="tabbar">
+      <div class="tab"><ion-icon name="home-outline"></ion-icon>Home</div>
+      <div class="tab"><ion-icon name="megaphone-outline"></ion-icon>Campaigns</div>
+      <div class="tab on"><ion-icon name="wallet"></ion-icon>Earnings</div>
+      <div class="tab"><ion-icon name="person-outline"></ion-icon>You</div>
+    </div>
+    <div class="home-ind"></div>
+  </div></div></div>
+</section>
+
+<script>
+  const n = (location.hash || '#1').slice(1);
+  document.querySelectorAll('.slide').forEach((s) => s.classList.toggle('on', s.dataset.n === n));
+</script>
+</body>
+</html>

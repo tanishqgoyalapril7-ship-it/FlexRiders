@@ -111,8 +111,6 @@ export function RiderFormModal({ rider, onClose, onSaved }) {
     if (!form.primary_city.trim()) return setError('Enter the primary working city.');
     if (!vehicleOk) return setError('Enter a valid vehicle number, e.g. HR26DK8337.');
     if (!form.vehicle_category) return setError('Select the rider’s vehicle type.');
-    if (form.vehicle_category !== 'CYCLE' && !form.vehicle_number.trim())
-      return setError('Enter the vehicle registration number (only Cycle may be left blank).');
     if (!editing && form.password.length < 6) return setError('Set a password of at least 6 characters for the rider’s login.');
     if (!editing && !selfie) return setError('Take the rider’s driver selfie with the camera. It is required for every new rider.');
     setSaving(true);
@@ -189,7 +187,7 @@ export function RiderFormModal({ rider, onClose, onSaved }) {
               <input className="form-input" value={form.vehicle_type} onChange={set('vehicle_type')} placeholder="e.g. Honda Activa" />
             </div>
             <div className="form-group">
-              <label className="form-label">Vehicle Number</label>
+              <label className="form-label">Vehicle Number (optional)</label>
               <input
                 className="form-input"
                 value={form.vehicle_number}
@@ -197,7 +195,7 @@ export function RiderFormModal({ rider, onClose, onSaved }) {
                 placeholder="e.g. HR26DK8337"
               />
               <span className="form-hint" style={!vehicleOk ? { color: 'var(--danger)' } : undefined}>
-                {!form.vehicle_number ? 'As printed on the RC. Must be unique.' : vehicleOk ? `Valid: ${normalizeVehicleNumber(form.vehicle_number)}` : 'Not a valid vehicle number'}
+                {!form.vehicle_number ? 'Optional. As printed on the RC; must be unique.' : vehicleOk ? `Valid: ${normalizeVehicleNumber(form.vehicle_number)}` : 'Not a valid vehicle number'}
               </span>
             </div>
           </div>

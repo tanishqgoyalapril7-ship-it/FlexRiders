@@ -277,11 +277,16 @@ const makeStyles = (c) =>
 // Same list as the backend (value, label, icon, description).
 export const VEHICLE_CATEGORIES = [
   ['CYCLE', 'Cycle', 'bicycle-outline', 'Bicycle or pedal cycle'],
+  ['E_BIKE', 'E-Bike', 'flash-outline', 'Electric bike, e.g. Yulu'],
   ['TWO_WHEELER', 'Bike / Two Wheeler', 'speedometer-outline', 'Motorbike or scooter'],
   ['AUTO', 'Auto', 'car-outline', 'Passenger auto-rickshaw'],
   ['THREE_WHEELER', 'Three Wheeler', 'cube-outline', 'Cargo / loader, non-passenger'],
 ];
-export const vehicleNumberOptional = (category) => category === 'CYCLE';
+// The registration number is optional for every type (as on the backend); a number that is entered must be valid.
+export const vehicleNumberOptional = () => true;
+// Cycles and e-bikes (often rented, e.g. Yulu) have no RC: they prove the vehicle with a bill or rental proof.
+export const usesOwnershipProof = (category) => category === 'CYCLE' || category === 'E_BIKE';
+export const vehicleProofDocType = (category) => (usesOwnershipProof(category) ? 'VEHICLE_PROOF' : 'VEHICLE_RC');
 export const vehicleCategoryLabel = (value) => (VEHICLE_CATEGORIES.find(([v]) => v === value) || [])[1] || '';
 
 /** "What type of vehicle do you use?" — decides which campaigns the rider can join. */

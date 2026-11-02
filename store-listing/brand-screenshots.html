@@ -1,0 +1,364 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>FlexRiders Brand Screenshots</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=block" rel="stylesheet">
+<script type="module" src="https://cdn.jsdelivr.net/npm/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+<!--
+  Google Play phone screenshots for the FlexRiders brand (customer) side. 540x960 CSS px at 2x = 1080x1920.
+  Open brand-screenshots.html#1 … #6 (see render.sh). In-phone screens mirror mobile/src/screens/customer
+  and mobile/src/components/CampaignPlanner.js. Brands, people and numbers are illustrative examples.
+-->
+<link rel="stylesheet" href="store.css">
+<style>
+  .slide { background: radial-gradient(120% 70% at 15% 100%, #312E81 0%, rgba(49,46,129,0) 60%),
+                       radial-gradient(90% 55% at 100% 0%, #13235c 0%, rgba(19,35,92,0) 70%),
+                       linear-gradient(180deg, #0B1120 0%, #0E1236 100%); }
+  .glow { background: rgba(99,102,241,.33); left: 80px; }
+  .pill { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border-radius: 999px; font-size: 11px; font-weight: 800; }
+  .pill i { width: 7px; height: 7px; border-radius: 4px; display: inline-block; }
+  .bcard { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 14px; box-shadow: 0 3px 10px rgba(15,23,42,.05); }
+  .thumb { width: 84px; height: 84px; border-radius: 14px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 900; font-size: 15px; text-align: center; line-height: 1.1; }
+  .meta { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+  .meta ion-icon { font-size: 14px; }
+  .bar { height: 7px; border-radius: 4px; background: var(--surfaceAlt); overflow: hidden; flex: 1; }
+  .bar div { height: 100%; border-radius: 4px; background: var(--primary); }
+  .label { font-size: 13.5px; font-weight: 700; margin: 12px 0 6px; }
+  .input { background: var(--surface); border: 1px solid var(--border); border-radius: 13px; padding: 12px; font-size: 14.5px; display: flex; align-items: center; gap: 8px; }
+  .stepper { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
+  .sbtn { width: 44px; height: 44px; border-radius: 13px; background: var(--primarySoft); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 22px; }
+  .preset { flex: 1; text-align: center; padding: 8px 0; border-radius: 10px; font-size: 12.5px; font-weight: 700; background: var(--surfaceAlt); color: var(--text); }
+  .preset.on { background: var(--primary); color: #fff; }
+  .drow { display: flex; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 13.5px; }
+  .drow ion-icon { width: 26px; font-size: 17px; color: var(--muted); }
+  .drow span { flex: 1; color: var(--muted); }
+  .drow b { font-weight: 700; text-align: right; }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <!-- Light map (SimpleMap / target area picker) -->
+    <g id="lightcity">
+      <rect width="400" height="400" fill="#EEF1F5"/>
+      <path d="M-10 300 C 80 270, 140 330, 220 300 S 350 240, 410 270 L 410 330 C 340 300, 270 360, 200 350 S 60 320, -10 360 Z" fill="#C9DDF3"/>
+      <rect x="30" y="40" width="80" height="56" rx="6" fill="#CFE8D4"/>
+      <rect x="280" y="150" width="70" height="50" rx="6" fill="#CFE8D4"/>
+      <g stroke="#fff" stroke-width="9" fill="none"><path d="M0 120 H400 M0 220 H400 M0 380 H400 M70 0 V400 M170 0 V400 M260 0 V400 M350 0 V400"/></g>
+      <g stroke="#fff" stroke-width="4" fill="none"><path d="M0 70 H400 M0 170 H400 M120 0 V400 M215 0 V400 M305 0 V400"/></g>
+      <path d="M-10 20 L 410 260" stroke="#FCD38D" stroke-width="12" fill="none"/>
+      <path d="M190 -10 C 180 160, 120 300, 100 410" stroke="#FDE3B0" stroke-width="10" fill="none"/>
+      <g font-family="Inter" font-size="10" font-weight="600" fill="#6B7A90">
+        <text x="34" y="34">Leisure Valley</text><text x="282" y="144">Sector 29</text><text x="22" y="212">Sector 44</text><text x="270" y="250">MG Road</text>
+      </g>
+    </g>
+  </defs>
+</svg>
+
+<!-- ============ 1. BRAND HOME ============ -->
+<section class="slide" data-n="1">
+  <div class="speed"></div><div class="glow"></div>
+  <div class="copy">
+    <div class="eyebrow"><ion-icon name="business"></ion-icon>For brands</div>
+    <h1>Put your brand<br><em>on the move</em></h1>
+    <div class="sub">Run rider advertising campaigns across your city, all from one app.</div>
+  </div>
+  <div class="phone"><div class="screen"><div class="ui">
+    <div class="status"><span>9:41</span><span class="ic"><ion-icon name="cellular"></ion-icon><ion-icon name="wifi"></ion-icon><ion-icon name="battery-full"></ion-icon></span></div>
+    <div class="content pad" style="padding-top:12px">
+      <div class="row" style="gap:10px">
+        <div style="flex:1"><div style="font-size:15px;color:var(--muted);font-weight:600">Good Morning,</div><div style="font-size:28px;font-weight:800;margin-top:2px">Priya 👋</div></div>
+        <div style="width:46px;height:46px;border-radius:23px;background:#fff;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;position:relative"><ion-icon name="notifications-outline" style="font-size:22px"></ion-icon><span style="position:absolute;top:-3px;right:-3px;min-width:20px;height:20px;border-radius:10px;background:var(--danger);color:#fff;font-size:11px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid var(--bg)">2</span></div>
+        <div style="width:46px;height:46px;border-radius:23px;background:var(--primary);color:#fff;font-weight:800;font-size:18px;display:flex;align-items:center;justify-content:center">P</div>
+      </div>
+      <div class="row" style="gap:14px;background:var(--primary);border-radius:20px;padding:20px 18px;margin-top:20px;position:relative;overflow:hidden;box-shadow:0 6px 14px rgba(53,99,233,.3)">
+        <div style="position:absolute;width:150px;height:150px;border-radius:75px;background:rgba(255,255,255,.12);top:-40px;right:-30px"></div>
+        <div style="position:absolute;width:120px;height:120px;border-radius:60px;background:rgba(255,255,255,.12);bottom:-60px;right:60px"></div>
+        <div style="width:42px;height:42px;border-radius:21px;background:#fff;display:flex;align-items:center;justify-content:center"><ion-icon name="add" style="font-size:24px;color:var(--primary)"></ion-icon></div>
+        <div style="flex:1;color:#fff"><div style="font-size:19px;font-weight:800">Create Campaign</div><div style="font-size:13px;opacity:.85;margin-top:3px">Launch a new campaign in a few steps</div></div>
+        <ion-icon name="megaphone" style="font-size:40px;color:#fff;transform:rotate(-18deg)"></ion-icon>
+      </div>
+      <div class="between" style="margin:24px 0 12px"><div style="font-size:19px;font-weight:800">Overview</div><div class="row link" style="gap:4px;font-size:14px;font-weight:700">This Month<ion-icon name="chevron-down"></ion-icon></div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="background:var(--warningSoft);border-radius:18px;padding:12px 14px"><div class="between" style="align-items:flex-start"><div style="width:48px;height:48px;border-radius:14px;background:#fff;display:flex;align-items:center;justify-content:center"><ion-icon name="time-outline" style="font-size:24px;color:var(--warning)"></ion-icon></div><div style="width:22px;height:22px;border-radius:11px;background:#fff;display:flex;align-items:center;justify-content:center;color:var(--warning)"><ion-icon name="chevron-forward" style="font-size:14px"></ion-icon></div></div><div style="font-size:26px;font-weight:800;margin-top:6px">1</div><div style="font-size:14px;font-weight:700">Requested</div><div class="muted" style="font-size:12px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Awaiting FlexRiders review</div></div>
+        <div style="background:var(--primarySoft);border-radius:18px;padding:12px 14px"><div class="between" style="align-items:flex-start"><div style="width:48px;height:48px;border-radius:14px;background:#fff;display:flex;align-items:center;justify-content:center"><ion-icon name="shield-checkmark-outline" style="font-size:24px;color:var(--primary)"></ion-icon></div><div style="width:22px;height:22px;border-radius:11px;background:#fff;display:flex;align-items:center;justify-content:center;color:var(--primary)"><ion-icon name="chevron-forward" style="font-size:14px"></ion-icon></div></div><div style="font-size:26px;font-weight:800;margin-top:6px">1</div><div style="font-size:14px;font-weight:700">Approved</div><div class="muted" style="font-size:12px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Ready to go live</div></div>
+        <div style="background:var(--successSoft);border-radius:18px;padding:12px 14px"><div class="between" style="align-items:flex-start"><div style="width:48px;height:48px;border-radius:14px;background:#fff;display:flex;align-items:center;justify-content:center"><ion-icon name="radio-outline" style="font-size:24px;color:var(--success)"></ion-icon></div><div style="width:22px;height:22px;border-radius:11px;background:#fff;display:flex;align-items:center;justify-content:center;color:var(--success)"><ion-icon name="chevron-forward" style="font-size:14px"></ion-icon></div></div><div style="font-size:26px;font-weight:800;margin-top:6px">2</div><div style="font-size:14px;font-weight:700">Live</div><div class="muted" style="font-size:12px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Running campaigns</div></div>
+        <div style="background:rgba(124,58,237,.12);border-radius:18px;padding:12px 14px"><div class="between" style="align-items:flex-start"><div style="width:48px;height:48px;border-radius:14px;background:#fff;display:flex;align-items:center;justify-content:center"><ion-icon name="flag-outline" style="font-size:24px;color:#7C3AED"></ion-icon></div><div style="width:22px;height:22px;border-radius:11px;background:#fff;display:flex;align-items:center;justify-content:center;color:#7C3AED"><ion-icon name="chevron-forward" style="font-size:14px"></ion-icon></div></div><div style="font-size:26px;font-weight:800;margin-top:6px">3</div><div style="font-size:14px;font-weight:700">Completed</div><div class="muted" style="font-size:12px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Finished campaigns</div></div>
+      </div>
+      <div class="between" style="margin:24px 0 12px"><div style="font-size:19px;font-weight:800">Live Campaigns</div><div class="link" style="font-size:14px;font-weight:700">See all</div></div>
+      <div class="bcard row" style="gap:12px">
+        <div class="thumb" style="width:60px;height:60px;font-size:12px;background:linear-gradient(135deg,#F97316,#C2410C)">BREW<br>HOUSE</div>
+        <div style="flex:1"><div class="between"><div style="font-size:16px;font-weight:800">Morning Brew Ride</div><span class="pill b-success"><i style="background:var(--success)"></i>Live</span></div>
+        <div class="row" style="gap:8px;margin-top:8px"><div class="bar"><div style="width:90%"></div></div><span class="muted" style="font-weight:700;font-size:12px">18/20 riders</span></div></div>
+      </div>
+    </div>
+    <div class="tabbar">
+      <div class="tab on"><ion-icon name="home"></ion-icon>Home</div>
+      <div class="tab"><ion-icon name="megaphone-outline"></ion-icon>Campaigns</div>
+      <div class="tab"><ion-icon name="person-outline"></ion-icon>Profile</div>
+    </div>
+    <div class="home-ind"></div>
+  </div></div></div>
+</section>
+
+<!-- ============ 2. TARGET AREA (wizard step 2) ============ -->
+<section class="slide" data-n="2">
+  <div class="speed"></div><div class="glow"></div>
+  <div class="copy">
+    <div class="eyebrow"><ion-icon name="locate"></ion-icon>Precise targeting</div>
+    <h1>Reach the areas <em>that matter to you</em></h1>
+    <div class="sub">Pick a location, set the radius and how many riders you need there.</div>
+  </div>
+  <div class="phone"><div class="screen"><div class="ui">
+    <div class="status"><span>9:41</span><span class="ic"><ion-icon name="cellular"></ion-icon><ion-icon name="wifi"></ion-icon><ion-icon name="battery-full"></ion-icon></span></div>
+    <div class="content">
+      <div class="hdr"><div class="back"><ion-icon name="chevron-back"></ion-icon></div><h2>Create Campaign</h2><span class="badge b-primary" style="font-size:12px">Step 2 of 7</span></div>
+      <div style="height:5px;margin:0 20px 14px;border-radius:3px;background:var(--surfaceAlt)"><div style="width:28.5%;height:5px;border-radius:3px;background:var(--primary)"></div></div>
+      <div class="pad">
+        <div style="font-size:19px;font-weight:800">Step 2: Target Area &amp; Riders</div>
+        <div class="muted" style="font-size:13px;margin-top:4px;line-height:1.4">Choose where the campaign runs. Riders nearest this area are offered it first; the radius grows if slots stay open.</div>
+        <div class="label">Campaign target location *</div>
+        <div class="input" style="border-color:var(--primary)"><ion-icon name="location" style="color:var(--primary);font-size:18px"></ion-icon><div style="flex:1;font-weight:600">Sector 29, Gurugram, Haryana</div><span class="link">Change</span></div>
+        <div style="height:190px;border-radius:16px;overflow:hidden;margin-top:12px;position:relative;border:1px solid var(--border)">
+          <svg width="100%" height="190" viewBox="40 40 320 190" preserveAspectRatio="xMidYMid slice">
+            <use href="#lightcity"/>
+            <circle cx="200" cy="140" r="78" fill="rgba(37,99,235,.10)" stroke="#2563EB" stroke-width="1.5" stroke-dasharray="5 5"/>
+            <circle cx="200" cy="140" r="48" fill="rgba(37,99,235,.16)" stroke="#2563EB" stroke-width="2"/>
+          </svg>
+          <div style="position:absolute;left:50%;top:50%;transform:translate(-50%,-100%);color:#DC2626;font-size:34px;line-height:1"><ion-icon name="location"></ion-icon></div>
+          <div style="position:absolute;left:10px;top:10px;background:#fff;border-radius:10px;padding:6px 10px;font-size:12px;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,.12)">Radius 3 km · grows up to 5 km</div>
+        </div>
+        <div class="row" style="gap:10px">
+          <div style="flex:1"><div class="label">Start radius</div><div class="input" style="justify-content:space-between"><b>3</b><span class="muted">km</span></div></div>
+          <div style="flex:1"><div class="label">Max radius</div><div class="input" style="justify-content:space-between"><b>5</b><span class="muted">km</span></div></div>
+        </div>
+        <div class="row" style="justify-content:space-between;margin-top:14px;background:var(--primarySoft);border-radius:14px;padding:13px 14px">
+          <span style="font-size:14px;font-weight:700;color:var(--primary)">Total Required Riders:</span><span style="font-size:17px;font-weight:900;color:var(--primary)">20 Riders</span>
+        </div>
+        <div style="margin-top:12px;border:1.5px dashed var(--primary);border-radius:14px;padding:13px;text-align:center;color:var(--primary);font-weight:800;font-size:14px">+ Add Another Location</div>
+      </div>
+      <div class="row" style="gap:10px;position:absolute;left:20px;right:20px;bottom:26px">
+        <div class="btn" style="flex:1;background:#fff;color:var(--primary);border:1.5px solid var(--primary);box-shadow:none">Back</div>
+        <div class="btn" style="flex:2">Continue</div>
+      </div>
+    </div>
+    <div class="home-ind"></div>
+  </div></div></div>
+</section>
+
+<!-- ============ 3. BUDGET PLANNER (step 5) ============ -->
+<section class="slide" data-n="3">
+  <div class="speed"></div><div class="glow"></div>
+  <div class="copy">
+    <div class="eyebrow"><ion-icon name="calculator"></ion-icon>Campaign planner</div>
+    <h1>Plan your budget <em>and fleet in seconds</em></h1>
+    <div class="sub">Set your spend, riders and days. See the full summary before you submit.</div>
+  </div>
+  <div class="phone"><div class="screen"><div class="ui">
+    <div class="status"><span>9:41</span><span class="ic"><ion-icon name="cellular"></ion-icon><ion-icon name="wifi"></ion-icon><ion-icon name="battery-full"></ion-icon></span></div>
+    <div class="content">
+      <div class="hdr" style="padding-bottom:8px"><div class="back"><ion-icon name="chevron-back"></ion-icon></div><h2>Create Campaign</h2><span class="badge b-primary" style="font-size:12px">Step 5 of 7</span></div>
+      <div class="pad" style="display:flex;flex-direction:column;gap:10px">
+        <div><span class="badge b-primary" style="font-size:11px"><ion-icon name="calculator-outline"></ion-icon>CAMPAIGN PLANNER</span><div style="font-size:21px;font-weight:800;margin-top:6px">Plan Budget &amp; Fleet</div></div>
+        <div class="card" style="padding:13px">
+          <div class="between"><span class="caption">CAMPAIGN BUDGET</span><span class="badge b-primary">Total Spend Target</span></div>
+          <div class="row" style="gap:6px;margin-top:6px;border-bottom:2px solid var(--primary);padding-bottom:4px"><span style="font-size:26px;font-weight:800;color:var(--muted)">₹</span><span style="font-size:30px;font-weight:900">50,000</span></div>
+          <div class="row" style="gap:6px;margin-top:10px"><div class="preset">₹10,000</div><div class="preset">₹25,000</div><div class="preset on">₹50,000</div><div class="preset">₹1,00,000</div></div>
+        </div>
+        <div class="card" style="padding:13px">
+          <div class="row" style="gap:6px"><ion-icon name="people" style="color:var(--primary);font-size:18px"></ion-icon><span class="caption">RIDERS</span></div>
+          <div class="stepper"><div class="sbtn"><ion-icon name="remove"></ion-icon></div><div style="text-align:center"><div style="font-size:28px;font-weight:900">20</div><div class="muted" style="font-size:12px">Riders</div></div><div class="sbtn"><ion-icon name="add"></ion-icon></div></div>
+        </div>
+        <div class="card" style="padding:13px">
+          <div class="row" style="gap:6px"><ion-icon name="calendar" style="color:var(--primary);font-size:18px"></ion-icon><span class="caption">CAMPAIGN DURATION</span></div>
+          <div class="stepper"><div class="sbtn"><ion-icon name="remove"></ion-icon></div><div style="text-align:center"><div style="font-size:28px;font-weight:900">7</div><div class="muted" style="font-size:12px">Days Active</div></div><div class="sbtn"><ion-icon name="add"></ion-icon></div></div>
+          <div class="row" style="gap:6px;margin-top:10px"><div class="preset on">7 Days</div><div class="preset">14 Days</div><div class="preset">21 Days</div><div class="preset">30 Days</div></div>
+        </div>
+        <div style="background:var(--hero);border-radius:18px;padding:14px 16px;color:#fff">
+          <div style="font-size:11px;font-weight:800;letter-spacing:.6px;color:#A5B4FC">LIVE CAMPAIGN SUMMARY</div>
+          <div class="between" style="margin-top:9px;font-size:13.5px"><span style="color:#C7D2FE">20 Riders × 7 Days</span><b>140 Rider-Days</b></div>
+          <div style="height:1px;background:rgba(255,255,255,.15);margin:10px 0"></div>
+          <div class="between"><span style="font-weight:800">Campaign Budget</span><span style="font-size:20px;font-weight:900">₹50,000</span></div>
+        </div>
+      </div>
+      <div class="row" style="gap:10px;position:absolute;left:20px;right:20px;bottom:26px">
+        <div class="btn" style="flex:1;background:#fff;color:var(--primary);border:1.5px solid var(--primary);box-shadow:none">Back</div>
+        <div class="btn" style="flex:2">Continue</div>
+      </div>
+    </div>
+    <div class="home-ind"></div>
+  </div></div></div>
+</section>
+
+<!-- ============ 4. CAMPAIGNS LIST ============ -->
+<section class="slide" data-n="4">
+  <div class="speed"></div><div class="glow"></div>
+  <div class="copy">
+    <div class="eyebrow"><ion-icon name="layers"></ion-icon>All campaigns</div>
+    <h1>From request to live, <em>always in the loop</em></h1>
+    <div class="sub">See every campaign's status, riders joined and progress at a glance.</div>
+  </div>
+  <div class="phone"><div class="screen"><div class="ui">
+    <div class="status"><span>9:41</span><span class="ic"><ion-icon name="cellular"></ion-icon><ion-icon name="wifi"></ion-icon><ion-icon name="battery-full"></ion-icon></span></div>
+    <div class="content">
+      <div class="hdr"><div class="back"><ion-icon name="chevron-back"></ion-icon></div><h2>Campaigns</h2></div>
+      <div class="pad">
+        <div class="input"><ion-icon name="search-outline" style="color:var(--muted);font-size:18px"></ion-icon><span style="color:var(--subtle)">Search name, ID or area</span></div>
+        <div class="chips" style="margin:14px 0;white-space:nowrap"><div class="chip on">All (7)</div><div class="chip">Requested (1)</div><div class="chip">Approved (1)</div><div class="chip">Live (2)</div></div>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <div class="bcard" style="display:flex;flex-direction:column;gap:12px">
+            <div class="row" style="gap:12px;align-items:flex-start">
+              <div class="thumb" style="background:linear-gradient(135deg,#F97316,#C2410C)">BREW<br>HOUSE</div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+                <div class="row" style="gap:8px;align-items:flex-start"><div style="flex:1;font-size:16px;font-weight:800">Morning Brew Ride</div><span class="pill b-success"><i style="background:var(--success)"></i>Live</span></div>
+                <div style="font-size:12px;color:var(--primary);font-weight:800">FR1024</div>
+                <div class="meta"><ion-icon name="location-outline"></ion-icon>Sector 29, Gurugram</div>
+                <div class="meta"><ion-icon name="calendar-outline"></ion-icon>1 Nov – 30 Nov 2026</div>
+              </div>
+            </div>
+            <div class="row" style="gap:6px"><ion-icon name="people-outline" style="font-size:16px"></ion-icon><span style="font-size:13px;font-weight:700">18 / 20 riders joined</span><div style="flex:1"></div><div style="width:36px;height:36px;border-radius:10px;background:var(--primarySoft);display:flex;align-items:center;justify-content:center"><ion-icon name="stats-chart" style="color:var(--primary);font-size:16px"></ion-icon></div></div>
+            <div class="row" style="gap:10px"><div class="bar"><div style="width:90%"></div></div><span class="muted" style="font-weight:700;font-size:12px">90%</span><span class="link">View Details</span></div>
+          </div>
+          <div class="bcard" style="display:flex;flex-direction:column;gap:12px">
+            <div class="row" style="gap:12px;align-items:flex-start">
+              <div class="thumb" style="background:linear-gradient(135deg,#8B5CF6,#6D28D9)">NOVA<br>5G</div>
+              <div style="flex:1;display:flex;flex-direction:column;gap:6px">
+                <div class="row" style="gap:8px;align-items:flex-start"><div style="flex:1;font-size:16px;font-weight:800">Nova 5G Launch</div><span class="pill b-primary"><ion-icon name="checkmark-circle-outline"></ion-icon>Approved</span></div>
+                <div style="font-size:12px;color:var(--primary);font-weight:800">FR1040</div>
+                <div class="meta"><ion-icon name="location-outline"></ion-icon>Cyber Hub, Gurugram</div>
+                <div class="meta"><ion-icon name="calendar-outline"></ion-icon>20 Nov – 10 Dec 2026</div>
+              </div>
+            </div>
+            <div class="row" style="gap:6px"><ion-icon name="people-outline" style="font-size:16px"></ion-icon><span style="font-size:13px;font-weight:700">0 / 40 riders joined</span><div style="flex:1"></div><div style="width:36px;height:36px;border-radius:10px;background:var(--primarySoft);display:flex;align-items:center;justify-content:center"><ion-icon name="stats-chart" style="color:var(--primary);font-size:16px"></ion-icon></div></div>
+          </div>
+                  </div>
+      </div>
+      <div style="position:absolute;right:20px;bottom:20px;display:flex;align-items:center;gap:8px;background:var(--primary);color:#fff;border-radius:999px;padding:15px 20px;font-size:16px;font-weight:800;box-shadow:0 6px 12px rgba(53,99,233,.35)"><ion-icon name="add" style="font-size:22px"></ion-icon>New Campaign</div>
+    </div>
+    <div class="tabbar">
+      <div class="tab"><ion-icon name="home-outline"></ion-icon>Home</div>
+      <div class="tab on"><ion-icon name="megaphone"></ion-icon>Campaigns</div>
+      <div class="tab"><ion-icon name="person-outline"></ion-icon>Profile</div>
+    </div>
+    <div class="home-ind"></div>
+  </div></div></div>
+</section>
+
+<!-- ============ 5. CAMPAIGN DETAIL ============ -->
+<section class="slide" data-n="5">
+  <div class="speed"></div><div class="glow"></div>
+  <div class="copy">
+    <div class="eyebrow"><ion-icon name="people"></ion-icon>Verified riders</div>
+    <h1>Watch your fleet<br><em>fill up live</em></h1>
+    <div class="sub">Riders are verified by FlexRiders. See who joined and their daily status.</div>
+  </div>
+  <div class="phone"><div class="screen"><div class="ui">
+    <div class="status"><span>9:41</span><span class="ic"><ion-icon name="cellular"></ion-icon><ion-icon name="wifi"></ion-icon><ion-icon name="battery-full"></ion-icon></span></div>
+    <div class="content">
+      <div class="hdr"><div class="back"><ion-icon name="chevron-back"></ion-icon></div><h2>Campaign</h2></div>
+      <div class="pad">
+        <div class="card" style="display:flex;flex-direction:column;gap:12px">
+          <div class="row" style="align-items:flex-start;gap:8px"><div style="flex:1"><div style="font-size:19px;font-weight:800">Morning Brew Ride</div><div style="font-size:12.5px;color:var(--primary);font-weight:700;margin-top:3px">Campaign ID: FR1024</div></div><span class="pill b-success"><i style="background:var(--success)"></i>Live</span></div>
+          <div><div class="row" style="gap:8px;align-items:baseline"><span style="font-size:28px;font-weight:900">18 / 20</span><span class="muted" style="font-size:13px">Riders joined</span></div>
+          <div class="bar" style="margin-top:8px;height:8px"><div style="width:90%;background:var(--success)"></div></div></div>
+          <div class="row" style="justify-content:space-between">
+            <div class="row" style="gap:4px;font-size:11px;font-weight:700"><span style="width:18px;height:18px;border-radius:9px;background:var(--success);display:flex;align-items:center;justify-content:center"><ion-icon name="checkmark" style="color:#fff;font-size:12px"></ion-icon></span>Requested</div>
+            <div class="row" style="gap:4px;font-size:11px;font-weight:700"><span style="width:18px;height:18px;border-radius:9px;background:var(--success);display:flex;align-items:center;justify-content:center"><ion-icon name="checkmark" style="color:#fff;font-size:12px"></ion-icon></span>Approved</div>
+            <div class="row" style="gap:4px;font-size:11px;font-weight:700"><span style="width:18px;height:18px;border-radius:9px;background:var(--success);display:flex;align-items:center;justify-content:center"><ion-icon name="checkmark" style="color:#fff;font-size:12px"></ion-icon></span>Live</div>
+            <div class="row" style="gap:4px;font-size:11px;font-weight:700;color:var(--subtle)"><span style="width:18px;height:18px;border-radius:9px;border:1.5px solid var(--border)"></span>Completed</div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:12px;padding:2px 14px">
+          <div class="drow"><ion-icon name="location-outline"></ion-icon><span>Campaign Area</span><b>Sector 29, Gurugram</b></div>
+          <div class="drow"><ion-icon name="calendar-outline"></ion-icon><span>Campaign Period</span><b>1 – 30 Nov 2026</b></div>
+          <div class="drow" style="border-bottom:0"><ion-icon name="radio-button-on-outline"></ion-icon><span>Radius</span><b>3 km, up to 5 km</b></div>
+        </div>
+        <div class="seg" style="margin-top:14px"><div class="on">Riders</div><div>Photos</div><div>Map</div></div>
+        <div class="card" style="margin-top:10px;padding:4px 14px">
+          <div class="row" style="gap:12px;padding:11px 0;border-bottom:1px solid var(--border)"><span class="muted" style="width:14px;font-weight:700">1</span><div style="flex:1"><div style="font-weight:800;font-size:14.5px">Rahul S.</div><div class="muted">Bike · Sector 29</div></div><span style="color:var(--success);font-weight:800;font-size:12.5px">Active</span></div>
+          <div class="row" style="gap:12px;padding:11px 0;border-bottom:1px solid var(--border)"><span class="muted" style="width:14px;font-weight:700">2</span><div style="flex:1"><div style="font-weight:800;font-size:14.5px">Aman K.</div><div class="muted">Bike · DLF Phase 3</div></div><span style="color:var(--success);font-weight:800;font-size:12.5px">Active</span></div>
+          <div class="row" style="gap:12px;padding:11px 0;border-bottom:1px solid var(--border)"><span class="muted" style="width:14px;font-weight:700">3</span><div style="flex:1"><div style="font-weight:800;font-size:14.5px">Vikram P.</div><div class="muted">Auto · Sector 44</div></div><span style="color:var(--success);font-weight:800;font-size:12.5px">Active</span></div>
+          <div class="row" style="gap:12px;padding:11px 0"><span class="muted" style="width:14px;font-weight:700">4</span><div style="flex:1"><div style="font-weight:800;font-size:14.5px">Neha R.</div><div class="muted">Cycle · Sector 31</div></div><span style="color:var(--success);font-weight:800;font-size:12.5px">Active</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="tabbar">
+      <div class="tab"><ion-icon name="home-outline"></ion-icon>Home</div>
+      <div class="tab on"><ion-icon name="megaphone"></ion-icon>Campaigns</div>
+      <div class="tab"><ion-icon name="person-outline"></ion-icon>Profile</div>
+    </div>
+    <div class="home-ind"></div>
+  </div></div></div>
+</section>
+
+<!-- ============ 6. ROUTE PROOF (Map panel) ============ -->
+<section class="slide" data-n="6">
+  <div class="speed"></div><div class="glow"></div>
+  <div class="copy">
+    <div class="eyebrow"><ion-icon name="map"></ion-icon>Proof of reach</div>
+    <h1>See exactly <em>where your brand went</em></h1>
+    <div class="sub">Every rider's route, distance and approved photos, day by day.</div>
+  </div>
+  <div class="phone"><div class="screen"><div class="ui">
+    <div class="status"><span>9:41</span><span class="ic"><ion-icon name="cellular"></ion-icon><ion-icon name="wifi"></ion-icon><ion-icon name="battery-full"></ion-icon></span></div>
+    <div class="content">
+      <div class="hdr"><div class="back"><ion-icon name="chevron-back"></ion-icon></div><h2>Campaign</h2></div>
+      <div class="pad">
+        <div class="seg"><div>Riders</div><div>Photos</div><div class="on">Map</div></div>
+        <div class="row" style="gap:8px;margin:12px 0"><div class="chip">15 Nov</div><div class="chip">16 Nov</div><div class="chip on">17 Nov</div></div>
+        <div style="height:200px;border-radius:16px;overflow:hidden;border:1px solid var(--border)">
+          <svg width="100%" height="200" viewBox="10 20 380 227" preserveAspectRatio="xMidYMid slice">
+            <use href="#lightcity"/>
+            <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M70 70 H170 V170 H260 L 330 120" stroke="#fff" stroke-width="7"/><path d="M70 70 H170 V170 H260 L 330 120" stroke="#FC4C02" stroke-width="4"/>
+              <path d="M120 220 V120 H215 V70 H350" stroke="#fff" stroke-width="7"/><path d="M120 220 V120 H215 V70 H350" stroke="#3563E9" stroke-width="4"/>
+              <path d="M40 170 H120 L 170 200 H305 V220" stroke="#fff" stroke-width="7"/><path d="M40 170 H120 L 170 200 H305 V220" stroke="#16A34A" stroke-width="4"/>
+            </g>
+            <circle cx="70" cy="70" r="6" fill="#16A34A" stroke="#fff" stroke-width="2"/><circle cx="330" cy="120" r="6" fill="#DC2626" stroke="#fff" stroke-width="2"/>
+          </svg>
+        </div>
+        <div style="font-size:15px;font-weight:800;margin:16px 0 10px">Rider activities · 17 Nov 2026</div>
+        <div class="card" style="padding:14px">
+          <div class="row" style="gap:10px">
+            <div style="width:40px;height:40px;border-radius:20px;background:#FC4C02;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center">R</div>
+            <div style="flex:1"><div style="font-weight:800;font-size:15px">Rahul S.</div><div class="muted">17 Nov · 08:05 am – 06:40 pm</div></div>
+          </div>
+          <div class="row" style="margin-top:12px">
+            <div style="flex:1"><div class="muted" style="font-size:12px">Distance</div><div style="font-size:19px;font-weight:800;margin-top:2px">42.6 km</div></div>
+            <div style="flex:1"><div class="muted" style="font-size:12px">Time on road</div><div style="font-size:19px;font-weight:800;margin-top:2px">7h 20m</div></div>
+            <div style="flex:1"><div class="muted" style="font-size:12px">Approved photos</div><div style="font-size:19px;font-weight:800;margin-top:2px">3</div></div>
+          </div>
+        </div>
+        <div class="card" style="padding:14px;margin-top:10px">
+          <div class="row" style="gap:10px">
+            <div style="width:40px;height:40px;border-radius:20px;background:#3563E9;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center">A</div>
+            <div style="flex:1"><div style="font-weight:800;font-size:15px">Aman K.</div><div class="muted">17 Nov · 09:10 am – now</div></div>
+            <span style="color:var(--success);font-weight:800;font-size:12px">● In progress</span>
+          </div>
+        </div>
+        <div class="card" style="padding:14px;margin-top:10px">
+          <div class="row" style="gap:10px">
+            <div style="width:40px;height:40px;border-radius:20px;background:#16A34A;color:#fff;font-weight:800;display:flex;align-items:center;justify-content:center">V</div>
+            <div style="flex:1"><div style="font-weight:800;font-size:15px">Vikram P.</div><div class="muted">17 Nov · 08:30 am – 05:55 pm</div></div>
+            <b style="font-size:14px">36.1 km</b>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="tabbar">
+      <div class="tab"><ion-icon name="home-outline"></ion-icon>Home</div>
+      <div class="tab on"><ion-icon name="megaphone"></ion-icon>Campaigns</div>
+      <div class="tab"><ion-icon name="person-outline"></ion-icon>Profile</div>
+    </div>
+    <div class="home-ind"></div>
+  </div></div></div>
+</section>
+
+<script>
+  const n = (location.hash || '#1').slice(1);
+  document.querySelectorAll('.slide').forEach((s) => s.classList.toggle('on', s.dataset.n === n));
+</script>
+</body>
+</html>

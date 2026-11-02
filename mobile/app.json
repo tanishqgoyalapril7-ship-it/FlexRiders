@@ -2,7 +2,7 @@
   "expo": {
     "name": "FlexRiders",
     "slug": "flexriders",
-    "version": "1.0.4",
+    "version": "1.0.7",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "assetBundlePatterns": [
@@ -24,7 +24,7 @@
     },
     "android": {
       "package": "com.flexriders.app",
-      "versionCode": 5,
+      "versionCode": 8,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0A0A0C"
@@ -73,7 +73,14 @@
         }
       ],
       "./plugins/withReleaseSigning",
-      "expo-status-bar"
+      "expo-status-bar",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#0068D8"
+        }
+      ]
     ],
     "scheme": [
       "flexriders",

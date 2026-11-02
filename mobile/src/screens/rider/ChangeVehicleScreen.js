@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { mobileApi } from '../../services/api';
 import { useStyles, useTheme } from '../../theme';
 import { Button, Header, Screen } from '../../components/ds';
-import { vehicleNumberOptional } from '../../components/formFields';
+import { vehicleProofDocType } from '../../components/formFields';
 import { isValidVehicleNumber, normalizeVehicleNumber } from '../../data/suggestions';
 import { VehicleFields, pickDocument } from '../onboarding/RiderSignup';
 
@@ -21,15 +21,15 @@ export default function ChangeVehicleScreen({ rider, onBack, onSaved }) {
 
   const save = async () => {
     if (!f.vehicle_category) return Alert.alert('Vehicle', 'Select your vehicle type.');
-    if (!vehicleNumberOptional(f.vehicle_category) && !isValidVehicleNumber(f.vehicle_number))
-      return Alert.alert('Registration number', 'Enter your vehicle registration number, e.g. HR26DK8337.');
+    if (f.vehicle_number.trim() && !isValidVehicleNumber(f.vehicle_number))
+      return Alert.alert('Number plate', 'Check the number plate, e.g. HR26DK8337, or leave it empty.');
     if (newVehicle && !file) return Alert.alert('Vehicle proof', 'Upload a photo of the RC or purchase bill for your new vehicle.');
     setBusy(true);
     try {
       await mobileApi.changeVehicle({ vehicle_category: f.vehicle_category, vehicle_type: f.vehicle_type.trim() || null, vehicle_number: number || null });
       if (newVehicle) {
         try {
-          await mobileApi.uploadDocument(f.vehicle_category === 'CYCLE' ? 'VEHICLE_PROOF' : 'VEHICLE_RC', file);
+          await mobileApi.uploadDocument(vehicleProofDocType(f.vehicle_category), file);
         } catch (err) {
           Alert.alert('Upload again', `Your vehicle was updated, but the proof didn't upload (${err.message}). Upload it from My Vehicle.`);
           return onSaved();
@@ -45,7 +45,7 @@ export default function ChangeVehicleScreen({ rider, onBack, onSaved }) {
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+    <KeyboardAvoidingView behavior="padding" style={{ flex: 1 }}>
       <Screen footer={<Button label={newVehicle ? 'Save New Vehicle' : 'Save'} onPress={save} loading={busy} />}>
         <Header onBack={onBack} title="Change Vehicle" />
         <View style={s.note}>

@@ -78,10 +78,11 @@ def test_registration_vehicle_rules(client):
     base = {"selfie": SELFIE, "accept_terms": True, "full_name": "No Type", "password": "riderPass1"}
     assert client.post(f"{API}/auth/register", json={"selfie": SELFIE, **base, "mobile_number": _phone()}).status_code == 422  # Missing
     assert client.post(f"{API}/auth/register", json={"selfie": SELFIE, **base, "mobile_number": _phone(), "vehicle_category": "TRUCK"}).status_code == 422  # Invalid
-    # A registration number is required for everything except Cycle (existing number rules unchanged).
-    for category in ("TWO_WHEELER", "AUTO", "THREE_WHEELER"):
+    # The registration number is optional for every type, E-Bike included; a given number is still validated.
+    for category in ("CYCLE", "E_BIKE", "TWO_WHEELER", "AUTO", "THREE_WHEELER"):
         res = client.post(f"{API}/auth/register", json={"selfie": SELFIE, **base, "mobile_number": _phone(), "vehicle_category": category})
-        assert res.status_code == 422 and "registration number" in res.text
+        assert res.status_code == 200, res.text
+    assert register(client, "E-Bike").status_code == 200  # The label works too
     assert client.post(f"{API}/auth/register", json={"selfie": SELFIE, **base, "mobile_number": _phone(), "vehicle_category": "AUTO", "vehicle_number": "12345"}).status_code == 422
     # Labels and aliases map to the stored values.
     assert register(client, "Bike / Two Wheeler", vehicle_number="KA05MN" + _phone()[-4:]).status_code == 200
@@ -94,7 +95,7 @@ def test_registration_vehicle_rules(client):
 def test_rider_cannot_change_vehicle_type_and_admin_change_is_audited(client, db_session, admin):
     me, headers = approved_rider(client, admin, "CYCLE")
     assert client.patch(f"{API}/riders/me", json={"vehicle_category": "TWO_WHEELER"}, headers=headers).status_code == 400
-    assert client.put(f"{API}/admin/riders/{me['id']}", json={"vehicle_category": "AUTO"}, headers=admin).status_code == 400  # No number yet
+    assert client.put(f"{API}/admin/riders/{me['id']}", json={"vehicle_category": "AUTO"}, headers=admin).status_code == 200  # Number optional
     assert client.put(f"{API}/admin/riders/{me['id']}", json={"vehicle_category": "AUTO", "vehicle_number": "DL1RA" + _phone()[-4:]}, headers=admin).status_code == 200
     logs = client.get(f"{API}/audit-logs", headers=admin).json()
     rows = logs if isinstance(logs, list) else logs.get("items", logs.get("logs", []))
@@ -106,11 +107,11 @@ def test_rider_cannot_change_vehicle_type_and_admin_change_is_audited(client, db
 
 # --------------------------------------------------------------------------- eligibility
 
-@pytest.mark.parametrize("category", ["CYCLE", "TWO_WHEELER", "AUTO", "THREE_WHEELER"])
+@pytest.mark.parametrize("category", ["CYCLE", "E_BIKE", "TWO_WHEELER", "AUTO", "THREE_WHEELER"])
 def test_each_type_joins_only_eligible_campaigns(client, admin, category):
     _, headers = approved_rider(client, admin, category)
     mine = campaign(client, admin, [category])
-    others = [c for c in ("CYCLE", "TWO_WHEELER", "AUTO", "THREE_WHEELER") if c != category]
+    others = [c for c in ("CYCLE", "E_BIKE", "TWO_WHEELER", "AUTO", "THREE_WHEELER") if c != category]
     not_mine = campaign(client, admin, others)
     # Hidden from this rider (list and direct link); a direct join is still refused.
     assert not_mine["id"] not in [c["id"] for c in client.get(f"{API}/riders/me/campaigns", headers=headers).json()["available"]]
@@ -266,10 +267,10 @@ def _admin_create(client, admin, category, number=None):
     return client.post(f"{API}/admin/riders", json=body, headers=admin)
 
 
-@pytest.mark.parametrize("category", ["TWO_WHEELER", "AUTO", "THREE_WHEELER"])
-def test_admin_create_requires_number_except_cycle(client, admin, category):
+@pytest.mark.parametrize("category", ["E_BIKE", "TWO_WHEELER", "AUTO", "THREE_WHEELER"])
+def test_admin_create_number_optional(client, admin, category):
     res = _admin_create(client, admin, category)
-    assert res.status_code == 422 and "registration number is required" in res.text
+    assert res.status_code == 200 and res.json()["vehicle_number"] is None
     ok = _admin_create(client, admin, category, "mh 12 ld " + _phone()[-4:])
     assert ok.status_code == 200 and ok.json()["vehicle_number"].startswith("MH12LD")  # Existing normalisation unchanged
     assert _admin_create(client, admin, category, "12345").status_code == 422  # Existing format validation unchanged
@@ -284,29 +285,29 @@ def test_admin_create_cycle_without_number(client, admin):
 def test_admin_edit_vehicle_type_and_number_rules(client, admin, target):
     rider = _admin_create(client, admin, "CYCLE").json()
     url = f"{API}/admin/riders/{rider['id']}"
-    # Cycle → motor vehicle without a (valid) number: refused, nothing saved.
-    assert client.put(url, json={"vehicle_category": target}, headers=admin).status_code == 400
+    # An invalid number is refused and nothing is saved.
     assert client.put(url, json={"vehicle_category": target, "vehicle_number": "ABC"}, headers=admin).status_code == 422
     assert client.get(url, headers=admin).json()["vehicle_category"] == "CYCLE"
+    # Cycle → motor vehicle without a number is allowed (the number is optional).
+    assert client.put(url, json={"vehicle_category": target}, headers=admin).json()["vehicle_category"] == target
     number = "KA05MN" + _phone()[-4:]
     changed = client.put(url, json={"vehicle_category": target, "vehicle_number": number}, headers=admin)
     assert changed.status_code == 200 and changed.json()["vehicle_category"] == target and changed.json()["vehicle_number"] == number
-    # Clearing the number of a motor vehicle is refused.
-    assert client.put(url, json={"vehicle_number": ""}, headers=admin).status_code == 400
-    assert client.get(url, headers=admin).json()["vehicle_number"] == number
+    # The number can be cleared again.
+    assert client.put(url, json={"vehicle_number": ""}, headers=admin).json()["vehicle_number"] is None
+    assert client.put(url, json={"vehicle_number": number}, headers=admin).status_code == 200
     # Motor vehicle → Cycle: allowed, and the number may then be cleared.
     assert client.put(url, json={"vehicle_category": "CYCLE"}, headers=admin).status_code == 200
     assert client.put(url, json={"vehicle_number": ""}, headers=admin).json()["vehicle_number"] is None
 
 
-def test_rider_profile_cannot_pick_motor_vehicle_without_number(client, db_session, admin):
+def test_rider_profile_can_pick_vehicle_without_number(client, db_session, admin):
     me, headers = approved_rider(client, admin, "CYCLE")
     legacy = db_session.get(Rider, me["id"])
     legacy.vehicle_category = None  # A rider from before vehicle types were required
     db_session.commit()
     res = client.patch(f"{API}/riders/me", json={"vehicle_category": "AUTO"}, headers=headers)
-    assert res.status_code == 400 and "registration number" in res.json()["detail"]
-    assert client.patch(f"{API}/riders/me", json={"vehicle_category": "CYCLE"}, headers=headers).status_code == 200
+    assert res.status_code == 200, res.text
 
 
 # --------------------------------------------------------------------------- terms retention (delete / archive)

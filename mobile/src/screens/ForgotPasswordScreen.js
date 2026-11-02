@@ -76,7 +76,7 @@ export default function ForgotPasswordScreen({ initialIdentifier = '', onBack, o
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.screen}>
+    <KeyboardAvoidingView behavior="padding" style={styles.screen}>
       <View style={styles.padded}>
         <ScreenHeader onBack={onBack} title="" />
       </View>

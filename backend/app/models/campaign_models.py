@@ -151,19 +151,22 @@ class VehicleCategory:
 
     TWO_WHEELER keeps its original stored value; it is shown as "Bike / Two Wheeler"."""
     CYCLE = "CYCLE"
+    E_BIKE = "E_BIKE"
     TWO_WHEELER = "TWO_WHEELER"
     AUTO = "AUTO"
     THREE_WHEELER = "THREE_WHEELER"
-    ALL = (CYCLE, TWO_WHEELER, AUTO, THREE_WHEELER)
-    LABELS = {CYCLE: "Cycle", TWO_WHEELER: "Bike / Two Wheeler", AUTO: "Auto", THREE_WHEELER: "Three Wheeler"}
+    ALL = (CYCLE, E_BIKE, TWO_WHEELER, AUTO, THREE_WHEELER)
+    LABELS = {CYCLE: "Cycle", E_BIKE: "E-Bike", TWO_WHEELER: "Bike / Two Wheeler", AUTO: "Auto", THREE_WHEELER: "Three Wheeler"}
     DESCRIPTIONS = {
         CYCLE: "Bicycle or pedal cycle",
+        E_BIKE: "Electric bike, e.g. Yulu or other rental e-bikes",
         TWO_WHEELER: "Motorbike or scooter",
         AUTO: "Passenger auto-rickshaw",
         THREE_WHEELER: "Cargo / loader or other non-passenger three-wheeler",
     }
-    # Cycles usually have no registration number; every other type must give one at registration.
-    NUMBER_OPTIONAL = (CYCLE,)
+    # The registration number is optional for every type (riders can sign up without one; operations
+    # can add it later). When given, it is still validated and must be unique.
+    NUMBER_OPTIONAL = ALL
     # Every campaign photo (Morning, Evening, Night) must show the vehicle's number plate.
     PLATE_IN_PHOTOS = (AUTO, THREE_WHEELER)
 
