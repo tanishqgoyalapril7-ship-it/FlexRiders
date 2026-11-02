@@ -9,7 +9,7 @@ FlexRiders manages delivery riders end to end: registration and verification, br
 | **Website** (landing page) | Next.js 15 | `landing/` | Vercel → flexriders.in |
 | **Admin dashboard** (web, works on phones and tablets) | React 18, Vite 5, lucide-react | `frontend/` | Vercel → flexriders.in/admin |
 | **Backend API** | FastAPI, SQLAlchemy 2, Pydantic v2, PostgreSQL (Supabase) or SQLite | `backend/` | Vercel (Mumbai) + Supabase Mumbai |
-| **Rider app** (iOS & Android) | React Native 0.74, Expo SDK 51 | `mobile/` | Expo builds (`mobile/eas.json`) |
+| **Rider & brand app** (Android, iOS) | React Native 0.86, Expo SDK 57 | `mobile/` | [Google Play](https://play.google.com/store/apps/details?id=com.flexriders.app) (`com.flexriders.app`) |
 
 ---
 
@@ -92,7 +92,15 @@ EXPO_PUBLIC_API_URL=http://192.168.1.20:8000/api/v1 npx expo start
 
 ## Rider app features
 
+### Getting started
+- **Live on [Google Play](https://play.google.com/store/apps/details?id=com.flexriders.app)** (current version 1.0.7).
+- Intro walkthrough → **Choose Your Language** (English / हिन्दी) → on a **fresh install the app opens straight on Sign Up**, with a one-tap switch to Login. Once anyone has signed in on the phone, it opens on the start screen instead.
+- Start screen: **Login as Rider** is the main button, **New rider? Sign Up** below it, and a small secondary **Are you a brand? Login as Brand** link. The rider login and sign-up screens carry the same small brand link.
+
 ### Account
+- **Vehicle types**: Cycle, **E-Bike** (Yulu and other rental e-bikes), Two Wheeler, Auto and Three Wheeler, everywhere a vehicle is chosen (sign-up, Change Vehicle, brand campaign targeting, admin). The backend's `VehicleCategory` is the single list; a test checks the app and dashboard match it.
+- **Number plate is optional** for every vehicle type at sign-up. When entered it's still validated and must be unique. Cycles and e-bikes upload an ownership proof (purchase bill / rental proof) instead of an RC.
+- **Working areas**: riders add every area they ride in with **+ Add Another Location**, up to 10 (`MAX_WORKING_AREAS`); campaigns are matched to these areas.
 - **Registration wizard** (Personal → Work → Vehicle & Location → Payment → Review):
   - Show/hide toggle on the password field.
   - Date of birth picker with Day / Month / Year lists (riders must be 18+).
@@ -134,6 +142,13 @@ EXPO_PUBLIC_API_URL=http://192.168.1.20:8000/api/v1 npx expo start
 - When a referred rider completes their **first** Photo Streak (Morning, Evening and Night approved on one campaign day), the **referrer** gets **₹30** (`REFERRAL_REWARD_AMOUNT`), once per referred rider. The referred rider doesn't get it.
 - The reward is a real payment in the payments ledger (tagged *Referral reward*, pending until an admin pays it). It appears in the referrer's earnings and in the admin Payments list.
 - The screen shows the code, a Share button, successful referrals, referral earnings and referral history.
+
+### Language
+- English and Hindi. The rider picks a language at first launch and can change it later; the choice is saved on the phone.
+- Translations are a hand-written English → Hindi phrase list bundled in the app (`mobile/src/i18n.js`), so it works offline and nothing is sent to a translation service. Any text not in the list (server messages, brand-written campaign text) stays in English.
+
+### Photo reminders
+- Phone notifications for the daily photos, scheduled on the device (no push server): when each Morning / Evening / Night window opens and 30 minutes before it closes. They're built from the rider's real active campaign and skip slots already uploaded today (`mobile/src/services/photoReminders.js`).
 
 ### Notifications
 - Filter (All / Unread / Payments / System), mark all read, delete one, delete all.
