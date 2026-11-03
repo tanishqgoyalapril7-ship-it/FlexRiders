@@ -1,7 +1,7 @@
 /**
- * Website campaign pricing (owner's current rules, 2026-10). Linear per vehicle, different per type:
- *   Bike: ₹1,000 per rider, no minimum          → 10 = ₹10,000, 20 = ₹20,000, 30 = ₹30,000
- *   Auto: ₹1,200 per auto, minimum 10 autos      → 10 = ₹12,000 (minimum), 20 = ₹24,000, 30 = ₹36,000
+ * Website campaign pricing (owner's current rules, raised 2026-11-03). Linear per vehicle, different per type:
+ *   Bike: ₹1,200 per rider, no minimum          → 10 = ₹12,000, 20 = ₹24,000, 30 = ₹36,000
+ *   Auto: ₹1,500 per auto, minimum 10 autos      → 10 = ₹15,000 (minimum), 20 = ₹30,000, 30 = ₹45,000
  * Every price on the site is computed from PRICING; change the rates here.
  * TODO(owner): confirm whether the rate is per campaign or per day before publishing, then set `unit`.
  */
@@ -13,8 +13,8 @@ export const PRICING: Record<
   VehicleKind,
   { rate: number; min: number; presets: number[]; label: string; plural: string; unit: string; enquiry: string }
 > = {
-  bike: { rate: 1000, min: 1, presets: [1, 10, 20, 30], label: "Bike rider", plural: "Bike riders", unit: "rider", enquiry: "RIDER_BIKE" },
-  auto: { rate: 1200, min: 10, presets: [10, 20, 30], label: "Auto", plural: "Autos", unit: "auto", enquiry: "AUTO" },
+  bike: { rate: 1200, min: 1, presets: [1, 10, 20, 30], label: "Bike rider", plural: "Bike riders", unit: "rider", enquiry: "RIDER_BIKE" },
+  auto: { rate: 1500, min: 10, presets: [10, 20, 30], label: "Auto", plural: "Autos", unit: "auto", enquiry: "AUTO" },
 };
 
 /** Clamp to the vehicle type's minimum order and the site maximum. */

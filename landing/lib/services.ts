@@ -58,7 +58,7 @@ export const SERVICES: Service[] = [
     faqs: [
       {
         q: "How much does bike advertising cost?",
-        a: "₹1,000 per bike rider, with no minimum number of riders. Use the campaign planner on our homepage to see your estimated cost; our team confirms the final quote when your campaign is approved.",
+        a: "₹1,200 per bike rider, with no minimum number of riders. Use the campaign planner on our homepage to see your estimated cost; our team confirms the final quote when your campaign is approved.",
       },
       {
         q: "Which areas of Gurugram can I target?",
@@ -98,7 +98,7 @@ export const SERVICES: Service[] = [
     faqs: [
       {
         q: "How much does auto rickshaw advertising cost?",
-        a: "₹1,200 per auto, with a minimum campaign of 10 autos (₹12,000). Use the campaign planner on our homepage to see your estimated cost; our team confirms the final quote when your campaign is approved.",
+        a: "₹1,500 per auto, with a minimum campaign of 10 autos (₹15,000). Use the campaign planner on our homepage to see your estimated cost; our team confirms the final quote when your campaign is approved.",
       },
       {
         q: "Who sees an auto rickshaw advertisement?",
