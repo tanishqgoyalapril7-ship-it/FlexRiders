@@ -81,7 +81,7 @@ export default function Payments() {
           ref={stageRef}
           className={s.stage}
           role="img"
-          aria-label="Payment views: today's earnings ₹850 and this month ₹18,450; latest payment marked PAID with transaction ID TXN123456789; and a payment history list (demonstration data)"
+          aria-label="Payment views: today's earnings ₹50 and this month ₹1,250; latest payment marked PAID with transaction ID TXN123456789; and a payment history list (demonstration data)"
         >
           <motion.div className={`${s.card} ${s.status}`} style={{ y: sideY }} aria-hidden="true">
             <div className={s.cardHead}>

@@ -244,7 +244,7 @@ export function BrandScreen() {
 export function PaymentScreen() {
   return (
     <div className={s.screen}>
-      <Notice title="Payment update" body="₹920 for 23 Sep has been marked as paid." />
+      <Notice title="Payment update" body="₹50 for 23 Sep has been marked as paid." />
       <p className={s.title} style={{ marginTop: 14 }}>
         Earnings
       </p>

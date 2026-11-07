@@ -1,0 +1,28 @@
+.fab {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 95;
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #25d366;
+  color: #fff;
+  box-shadow: 0 10px 26px -8px rgba(0, 0, 0, 0.45);
+  transition: transform 0.25s var(--ease-out);
+}
+.fab:hover {
+  transform: scale(1.06);
+}
+
+/* Phones: sit above the bottom "Promote Your Brand / Join as Rider" bar. */
+@media (max-width: 760px) {
+  .fab {
+    right: 16px;
+    bottom: calc(80px + env(safe-area-inset-bottom));
+    width: 52px;
+    height: 52px;
+  }
+}

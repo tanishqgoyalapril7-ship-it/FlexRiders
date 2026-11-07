@@ -41,8 +41,8 @@ export const demoRiders: {
 ];
 
 export const demoEarnings = {
-  today: 850,
-  month: 18450,
+  today: 50,
+  month: 1250,
   txn: "TXN123456789",
 };
 
@@ -53,11 +53,11 @@ export const demoPayments: {
   status: "PAID" | "PROCESSING";
   txn: string;
 }[] = [
-  { date: "24 Sep", brand: "Brand A", amount: 850, status: "PROCESSING", txn: "TXN123456790" },
-  { date: "23 Sep", brand: "Brand A", amount: 920, status: "PAID", txn: "TXN123456789" },
-  { date: "22 Sep", brand: "Brand A", amount: 780, status: "PAID", txn: "TXN123456731" },
-  { date: "21 Sep", brand: "Brand A", amount: 1040, status: "PAID", txn: "TXN123456702" },
-  { date: "20 Sep", brand: "Brand A", amount: 690, status: "PAID", txn: "TXN123456655" },
+  { date: "24 Sep", brand: "Brand A", amount: 50, status: "PROCESSING", txn: "TXN123456790" },
+  { date: "23 Sep", brand: "Brand A", amount: 50, status: "PAID", txn: "TXN123456789" },
+  { date: "22 Sep", brand: "Brand A", amount: 50, status: "PAID", txn: "TXN123456731" },
+  { date: "21 Sep", brand: "Brand A", amount: 50, status: "PAID", txn: "TXN123456702" },
+  { date: "20 Sep", brand: "Brand A", amount: 50, status: "PAID", txn: "TXN123456655" },
 ];
 
 export const inr = (n: number) =>
@@ -77,9 +77,9 @@ export type DemoCampaign = {
 };
 
 export const demoCampaigns: DemoCampaign[] = [
-  { name: "Café Launch Week", brand: "Brand A", k: "A", distance: "1.2 km", rate: 450, slots: 6, vehicles: "Bike · Cycle", filter: "near" },
-  { name: "Store Opening Drive", brand: "Brand B", k: "B", distance: "3.8 km", rate: 600, slots: 3, vehicles: "Auto · Three Wheeler", filter: "soon", opensIn: "18h" },
-  { name: "Neighbourhood Promo", brand: "Brand C", k: "C", distance: "Working area", rate: 400, slots: 9, vehicles: "All vehicles", filter: "areas" },
+  { name: "Café Launch Week", brand: "Brand A", k: "A", distance: "1.2 km", rate: 50, slots: 6, vehicles: "Bike · Cycle", filter: "near" },
+  { name: "Store Opening Drive", brand: "Brand B", k: "B", distance: "3.8 km", rate: 50, slots: 3, vehicles: "Auto · Three Wheeler", filter: "soon", opensIn: "18h" },
+  { name: "Neighbourhood Promo", brand: "Brand C", k: "C", distance: "Working area", rate: 50, slots: 9, vehicles: "All vehicles", filter: "areas" },
 ];
 
-export const demoStreak = { current: 6, longest: 11, rate: 450 };
+export const demoStreak = { current: 6, longest: 11, rate: 50 };

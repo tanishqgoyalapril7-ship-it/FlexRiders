@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import type { ReactNode } from "react";
 import Providers from "@/components/Providers";
+import WhatsAppButton from "@/components/WhatsAppButton";
 import { LEGAL } from "@/lib/legal";
 import { founders, site, team } from "@/lib/site";
 import "./globals.css";
@@ -60,6 +61,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
     <html lang="en-IN" className={inter.variable}>
       <body>
         <Providers>{children}</Providers>
+        <WhatsAppButton />
         {/* Organization details for search engines (who runs Flex Riders). */}
         <script
           type="application/ld+json"
@@ -76,6 +78,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
                   sameAs: [site.playStoreUrl],
                   logo: `${site.url}/icon.png`,
                   email: LEGAL.email,
+                  telephone: site.phone.tel,
                   description: site.description,
                   address: { "@type": "PostalAddress", addressLocality: "Gurugram", addressRegion: "Haryana", addressCountry: "IN" },
                   areaServed: { "@type": "City", name: "Gurugram" },

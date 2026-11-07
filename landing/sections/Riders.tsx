@@ -45,7 +45,7 @@ const chapters = [
     title: "Earnings, clearly.",
     text: "Today's earnings, this month's total and the latest payment status.",
     Screen: PaymentScreen,
-    alt: "Earnings screen showing today ₹850, this month ₹18,450 and a paid payment with transaction ID",
+    alt: "Earnings screen showing today ₹50, this month ₹1,250 and a paid payment with transaction ID",
   },
   {
     key: "history",

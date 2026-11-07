@@ -11,6 +11,12 @@ export const site = {
     (process.env.NODE_ENV === "production" ? "/brand" : "http://localhost:5180/brand"),
   // The Flex Riders app (riders and brands) on Google Play.
   playStoreUrl: "https://play.google.com/store/apps/details?id=com.flexriders.app",
+  // FlexRiders call / WhatsApp number (owner, 2026-11-07).
+  phone: {
+    display: "+91 93063 20278",
+    tel: "+919306320278",
+    whatsapp: `https://wa.me/919306320278?text=${encodeURIComponent("Hi FlexRiders, I'd like to know more.")}`,
+  },
 };
 
 export type NavLink = { label: string; href: `#${string}` };

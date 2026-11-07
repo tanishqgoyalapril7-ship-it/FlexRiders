@@ -101,3 +101,37 @@
 .play {
   margin-top: 18px;
 }
+
+/* Call / WhatsApp */
+.reach {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin-top: 16px;
+}
+.wa {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 999px;
+  background: #25d366;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.wa:hover {
+  background: #1ebe5b;
+}
+.call {
+  color: #f5f5f7;
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: none;
+}
+.call:hover {
+  text-decoration: underline;
+}

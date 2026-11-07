@@ -7,6 +7,7 @@ import { footerProduct, site, team } from "@/lib/site";
 import { useContact } from "./Contact";
 import GooglePlayBadge from "./GooglePlayBadge";
 import Logo from "./Logo";
+import { WhatsAppIcon } from "./WhatsAppButton";
 import s from "./Footer.module.css";
 
 /** linkBase "/" on other pages, so the homepage section links (#plan, …) point back to the homepage. */
@@ -18,6 +19,15 @@ export default function Footer({ linkBase = "" }: { linkBase?: string }) {
         <div className={s.brand}>
           <Logo height={22} />
           <p>Bike and auto rickshaw advertising for local brands, run by verified riders and tracked every day.</p>
+          <div className={s.reach}>
+            <a href={site.phone.whatsapp} target="_blank" rel="noopener noreferrer" className={s.wa}>
+              <WhatsAppIcon />
+              WhatsApp us
+            </a>
+            <a href={`tel:${site.phone.tel}`} className={s.call}>
+              Call {site.phone.display}
+            </a>
+          </div>
           <GooglePlayBadge className={s.play} />
           <div id="founders" className={s.founders} aria-labelledby="founders-title">
             <h2 id="founders-title">Our team</h2>
