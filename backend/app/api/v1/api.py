@@ -19,11 +19,14 @@ from app.api.v1.endpoints import (
     customer,
     geo,
     rider_documents,
+    offers,
 )
 
 api_router = APIRouter()
 
 api_router.include_router(customer.router, prefix="/customer", tags=["Customer App"])
+api_router.include_router(offers.public_router, prefix="/public/offers", tags=["Redeem Offer (guest)"])
+api_router.include_router(offers.admin_router, prefix="/admin/offers", tags=["Redeem Offer (admin)"])
 
 api_router.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 api_router.include_router(riders.router, prefix="/riders", tags=["Rider App"])

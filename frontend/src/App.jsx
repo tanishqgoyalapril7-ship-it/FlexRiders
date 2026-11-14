@@ -15,6 +15,7 @@ import SupportView from './views/SupportView';
 import EnquiriesView from './views/EnquiriesView';
 import CampaignRequestsView from './views/CampaignRequestsView';
 import PhotoVerificationView from './views/PhotoVerificationView';
+import OfferRequestsView from './views/OfferRequestsView';
 import TrackingView from './views/TrackingView';
 import { JoinRequestsView } from './components/JoinRequests';
 import { AdminsView, LoginView, NotificationsView, SettingsView } from './views/AdminPages';
@@ -663,6 +664,7 @@ export default function App() {
           />
         )}
         {activeView === 'photos' && <PhotoVerificationView onChanged={refreshAllData} />}
+        {activeView === 'offers' && <OfferRequestsView onChanged={refreshAllData} />}
         {activeView === 'tracking' && <TrackingView />}
 
         {activeView === 'reports' && <ReportsView dashboardData={dashboardData} />}

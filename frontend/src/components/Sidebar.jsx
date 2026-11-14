@@ -21,6 +21,7 @@ import {
   Camera,
   Route,
   X,
+  Ticket,
 } from 'lucide-react';
 
 export default function Sidebar({ open = false, onClose, activeView, setActiveView, riderFilter, setRiderFilter, paymentFilter, setPaymentFilter, pendingCount = 0, campaignRequestCount = 0, brandRequestCount = 0 }) {
@@ -159,6 +160,14 @@ export default function Sidebar({ open = false, onClose, activeView, setActiveVi
           <div className="nav-item-left">
             <Camera size={18} />
             <span>Photo Verification</span>
+          </div>
+        </div>
+
+        {/* Redeem Offer: customers' photos of branded riders */}
+        <div className={`nav-item ${activeView === 'offers' ? 'active' : ''}`} onClick={() => setActiveView('offers')}>
+          <div className="nav-item-left">
+            <Ticket size={18} />
+            <span>Offer Requests</span>
           </div>
         </div>
 

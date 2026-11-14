@@ -350,6 +350,28 @@ export const api = {
   getCampaignSnapshot: (id) => fetchWithAuth(`/campaigns/${id}/snapshot`),
 
   // Website enquiries (leads)
+  // Redeem Offer: guests' rider photos (private), approval creates the brand voucher.
+  getOfferSubmissions: (params = {}) => {
+    const q = new URLSearchParams(Object.entries(params).filter(([, v]) => v !== '' && v != null && v !== false)).toString();
+    return fetchWithAuth(`/admin/offers/submissions${q ? `?${q}` : ''}`);
+  },
+  getOfferSubmission: (id) => fetchWithAuth(`/admin/offers/submissions/${id}`),
+  getOfferPhotoUrl: async (id, stamped = false) => {
+    const response = await fetch(`${API_BASE}/admin/offers/submissions/${id}/photo${stamped ? '?stamped=true' : ''}`, {
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      cache: 'no-store',
+    });
+    if (!response.ok) throw new Error('Could not load the photo');
+    return URL.createObjectURL(await response.blob());
+  },
+  approveOfferSubmission: (id, campaignId, riderId) =>
+    fetchWithAuth(`/admin/offers/submissions/${id}/approve`, { method: 'POST', body: JSON.stringify({ campaign_id: campaignId, rider_id: riderId || null }) }),
+  rejectOfferSubmission: (id, reason) => fetchWithAuth(`/admin/offers/submissions/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason }) }),
+  flagOfferSubmission: (id, suspicious, note) =>
+    fetchWithAuth(`/admin/offers/submissions/${id}/flag`, { method: 'POST', body: JSON.stringify({ suspicious, note: note || null }) }),
+  getCampaignOffer: (campaignId) => fetchWithAuth(`/admin/offers/campaigns/${campaignId}`),
+  saveCampaignOffer: (campaignId, offer) => fetchWithAuth(`/admin/offers/campaigns/${campaignId}`, { method: 'PUT', body: JSON.stringify(offer) }),
+
   getEnquiries: (params = {}) => {
     const query = new URLSearchParams(Object.entries(params).filter(([, v]) => v)).toString();
     return fetchWithAuth(`/admin/enquiries${query ? `?${query}` : ''}`);

@@ -13,6 +13,7 @@ from app.models.all_models import (
     PaymentStatus,
     DocumentType,
 )
+from app.models.offer_models import CampaignOffer, OfferGuest, OfferSubmission, Voucher
 from app.models.campaign_models import (
     Campaign,
     CampaignApplication,

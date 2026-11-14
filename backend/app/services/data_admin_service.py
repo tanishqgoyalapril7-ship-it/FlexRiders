@@ -49,6 +49,7 @@ from app.models.campaign_models import (
     RoutePoint,
 )
 from app.services.audit_service import log_admin_action
+from app.models.offer_models import CampaignOffer, OfferGuest, OfferSubmission, Voucher
 
 
 class DataAdminError(ValueError):
@@ -107,6 +108,7 @@ def hard_delete_rider(db: Session, rider: Rider, admin: Optional[User], reason: 
         )
     label, user, selfie = impact["name"], rider.user, rider.profile_photo
     db.query(CampaignApplication).filter(CampaignApplication.rider_id == rider.id).delete(synchronize_session=False)
+    _unlink_offer_rider(db, [rider.id])
     # Referral links to or from this rider (a rider with a rewarded referral has payments, so isn't deleted here).
     db.query(RiderReferral).filter(
         (RiderReferral.referred_rider_id == rider.id) | (RiderReferral.referrer_rider_id == rider.id)
@@ -307,8 +309,9 @@ def campaign_impact(db: Session, campaign: Campaign) -> Dict:
         "payouts_paid": _count(db, CampaignPayout.id, CampaignPayout.campaign_id == campaign.id, CampaignPayout.paid_amount > 0),
         "brand_payment_records": _count(db, BrandPaymentRecord.id, BrandPaymentRecord.campaign_id == campaign.id),
         "extensions": _count(db, CampaignExtension.id, CampaignExtension.campaign_id == campaign.id),
+        "vouchers": _count(db, Voucher.id, Voucher.campaign_id == campaign.id),
     }
-    blockers = [k for k in ("riders", "campaign_days", "photos", "payouts_paid", "brand_payment_records") if counts[k]]
+    blockers = [k for k in ("riders", "campaign_days", "photos", "payouts_paid", "brand_payment_records", "vouchers") if counts[k]]
     if campaign.status not in (CampaignStatus.DRAFT, CampaignStatus.CANCELLED):
         blockers.insert(0, "status")
     can_cancel = campaign.status not in (CampaignStatus.COMPLETED, CampaignStatus.CANCELLED)
@@ -335,6 +338,8 @@ def hard_delete_campaign(db: Session, campaign: Campaign, admin: User) -> None:
     # Terms versions and acceptances are permanent consent history and are deliberately NOT deleted.
     for model in (CampaignFulfillmentSnapshot, CampaignApplication, CampaignExtension, CampaignBrandKit, CampaignPickupLocation):
         db.query(model).filter(model.campaign_id == cid).delete(synchronize_session=False)
+    _unlink_offer_campaigns(db, [cid])
+    db.query(CampaignOffer).filter(CampaignOffer.campaign_id == cid).delete(synchronize_session=False)
     image = campaign.image_url
     db.delete(campaign)
     db.commit()
@@ -412,6 +417,31 @@ def _delete_all(db: Session, *models) -> Dict[str, int]:
 # consent history; they don't reference campaigns or riders by foreign key, so nothing blocks either).
 
 
+def _unlink_offer_rider(db: Session, rider_ids: Optional[List[int]]) -> None:
+    """Offer requests keep their row (the guest's own record) but stop pointing at deleted riders."""
+    for column in (OfferSubmission.rider_id, OfferSubmission.suggested_rider_id):
+        query = db.query(OfferSubmission).filter(column.isnot(None))
+        if rider_ids is not None:
+            query = query.filter(column.in_(rider_ids))
+        query.update({column: None}, synchronize_session=False)
+
+
+def _unlink_offer_campaigns(db: Session, campaign_ids: List[int]) -> None:
+    """A deleted (draft/cancelled, voucher-free) campaign: requests that only mentioned it keep their row."""
+    for column in (OfferSubmission.campaign_id, OfferSubmission.suggested_campaign_id):
+        db.query(OfferSubmission).filter(column.in_(campaign_ids)).update({column: None}, synchronize_session=False)
+    hints = [oid for (oid,) in db.query(CampaignOffer.id).filter(CampaignOffer.campaign_id.in_(campaign_ids))]
+    if hints:
+        db.query(OfferSubmission).filter(OfferSubmission.offer_hint_id.in_(hints)).update(
+            {OfferSubmission.offer_hint_id: None}, synchronize_session=False
+        )
+
+
+def _reset_offers(db: Session) -> Dict[str, int]:
+    """Redeem Offer data only exists for campaigns, so it goes with them (guests' photos and numbers too)."""
+    return _delete_all(db, Voucher, OfferSubmission, OfferGuest, CampaignOffer)
+
+
 def _reset_activity(db: Session) -> Dict[str, int]:
     """Photos, rider-days, corrections and snapshots; payouts back to zero and their payments removed."""
     removed = _delete_all(db, ActivityChangeLog, CampaignActivityPhoto, FinancialAdjustment, CampaignFulfillmentSnapshot, CampaignDailyActivity, RoutePoint)
@@ -444,6 +474,7 @@ def _reset_campaigns(db: Session) -> Dict[str, int]:
     payout_payments = removed["payments"]
     removed.update(_delete_rider_kits(db))
     removed["payments"] += payout_payments
+    removed.update(_reset_offers(db))
     removed.update(
         _delete_all(
             db, CampaignPayout, CampaignAssignment, CampaignApplication,
@@ -460,6 +491,7 @@ def _reset_riders(db: Session) -> Dict[str, int]:
     removed.update(_delete_rider_kits(db))
     removed["payments"] += payout_payments
     removed.update(_delete_all(db, CampaignPayout, CampaignAssignment, CampaignApplication))
+    _unlink_offer_rider(db, None)
     rider_user_ids = [uid for (uid,) in db.query(Rider.user_id).filter(Rider.user_id.isnot(None))]
     from app.models.all_models import SupportConversation, SupportMessage
 
@@ -518,6 +550,7 @@ def reset_data(db: Session, scope: str, confirmation: str, admin: User) -> Dict:
         _clear_upload_folder("selfies")  # Driver selfies go with their riders
     if scope in ("campaigns", "brands", "all"):
         _clear_upload_folder("campaigns")
+        _clear_upload_folder("offer-photos")  # Guests' photos go with the offer requests
 
     removed = {k: v for k, v in removed.items() if v}
     summary = ", ".join(f"{v} {k.replace('_', ' ')}" for k, v in sorted(removed.items())) or "nothing to remove"

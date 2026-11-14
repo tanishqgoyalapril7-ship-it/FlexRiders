@@ -42,6 +42,7 @@ import { GeoPanel, ReviewDialog } from '../components/GeoTargeting';
 import { subscribeCampaignSignals } from '../services/realtime';
 import { CampaignStatusPill, EmptyState, SlotProgress, SlotStatuses, StatCard, StatusPill, VEHICLE_TYPES, formatDate, formatINR, vehicleLabel } from '../components/CampaignShared';
 import { TermsPanel } from '../components/CampaignTerms';
+import { OfferPanel } from '../components/CampaignOffer';
 import CampaignVideoCard from '../components/CampaignVideo';
 import {
   BrandKitPanel,
@@ -62,6 +63,7 @@ const TABS = [
   ['extensions', 'Extensions'],
   ['kit', 'Brand Kit'],
   ['terms', 'Terms'],
+  ['offer', 'Redeem Offer'],
   ['financials', 'Financials'],
   ['history', 'History'],
 ];
@@ -1069,6 +1071,7 @@ export default function CampaignDetailView({ campaignId, brands = [], onBack, on
       {tab === 'extensions' && <ExtensionsPanel campaign={campaign} onExtend={() => setShowExtension(true)} />}
       {tab === 'kit' && <BrandKitPanel campaignId={campaign.id} />}
       {tab === 'terms' && <TermsPanel campaignId={campaign.id} />}
+      {tab === 'offer' && <OfferPanel campaign={campaign} />}
       {tab === 'financials' && <FinancialsPanel campaignId={campaign.id} fulfillment={fulfillment} onChanged={reload} />}
       {tab === 'history' && <HistoryPanel campaign={campaign} />}
 
