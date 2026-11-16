@@ -45,7 +45,7 @@ export default function MobileActionBar() {
           exit={{ y: "120%" }}
           transition={{ type: "spring", stiffness: 380, damping: 34 }}
         >
-          <a href="#plan" className="btn btn-primary">
+          <a href="#enquiry" className="btn btn-primary">
             Promote Your Brand
           </a>
           <button type="button" className="btn btn-ghost" onClick={() => openContact("start", "rider")}>

@@ -10,7 +10,7 @@ import Logo from "./Logo";
 import { WhatsAppIcon } from "./WhatsAppButton";
 import s from "./Footer.module.css";
 
-/** linkBase "/" on other pages, so the homepage section links (#plan, …) point back to the homepage. */
+/** linkBase "/" on other pages, so the homepage section links (#enquiry, …) point back to the homepage. */
 export default function Footer({ linkBase = "" }: { linkBase?: string }) {
   const openContact = useContact();
   return (

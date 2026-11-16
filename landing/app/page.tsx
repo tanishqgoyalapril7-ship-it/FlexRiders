@@ -2,7 +2,6 @@ import Footer from "@/components/Footer";
 import MobileActionBar from "@/components/MobileActionBar";
 import Navbar from "@/components/Navbar";
 import Hero from "@/sections/Hero";
-import Plan from "@/sections/Plan";
 import Snapshot from "@/sections/Snapshot";
 import HowItWorks from "@/sections/HowItWorks";
 import RiderApp from "@/sections/RiderApp";
@@ -23,7 +22,6 @@ export default function Home() {
         <Hero />
         <Snapshot />
         <ForBrands />
-        <Plan />
         <HowItWorks />
         <RiderApp />
         <Trust />

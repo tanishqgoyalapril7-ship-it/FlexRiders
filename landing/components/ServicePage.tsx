@@ -55,9 +55,6 @@ export default function ServicePage({ service }: { service: Service }) {
             <Logo height={22} />
           </Link>
           <nav aria-label="Service page">
-            <Link href="/#plan" className={s.topLink}>
-              Pricing
-            </Link>
             <Link href="/#enquiry" className="btn btn-primary btn-sm">
               Start a Campaign
             </Link>
@@ -80,11 +77,8 @@ export default function ServicePage({ service }: { service: Service }) {
               </h1>
               <p className={`lead ${s.lead}`}>{service.intro}</p>
               <div className={s.ctas}>
-                <Link href="/#plan" className="btn btn-primary">
-                  Estimate your campaign <IconArrowRight size={16} className="btn-arrow" />
-                </Link>
-                <Link href="/#enquiry" className="btn btn-ghost">
-                  Send an enquiry
+                <Link href="/#enquiry" className="btn btn-primary">
+                  Start a Campaign <IconArrowRight size={16} className="btn-arrow" />
                 </Link>
               </div>
             </div>
@@ -114,8 +108,8 @@ export default function ServicePage({ service }: { service: Service }) {
               <p className={s.priceNote}>
                 {p.min > 1 ? `Minimum ${p.min} ${p.unit}s · ${inr(minCampaign(service.kind))}` : "No minimum number of riders"}
               </p>
-              <Link href="/#plan" className="btn btn-primary btn-sm">
-                See your cost in the planner
+              <Link href="/#enquiry" className="btn btn-primary btn-sm">
+                Get a quote
               </Link>
             </div>
           </div>
@@ -187,10 +181,10 @@ export default function ServicePage({ service }: { service: Service }) {
             <h2 id="scta-title" className={s.h2}>
               Ready to put your brand on the road in Gurugram?
             </h2>
-            <p className="lead">Plan your campaign, see the cost, and tell us where you want to be seen.</p>
+            <p className="lead">Tell us where you want to be seen, and our team will plan your campaign with you.</p>
             <div className={s.ctas}>
-              <Link href="/#plan" className="btn btn-primary">
-                Plan my campaign <IconArrowRight size={16} className="btn-arrow" />
+              <Link href="/#enquiry" className="btn btn-primary">
+                Start a Campaign <IconArrowRight size={16} className="btn-arrow" />
               </Link>
               {other && (
                 <Link href={`/${other.slug}`} className="btn btn-ghost">

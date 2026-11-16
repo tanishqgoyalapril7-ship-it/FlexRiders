@@ -43,7 +43,7 @@ export default function Hero() {
           </motion.p>
 
           <motion.div {...enter(0.4, 14)} className={s.ctas}>
-            <MagneticButton href="#plan" arrow>
+            <MagneticButton href="#enquiry" arrow>
               Promote Your Brand
             </MagneticButton>
             <MagneticButton variant="ghost" onClick={() => openContact("start", "rider")}>
