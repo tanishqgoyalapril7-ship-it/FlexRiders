@@ -23,7 +23,7 @@ export type Service = {
 
 const commonSteps = [
   { title: "Tell us your area", text: "Pick the city area where you want your brand to be seen and how far the campaign may reach." },
-  { title: "Choose your campaign size", text: "Decide how many vehicles carry your brand and for how many days. See the cost before you enquire." },
+  { title: "Choose your campaign size", text: "Decide how many vehicles carry your brand and for how many days. Our team shares a quote before anything starts." },
   { title: "We review and launch", text: "Our team approves the campaign, then verified riders near your area join it." },
   { title: "Follow it every day", text: "Morning, evening and night photos from every rider, reviewed by our team, in your brand app or web portal." },
 ];
@@ -35,7 +35,7 @@ export const SERVICES: Service[] = [
     kind: "bike",
     title: "Bike Advertising in Gurugram | FlexRiders",
     description:
-      "Put your brand on bike riders moving through Gurugram's neighbourhoods and markets. Choose your area and campaign size, see the cost upfront, and track photo-verified campaign days.",
+      "Put your brand on bike riders moving through Gurugram's neighbourhoods and markets. Choose your area and campaign size, and track photo-verified campaign days.",
     h1: "Bike advertising in Gurugram",
     intro:
       "Local brands use Flex Riders to put their brand on verified bike riders who move through the streets, lanes and markets of the areas they choose. You decide where and for how long; every campaign day is backed by photos.",
@@ -58,7 +58,7 @@ export const SERVICES: Service[] = [
     faqs: [
       {
         q: "How much does bike advertising cost?",
-        a: "₹1,200 per bike rider, with no minimum number of riders. Send us an enquiry and our team confirms the final quote when your campaign is approved.",
+        a: "It depends on the area, the number of riders or autos and how long the campaign runs. Send us an enquiry or WhatsApp us, and our team will share a quote for your campaign.",
       },
       {
         q: "Which areas of Gurugram can I target?",
@@ -75,7 +75,7 @@ export const SERVICES: Service[] = [
     kind: "auto",
     title: "Auto Rickshaw Advertising in Gurugram | FlexRiders",
     description:
-      "Rear-panel advertising on auto rickshaws across Gurugram's main roads, markets and traffic signals. Choose your area and number of autos, see the cost upfront, and track photo-verified campaign days.",
+      "Rear-panel advertising on auto rickshaws across Gurugram's main roads, markets and traffic signals. Choose your area and number of autos, and track photo-verified campaign days.",
     h1: "Auto rickshaw advertising in Gurugram",
     intro:
       "Flex Riders puts your brand on auto rickshaws that spend the day on Gurugram's busiest roads, at traffic signals and around markets, seen by passengers, pedestrians and nearby traffic. You choose the area and the number of autos; every campaign day is backed by photos.",
@@ -98,7 +98,7 @@ export const SERVICES: Service[] = [
     faqs: [
       {
         q: "How much does auto rickshaw advertising cost?",
-        a: "₹1,500 per auto, with a minimum campaign of 10 autos (₹15,000). Send us an enquiry and our team confirms the final quote when your campaign is approved.",
+        a: "It depends on the area, the number of riders or autos and how long the campaign runs. Send us an enquiry or WhatsApp us, and our team will share a quote for your campaign.",
       },
       {
         q: "Who sees an auto rickshaw advertisement?",

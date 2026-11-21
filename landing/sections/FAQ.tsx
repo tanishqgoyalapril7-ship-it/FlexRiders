@@ -1,4 +1,3 @@
-import { PRICING, inr, minCampaign } from "@/lib/pricing";
 import s from "./FAQ.module.css";
 
 const faqs = [
@@ -12,7 +11,7 @@ const faqs = [
   },
   {
     q: "How much does a campaign cost?",
-    a: `Bike campaigns are ${inr(PRICING.bike.rate)} per rider, with no minimum. Auto campaigns are ${inr(PRICING.auto.rate)} per auto, with a minimum of ${PRICING.auto.min} autos (${inr(minCampaign("auto"))}). Use the estimator above to see your cost; our team confirms the final quote when your campaign is approved.`,
+    a: "It depends on the area, the number of riders or autos and how long the campaign runs. Send us an enquiry or WhatsApp us, and our team will share a quote for your campaign.",
   },
   {
     q: "How are campaign areas determined?",

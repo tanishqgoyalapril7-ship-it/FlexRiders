@@ -4,14 +4,12 @@ import Footer from "./Footer";
 import LiveStrip from "./LiveStrip";
 import Logo from "./Logo";
 import { IconArrowRight, IconCheck } from "./Icons";
-import { PRICING, inr, minCampaign } from "@/lib/pricing";
 import { SERVICES, SERVICE_STEPS, type Service } from "@/lib/services";
 import { site } from "@/lib/site";
 import s from "./ServicePage.module.css";
 
 /** A search landing page for one service (bike / auto rickshaw advertising), server-rendered. */
 export default function ServicePage({ service }: { service: Service }) {
-  const p = PRICING[service.kind];
   const other = SERVICES.find((x) => x.slug !== service.slug);
   const url = `${site.url}/${service.slug}`;
   const ld = {
@@ -25,12 +23,6 @@ export default function ServicePage({ service }: { service: Service }) {
         url,
         provider: { "@id": `${site.url}/#organization` },
         areaServed: { "@type": "City", name: "Gurugram" },
-        offers: {
-          "@type": "Offer",
-          priceCurrency: "INR",
-          price: p.rate,
-          description: `${inr(p.rate)} per ${p.unit}${p.min > 1 ? `, minimum ${p.min} ${p.unit}s (${inr(minCampaign(service.kind))})` : ", no minimum"}`,
-        },
       },
       {
         "@type": "BreadcrumbList",
@@ -88,32 +80,6 @@ export default function ServicePage({ service }: { service: Service }) {
           </div>
         </section>
 
-        <section className={`section theme-light ${s.block}`} aria-labelledby="price-title">
-          <div className={`container ${s.twoCol}`}>
-            <div>
-              <p className="eyebrow">Pricing</p>
-              <h2 id="price-title" className={s.h2}>
-                Simple, per-vehicle pricing
-              </h2>
-              <p className={s.text}>
-                The cost depends only on how many {p.unit}s carry your brand. Our team confirms the final quote when your
-                campaign is approved.
-              </p>
-            </div>
-            <div className={s.price} data-kind={service.kind}>
-              <p className={s.priceKicker}>{p.plural}</p>
-              <p className={s.priceValue}>
-                {inr(p.rate)} <span>per {p.unit}</span>
-              </p>
-              <p className={s.priceNote}>
-                {p.min > 1 ? `Minimum ${p.min} ${p.unit}s · ${inr(minCampaign(service.kind))}` : "No minimum number of riders"}
-              </p>
-              <Link href="/#enquiry" className="btn btn-primary btn-sm">
-                Get a quote
-              </Link>
-            </div>
-          </div>
-        </section>
 
         <section className={`section theme-light theme-paper ${s.block}`} aria-labelledby="how-title">
           <div className="container">
